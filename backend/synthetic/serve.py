@@ -8,6 +8,7 @@ accounts already exist, and prints the logins before the server starts. One comm
 a fresh checkout can sign in straight away.
 """
 import argparse
+import socket
 import sys
 
 from backend.config import settings
@@ -24,6 +25,12 @@ def _has_accounts() -> bool:
         db.close()
 
 
+def _port_busy(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.5)
+        return probe.connect_ex((host, port)) == 0
+
+
 def main(arguments=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default="127.0.0.1")
@@ -31,6 +38,13 @@ def main(arguments=None) -> int:
     parser.add_argument("--reload", action="store_true", help="restart when code changes")
     args = parser.parse_args(arguments)
 
+    if _port_busy(args.host, args.port):
+        print(
+            f"Something is already running on {args.host}:{args.port}, probably an older copy of the app with its own\n"
+            f"database and none of the test accounts. Stop it (Ctrl+C in its terminal), or start this one with --port {args.port + 1}.",
+            file=sys.stderr,
+        )
+        return 1
     if not _has_accounts():
         status = seed_accounts.run(patients=60, with_login=30, seed=2026)
         if status:
