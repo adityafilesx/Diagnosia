@@ -22,8 +22,8 @@ from backend.integrations import execution, knowledge, meko, status, yugabyte
 from backend.tests.conftest import grant, verified_organization
 from backend.tests.test_careflow import FakeMcp, add_handoff, client_for, event_types, mongo, outbox, record_event  # noqa: F401
 
-TOOL_PACKAGES = ("diagnofast", "skin", "prescription", "clinscribe", "lablens", "dischargecare", "referralloop")
-EXPLICIT = {"start_interview", "answer", "read", "explain", "analyze", "create_intake", "draft_note", "approve_note", "confirm_report"}
+TOOL_PACKAGES = ("diagnofast", "prescription", "clinscribe", "lablens", "dischargecare", "referralloop")
+EXPLICIT = {"start_interview", "answer", "read", "explain", "create_intake", "draft_note", "approve_note", "confirm_report"}
 
 
 def write_routes():
@@ -63,9 +63,15 @@ def test_every_status_a_referral_or_session_can_take_is_mapped():
         assert f"clinscribe.session.{value}" in contract.AUDIT_EVENTS
 
 
-def test_all_seven_tools_are_in_the_contract():
-    assert len(contract.MODULES) == 7
+def test_the_six_tools_are_in_the_contract():
+    assert contract.MODULES == {"DiagnoFast", "ClinScribe", "LabLens", "Prescription Analyzer", "ReferralLoop", "DischargeCare"}
     assert set(contract.WORKFLOW_STAGES) == contract.MODULES
+
+
+def test_removed_tools_stay_readable_but_cannot_record():
+    # Old events from these may still sit in an outbox or in MongoDB, so the store's validator accepts them.
+    assert {"MedGuard", "Skin Cancer Detection"} <= contract.RETIRED_MODULES
+    assert not contract.RETIRED_MODULES & contract.MODULES
 
 
 def test_an_untracked_route_gives_a_real_reason():

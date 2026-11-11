@@ -5,7 +5,7 @@ CareFlow reads from its local outbox and says so on screen.
 
 ```mermaid
 flowchart TD
-    tools["The 7 tools"] -->|same transaction| sqlite[("SQLite<br/>records, consent, audit, outbox")]
+    tools["The 6 tools"] -->|same transaction| sqlite[("SQLite<br/>records, consent, audit, outbox")]
     sqlite --> worker["Delivery worker<br/>every 5 seconds"]
     worker -->|care events| atlas[("MongoDB Atlas<br/>care_events, timeline_projections")]
     worker -->|handoffs| ysql[("Your YugabyteDB<br/>runs, attempts, handoffs")]
@@ -100,4 +100,4 @@ crash between the two writes.
   no agreements in place, so this is deliberate, and needs a real decision before it changes.
 - Events have no free-text fields. Unknown fields, and metadata outside the allowlist, are refused.
 - Access is checked against SQLite on every request, and revoking care-team access works at once.
-- Skin findings, lab values, medicine names and note text never enter an event.
+- Findings, lab values, medicine names and note text never enter an event.

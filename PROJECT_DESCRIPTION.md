@@ -1,435 +1,245 @@
 # Diagnosia
 
-> **AI tools that give India's doctors back their time, and give patients understanding and independence.**
+> **An AI-powered healthcare platform that brings patient records, medical history and clinical tools together in one place.**
 
-Diagnosia is a healthcare platform made of four AI-powered tools. Two of them
-help **doctors** work faster. Two of them help **patients** understand their
-care and stay independent. All four start from the same problem: India has too
-few doctors for the number of people who need them.
+Diagnosia helps doctors make better-informed decisions and manage their
+workflows more efficiently. The goal is to make healthcare more connected,
+organised and intelligent.
 
-| Tool | Who uses it | What it does in one line |
-|---|---|---|
-| **Skin Cancer Detection** | Doctors | Screens a photo of a skin lesion and gives the doctor an early, objective second opinion before costly tests. |
-| **DiagnoFast** | Doctors (patients fill it in) | Takes the patient's history by voice in the waiting room and hands the doctor a ready-made report. |
-| **OptiKinesis** | Patients who cannot use their hands | Lets a person control a computer with head movements and blinks, using only a normal webcam. |
-| **Prescription Analyzer** | Patients | Reads a doctor's prescription and explains it in plain language, with diet, exercise and follow-up guidance. |
+It has six tools, all working on **one shared patient record**, in the order of
+a visit:
+
+| When | Tool | Who uses it | What it does in one line |
+|---|---|---|---|
+| Before the visit | **DiagnoFast** | Doctors; patients answer | Takes the patient's history by voice in the waiting room and hands the doctor a one-page report. |
+| During the visit | **ClinScribe** | Clinicians | Turns a consultation into a draft note that the clinician checks and signs. |
+| During the visit | **LabLens** | Patients and clinicians | Reads a lab report into results a person confirms, and shows trends over time. |
+| After the visit | **Prescription Analyzer** | Patients | Reads a prescription photo and explains the confirmed medicines in plain Hindi or English. |
+| After the visit | **ReferralLoop** | Doctors and specialists | Follows a referral from request until the outcome is back and reviewed. |
+| After the visit | **DischargeCare** | Hospital teams and families | Turns a discharge plan into a family checklist and tracked team tasks. |
 
 ---
 
 ## 1. The problem
 
-### Too few doctors, too many patients
+### Doctors decide with half the picture
 
-India's doctors are badly overstretched, and the gap is widest in rural areas.
-In many government hospitals and rural clinics, one doctor serves several
-thousand people. The result is the same everywhere:
+India has too few doctors for the number of people who need them. A
+consultation can last two minutes, and much of that goes on the same basic
+questions: *what is the problem, since when, any fever, which medicines?* The
+doctor then decides with whatever the patient remembers in that moment.
 
-- **Long queues.** Patients wait for hours, often after travelling a long way.
-- **Very short consultations.** A doctor may have only a few minutes for each
-  patient.
-- **Repeated questions.** Much of those few minutes goes on the same basic
-  questions: *What is the problem? Since when? Any fever? Any old illness? What
-  medicines are you taking?* While this happens, everyone else in the waiting
-  room sits idle.
-- **Late diagnosis.** Serious conditions such as skin cancer are often found
-  late, because screening depends on a specialist's time and on expensive
-  tests such as biopsies and scans.
+### Records are scattered
 
-### Patients are left behind after the consultation too
+A patient's history lives in many places: a paper prescription from last
+month, a lab report on a phone, a discharge summary in a hospital file, a
+referral letter that never came back. Nobody sees all of it at once, so tests
+are repeated and important details are missed.
 
-- **Prescriptions are hard to understand.** Handwriting is often unreadable,
-  and shorthand such as *1-0-1*, *BD*, *TDS*, *SOS* or *HS* means nothing to
-  most patients. Many people do not know when to take a medicine, what to eat
-  or avoid, or when to come back.
-- **People who lose the use of their hands lose access to the digital world.**
-  ALS, spinal cord injuries, stroke and cerebral palsy can leave a person's
-  mind fully active while making a mouse and keyboard impossible to use.
-  Specialist eye-tracking equipment costs lakhs of rupees and is out of reach
-  for most Indian families.
+### Paperwork takes the doctor's time
 
-### What Diagnosia does about it
+Writing notes, copying lab values and chasing referrals take time away from
+patients. The more patients a doctor sees, the less time there is for each one.
 
-Diagnosia does not try to replace doctors. It removes the repetitive and slow
-parts of their work so each doctor can see more patients properly. It also
-helps patients understand and act on the care they receive.
+### Care breaks between visits
+
+After the consultation, patients struggle with prescriptions written in
+handwriting and shorthand (*1-0-1*, *BD*, *SOS*). Referrals go unanswered.
+Families leave hospital without a clear plan. Follow-up depends on someone
+remembering.
 
 ---
 
-## 2. How the four tools fit together
+## 2. One shared patient record
 
-The tools can be used on their own, but they connect naturally along a
-patient's journey through a clinic:
+Every tool reads from and writes to the same patient record. Access is decided
+once, by the care team and the patient's consent, and every opening of a record
+is written to an audit log.
 
 ```
-  WAITING ROOM              DOCTOR'S CABIN               AFTER THE VISIT
-┌──────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
-│   DiagnoFast     │     │  Doctor reads the    │     │ Prescription Analyzer│
-│                  │     │  DiagnoFast report   │     │                      │
-│ Voice questions  │ ──▶ │                      │ ──▶ │ Explains medicines,  │
-│ Voice answers    │     │  Skin Cancer         │     │ diet, exercise and   │
-│ ABHA history     │     │  Detection, if a     │     │ the next appointment │
-│ Ready report     │     │  skin lesion is seen │     │                      │
-└──────────────────┘     └──────────────────────┘     └──────────────────────┘
-
-                OptiKinesis: for patients who cannot use their hands,
-                lets them use a computer independently, at home or in hospital.
+   BEFORE THE VISIT          DURING THE VISIT              AFTER THE VISIT
+┌──────────────────┐   ┌────────────────────────┐   ┌──────────────────────────┐
+│   DiagnoFast     │   │  ClinScribe            │   │  Prescription Analyzer   │
+│  voice history,  │──▶│  draft note to sign    │──▶│  ReferralLoop            │
+│  one-page report │   │  LabLens               │   │  DischargeCare           │
+│                  │   │  confirmed lab results │   │                          │
+└────────┬─────────┘   └───────────┬────────────┘   └────────────┬─────────────┘
+         │                         │                             │
+         └─────────────────────────┼─────────────────────────────┘
+                                   ▼
+                  ┌────────────────────────────────────┐
+                  │     One shared patient record      │
+                  │  history · notes · results ·       │
+                  │  medicines · referrals · tasks     │
+                  │  consent and access log            │
+                  └────────────────────────────────────┘
 ```
 
-- **Before the consultation**, DiagnoFast collects the patient's story and
-  medical history, so the doctor starts already informed.
-- **During the consultation**, Skin Cancer Detection gives the doctor a quick,
-  consistent screening for any suspicious skin lesion.
-- **After the consultation**, the Prescription Analyzer helps the patient
-  follow the treatment correctly.
-- **OptiKinesis** serves a specific group of patients: people with motor
-  disabilities who need hands-free access to a computer.
+AI only ever prepares a **draft**. Nothing becomes part of the record until a
+person reviews and approves it. CareFlow, a timeline on each record, shows where
+the patient is in their care and what is waiting for someone.
 
 ---
 
-## 3. Skin Cancer Detection
+## 3. DiagnoFast: before the visit
 
-### A screening aid for doctors, not a yes/no answer for patients
+### The history is ready before the patient walks in
 
-Skin Cancer Detection is built for **doctors**. It does not tell a patient
-"you have cancer" or "you are fine". It gives the doctor a fast, objective
-second opinion, so that suspicious lesions are noticed early and the right
-patients are sent for further tests first.
+DiagnoFast interviews the patient by voice while they wait, in Hindi or Indian
+English, and fills in the doctor's specialty form. When the patient enters the
+cabin, the doctor already has a short, organised report.
 
-### Why it matters
+1. **Reception creates a single-use link**, or the patient picks a specialty at
+   a self-service kiosk. No patient account is needed.
+2. **It asks out loud.** Neural voices read each question in the patient's
+   language.
+3. **The patient answers out loud or types.** Live speech recognition shows the
+   words as they speak. The patient checks and edits the text before sending.
+4. **The AI fills in the form.** It picks out the complaint, duration,
+   severity, medicines and allergies, and asks a follow-up when something is
+   unclear. It never diagnoses.
+5. **Past records are added**, with consent, from ABHA (simulated for now).
+6. **The doctor receives a one-page report**: chief complaint, history of the
+   present illness, the specialty form's answers, past history with its source
+   labelled, a review of systems, and investigations to consider. The original
+   answers and recordings stay one click away.
 
-- Skin cancer is far more treatable when it is caught early.
-- Confirming it needs a biopsy, and sometimes imaging. These are expensive,
-  slow and need resources that are scarce outside big cities.
-- Judging a lesion by eye depends on the doctor's experience and can vary from
-  one doctor, or one day, to the next. A trained model looks at every image the
-  same way.
+Six specialty forms are included: general medicine, dermatology, cardiology,
+orthopaedics, ENT and paediatrics.
 
-Diagnosia adds a quick preliminary screening step **before** those costly
-tests. It helps the doctor decide which patients need a biopsy urgently and
-which can be monitored.
+### Urgent symptoms reach a person at once, by two checks
 
-### How it works
+A patient who mentions chest pain, trouble breathing, signs of a stroke, heavy
+bleeding, fainting, a seizure, a severe allergic reaction, poisoning or thoughts
+of self-harm must reach a person straight away. DiagnoFast checks every answer
+twice:
 
-1. **Capture.** The doctor or an assistant takes a dermoscopic image of the
-   lesion and uploads it. Phone photos are accepted with a warning, because the
-   model was trained on dermoscopic images.
-2. **Is this a lesion image at all?** Anything unlike the training images, such
-   as a blurry photo or the wrong picture, is marked "uncertain" and gets no
-   score.
-3. **What type could it be?** A classifier built on PanDerm, a dermatology AI
-   model published in Nature Medicine, estimates which of these it most
-   resembles:
+1. **Plain rules first.** Before any AI is called, rules written in code look
+   for these symptoms in English, Hindi and romanised Hindi. They skip clearly
+   negated mentions ("no chest pain", "सीने में दर्द नहीं है"). A match ends the
+   interview and tells the patient to go to reception. This works even when the
+   AI service is down.
+2. **The AI second.** When the rules find nothing, the AI still lists anything
+   that may need attention, including what rules can't judge, such as whether
+   "stroke" means today or a parent's history.
 
-   | Code | Condition | Type |
-   |---|---|---|
-   | `MEL` | Melanoma | Malignant (most dangerous) |
-   | `BCC` | Basal cell carcinoma | Malignant |
-   | `SCC` | Squamous cell carcinoma | Malignant |
-   | `AK` | Actinic keratosis | Pre-cancerous |
-   | `BKL` | Benign keratosis-like lesions | Benign |
-   | `DF` | Dermatofibroma | Benign |
-   | `NV` | Melanocytic nevi (moles) | Benign |
-   | `VASC` | Vascular lesions | Usually benign |
-
-4. **Report for the doctor.** The doctor sees:
-   - the most likely conditions, ranked with confidence scores;
-   - a **highlight map** showing which parts of the image raised the concern
-     score, measured by hiding each part of the image in turn. The doctor can
-     see when the model is relying on the lesion, and when it isn't;
-   - a suggested priority, for example *"refer for biopsy soon"* or *"monitor
-     and review"*.
-5. **The doctor decides.** The final call on biopsies, scans or treatment
-   always stays with the doctor.
-
-### Training data
-
-The classifier is trained on the **ISIC 2019** training set: 25,331 dermoscopic
-images from 13,931 lesions, drawn from BCN20000, HAM10000 and MSK. All photos of
-one lesion stay in the same split, so the test results aren't inflated.
-
-### Measured results
-
-Measured on 3,619 images the model never saw during training:
-
-| Measure | Result |
-|---|---|
-| Ranking across all conditions (AUROC) | 0.934 |
-| Ranking melanoma against everything else (AUROC) | 0.881 |
-| Naming the exact condition (balanced accuracy) | 60.5% |
-| Concerning lesions sent for referral | 94.3% |
-| Melanomas sent for referral | 90.1% |
-| Benign lesions also sent for referral | 42.7% |
-| Real lesions marked "uncertain" | 1.2% |
-
-All 95 non-skin test images were marked "uncertain". These are research results
-on dermoscopic data from mostly lighter skin, not clinical validation.
-
-### Responsible use
-
-- The tool supports a doctor's judgement; it never replaces it.
-- ISIC 2019 mostly contains images of lighter skin. Before wide use in India,
-  the model needs to be retrained and tested on Indian skin tones.
-- The current model is a research demo. PanDerm is licensed for non-commercial
-  academic research only (CC-BY-NC-ND 4.0), and ISIC 2019 is non-commercial
-  (CC-BY-NC), so the model must be replaced before this tool is sold.
-- Accuracy will be measured against biopsy-confirmed cases before any clinical
-  claims are made, and the tool will go through the regulatory review that
-  medical software needs in India.
+Urgent patients go to the top of the doctor's queue.
 
 ---
 
-## 4. DiagnoFast
+## 4. ClinScribe and LabLens: during the visit
 
-### The patient's history is ready before they walk in
+### ClinScribe: the note writes itself, the doctor signs it
 
-DiagnoFast takes the patient's history **while they wait**, so the doctor
-doesn't spend the consultation asking the same basic questions. When the
-patient enters the cabin, the doctor already has a short, organised report.
+ClinScribe records the consultation, with consent, and drafts a structured note
+in SOAP or history-and-physical form. A verifier checks each statement against
+the transcript and flags anything it can't support. The clinician edits and
+signs; a signed note is final, and every version is kept. The transcript is
+deleted on signing unless the patient agreed to keep it.
 
-DiagnoFast replaces Diagnosia's older Symptom Checker, which matched a list of
-symptoms against a fixed table of diseases.
+### LabLens: lab reports become results a person confirms
 
-### Built around each doctor
-
-Every doctor has a personal way of taking a history. A dermatologist asks
-different questions from a paediatrician, and two general physicians may ask
-the same things in a different order. So DiagnoFast does not use one generic
-form. **The Diagnosia team designs a custom form for each doctor**, based on
-how that doctor actually diagnoses.
-
-### Made for rural India: voice, not typing
-
-Many patients in rural India cannot comfortably read or fill in a written
-form. DiagnoFast therefore works like a conversation:
-
-1. **It asks out loud.** DiagnoFast speaks each question in the patient's own
-   language, the way a doctor would, for example *"Kya bimari hai?"*
-   ("What is the problem?").
-2. **The patient answers out loud.** The patient explains the problem in their
-   own words, as a voice note, for as long as they need.
-3. **It transcribes the answer.** Speech recognition turns the voice note into
-   text, including Hindi and other Indian languages.
-4. **An AI agent fills in the form.** The agent reads the transcript and picks
-   out the details the doctor's form needs, such as the main complaint, how
-   long it has lasted, how severe it is, related symptoms, medicines being
-   taken and allergies. If something important is missing or unclear, it asks
-   a follow-up question.
-5. **It adds past medical records from ABHA.** With the patient's consent,
-   DiagnoFast fetches their history from **ABHA** (Ayushman Bharat Health
-   Account, India's national digital health ID under the Ayushman Bharat
-   Digital Mission). That can include past diagnoses, prescriptions and lab
-   reports.
-6. **It writes the report.** DiagnoFast combines everything into one short
-   report written for the doctor.
-
-The patient can do this on a tablet at the reception desk or on their own
-phone while waiting.
-
-### What the doctor receives
-
-A one-page summary that can be read in under a minute:
-
-- **Patient details:** name, age, sex, ABHA ID
-- **Chief complaint:** the main problem, in a single line
-- **History of the present illness:** what happened, since when, how it has
-  changed
-- **Answers to the doctor's own custom questions**
-- **Past medical history from ABHA:** earlier conditions, medicines, recent
-  reports
-- **Current medicines and allergies**
-- **Highlights:** anything that looks urgent or important, shown at the top
-- **The patient's original voice note and transcript**, in case the doctor
-  wants to hear it in the patient's own words
-
-The doctor can still ask questions in the cabin to clarify anything. But they
-start from a full picture instead of from nothing, so each consultation is
-shorter and more thorough.
-
-### Business model
-
-| Plan | For | What's included |
-|---|---|---|
-| **Individual membership** | Single doctors and small clinics | DiagnoFast with the doctor's custom-made form, patient intake on tablet or phone, doctor dashboard |
-| **Organisation plan** | Hospitals and multi-doctor organisations | DiagnoFast across many doctors and departments, each with their own forms, plus central management |
-
-Designing and updating each doctor's custom form is done by the Diagnosia
-development team as part of the plan.
+A patient or clinician uploads a lab report as a PDF or photo. LabLens reads
+text PDFs on Diagnosia's own server and uses an AI vision model only for scans,
+with consent. Each value is checked for an unclear unit, a missing range or a
+flag that disagrees with the range. A person compares every result with the
+original before it reaches the record. Confirmed results build trends over
+time.
 
 ---
 
-## 5. OptiKinesis
+## 5. After the visit
 
-### Hands-free computer control with an ordinary webcam
+### Prescription Analyzer
 
-OptiKinesis lets people who cannot use their hands, such as people living with
-ALS, spinal cord injury, stroke or cerebral palsy, use a computer on their own.
-It needs only the webcam that is already built into a laptop. There is no
-special hardware, sensor or implant.
+The patient photographs the prescription. The AI reads it and marks each field
+as clear, unsure or unreadable, and is told never to guess. Plain rules, not
+AI, decode shorthand such as `1-0-1`, `OD`, `BD`, `TDS`, `HS` and `SOS`. Each
+name is checked against about 250,000 Indian medicine listings. The patient
+confirms each medicine; anything unconfirmed or unreadable goes on a list for
+the pharmacist and is never explained. The confirmed medicines are explained in
+plain Hindi or English, with audio, a daily schedule, and diet and lifestyle
+guidance. It never changes a dose or suggests a substitute.
 
-### What it does
+### ReferralLoop
 
-- **Head-pose cursor.** The computer's camera tracks 478 points on the face.
-  Wherever the user points their head, the mouse cursor goes. The movement is
-  smoothed so the cursor stays steady.
-- **Personal 5-point calibration.** The user turns comfortably toward the
-  centre of the screen and each corner. OptiKinesis fits the cursor to that
-  person's own range of movement, even if they can turn further one way than
-  the other.
-- **Blink to click.** A deliberate blink clicks where the user is pointing.
-  Very short (natural) and very long eye closures are ignored.
-- **Smart on-screen keyboard.** It types into any app, suggests words so a
-  whole word can be finished with one blink, and has a **Speak** button that
-  turns speech into text.
-- **Easy web access.** "Find answers" shows search results as large,
-  blink-friendly cards. "Read this page" turns a cluttered web page into large,
-  clean text without ads or pop-ups.
-- **Voice commands, emergency SOS and caregiver controls.** The user can, for
-  example, search by voice or send an alert to a family member. Caregivers can
-  pause or re-centre the system with a single key.
+A referral is followed from request through acknowledgement, booking and
+attendance until the specialist's outcome comes back and the referring doctor
+reviews it. Nothing silently falls through: a stalled referral shows up as work
+for someone.
 
-### Why it matters
+### DischargeCare
 
-Commercial eye trackers and head-tracking systems cost from tens of thousands
-to several lakh rupees, so most Indian families cannot afford them. OptiKinesis
-brings the same independence on hardware people already own: typing a message
-to family, reading the news, searching for information or calling for help,
-without depending on someone else for every click.
-
-### MotionGlass: an optional precision upgrade
-
-**MotionGlass** is a planned lightweight wearable (glasses, a clip-on or a
-headband) with a motion sensor that connects to OptiKinesis over Bluetooth. It
-makes the cursor faster and more precise for users who need it. Users start
-with the webcam-only version and add MotionGlass only if they need to; nothing
-has to be replaced.
-
-### Business model
-
-| Tier | For | What's included |
-|---|---|---|
-| **OptiKinesis Access** (software, one-time purchase) | Individual users | Webcam cursor control, blink click, keyboard, voice, SOS |
-| **MotionGlass Kit** (hardware add-on) | Users who need more precision | Motion-sensor wearable, Bluetooth setup, charger, setup guide |
-| **OptiKinesis Care** (optional subscription) | Users and families who want ongoing help | Regular calibration check-ups, device health checks, priority support |
-| **Institutional Bundle** | Hospitals, rehabilitation centres, NGOs | Multiple user profiles, staff training, managing devices across a fleet, support and replacements |
+A discharge plan becomes a checklist for the family and tracked tasks for the
+team. Tasks open only when the responsible clinician approves. An episode can
+close only when the required tasks are done and pending results are final, or a
+written exception is recorded. Reminders that aren't confirmed become follow-up
+calls for staff.
 
 ---
 
-## 6. Prescription Analyzer
+## 6. Trust, privacy and safety
 
-### A prescription the patient can actually understand
-
-Doctors' prescriptions usually list only medicine names and doses, often in
-handwriting that is hard to read and in shorthand that patients don't know.
-The Prescription Analyzer turns a prescription into clear, practical guidance.
-
-It replaces Diagnosia's older Prescription Generator, which showed fixed diet
-and medicine information for a disease chosen from a list.
-
-### How it works
-
-1. **The patient takes a photo** of the prescription, handwritten or printed,
-   with up to four photos for the front and back.
-2. **AI reads it.** Handwriting recognition picks out medicine names, doses,
-   timings, duration, the doctor's notes and any follow-up date.
-3. **It decodes the shorthand.** Common prescription notation becomes plain
-   language, for example:
-
-   | On the prescription | What it means |
-   |---|---|
-   | `1-0-1` | One in the morning, none in the afternoon, one at night |
-   | `OD` | Once a day |
-   | `BD` | Twice a day |
-   | `TDS` | Three times a day |
-   | `HS` | At bedtime |
-   | `SOS` | Only when needed |
-   | `AC` / `PC` | Before food / after food |
-   | `x 5 days` | Take it for five days |
-
-4. **It explains it in the patient's language**, in text and by voice: what
-   each medicine is for, when and how to take it, and for how long.
-
-### Helpful guidance alongside the medicines
-
-- **Foods to eat and foods to avoid**, based on the condition and the medicines
-  (for example, foods that interfere with a particular medicine)
-- **Exercises and yoga positions** suited to the condition
-- **Lifestyle tips**, such as sleep, hydration and things to avoid
-- **Next appointment reminder**, if the prescription mentions a follow-up date
-- **Medicine schedule**, a simple daily timetable of what to take when
-
-### Safety rules
-
-- The analyzer **explains**; it never changes a dose or swaps a medicine.
-- If any part of the prescription cannot be read with confidence, it says so
-  clearly and asks the patient to confirm with the doctor or pharmacist,
-  instead of guessing.
-- Every explanation reminds the patient to follow their doctor's
-  instructions.
+- **Doctors stay in charge.** Every tool assists. None diagnoses, changes a
+  dose, suggests a substitute medicine or tells a patient that something is or
+  isn't serious.
+- **Drafts until reviewed.** AI output is marked unreviewed and kept out of the
+  approved record and exports until a person approves it.
+- **Consent first.** Each purpose, such as AI drafting or sharing a referral,
+  has its own consent, and revoking it takes effect straight away.
+- **Security.** Passwords use Argon2, sessions are stored hashed, documents and
+  recordings are encrypted, and every SQL query is parameterised. Public routes
+  are rate-limited.
+- **Not approved for real patient data.** Diagnosia is a pilot and uses made-up
+  patients only. The AI vendors (Groq in the United States, Google Gemini) have
+  no signed data agreement with Diagnosia yet, and privacy, security and
+  regulatory reviews are still to come.
 
 ---
 
-## 7. Trust, privacy and safety
-
-Diagnosia handles some of the most sensitive data a person has, so these
-principles apply across every tool:
-
-- **Doctors stay in charge.** Every clinical tool assists the doctor and never
-  makes the final decision.
-- **Consent first.** Patient records, including ABHA records, are only accessed
-  with the patient's explicit consent, in line with India's Digital Personal
-  Data Protection Act.
-- **Minimum data.** Each tool collects only what it needs for its job.
-- **Security.** Health data is encrypted when stored and when sent, and access
-  is limited to the treating doctor and the patient.
-- **Honesty about limits.** Each tool shows how confident it is and when it is
-  unsure, and accuracy claims are made only after proper testing.
-
----
-
-## 8. Who Diagnosia is for
+## 7. Who Diagnosia is for
 
 | Customer | What they get |
 |---|---|
-| **Individual doctors and small clinics** | DiagnoFast membership and Skin Cancer Detection: more patients seen properly, in less time |
-| **Hospitals and healthcare organisations** | DiagnoFast organisation plan, Skin Cancer Detection and the OptiKinesis Institutional Bundle |
-| **Patients** | Prescription Analyzer for understanding their treatment, and DiagnoFast intake that works in their own language by voice |
-| **People with motor disabilities, their families and NGOs** | OptiKinesis Access, MotionGlass and OptiKinesis Care |
+| **Individual doctors and small clinics** | DiagnoFast with their specialty form, ClinScribe and LabLens: a full picture before and during each visit, and less paperwork |
+| **Hospitals and healthcare organisations** | All six tools across departments, with ReferralLoop and DischargeCare to keep care joined up between teams and after discharge |
+| **Patients and families** | DiagnoFast intake in their own language by voice, the Prescription Analyzer, their lab results, and a clear discharge checklist |
 
 ---
 
-## 9. Current status
+## 8. Current status
 
-Diagnosia began as a school project in 2023 with a set of basic health tools.
-It is now being rebuilt around the four tools described above, joined by eight more on one shared patient record.
+Diagnosia began as a school project in 2023 and is being rebuilt as a startup.
 
 | Tool | Status |
 |---|---|
-| **Skin Cancer Detection** | Working research demo with measured results (see section 3). Not clinically validated, and not licensed for sale. |
-| **DiagnoFast** | Built: voice interview, per-doctor forms, doctor dashboard and report. Tested with stand-ins for the AI and speech services; not yet run with live services. ABHA records are simulated and labelled as demo data. |
-| **OptiKinesis** | Working Windows prototype: head-pose cursor, 5-point calibration, blink click, keyboard with word suggestions and voice typing, web reader and SOS. The free beta download leaves out the web reader, email and SOS. MotionGlass is planned. |
-| **Prescription Analyzer** | Built: photo reading, shorthand decoding, patient confirmation and plain-language guidance. Tested with stand-ins for the AI and speech services; not yet run with live services or real prescriptions. |
-
-The earlier basic features (the Talkie chatbot, Curl Counter, BMI Calculator
-and DocFinder doctor directory) have been removed to keep Diagnosia focused.
+| **DiagnoFast** | Built and tested live with synthetic patients. ABHA records are simulated. Real Hindi speech is lightly tested. |
+| **ClinScribe** | Pilot. Audio capture tested in Chrome with a simulated microphone. |
+| **LabLens** | Pilot. Measured on synthetic report layouts only; proposed LOINC codes are unreviewed. |
+| **Prescription Analyzer** | Built and tested live on synthetic prescriptions. Reading of real handwriting is untested. |
+| **ReferralLoop** | Pilot. Works within verified organisations. |
+| **DischargeCare** | Pilot. Reminders are in-app or by staff call; SMS is not connected. |
+| **Platform** | Not hosted yet. Not approved for real patient data. Clinical, privacy, security and regulatory reviews are outstanding. |
 
 ---
 
-## 10. Technology
+## 9. Technology
 
 | Area | Technology |
 |---|---|
-| Skin lesion analysis | PyTorch, PanDerm (ViT-L) encoder, a classifier trained on ISIC 2019 |
-| Head and face tracking (OptiKinesis) | MediaPipe Face Landmarker, OpenCV, PyQt5 desktop overlay, PyAutoGUI |
-| Voice questions and answers (DiagnoFast) | Groq speech-to-text and English voice, with the browser's voice for Hindi |
-| Form filling and summaries (DiagnoFast) | A controlled interview loop using open models on Groq |
-| Health records (DiagnoFast) | ABHA / Ayushman Bharat Digital Mission integration, with patient consent |
-| Prescription reading | Open vision models on Groq, plain rules for decoding shorthand, and a check against about 250,000 Indian medicine listings |
-| Web platform | HTML, CSS and JavaScript front end; FastAPI and SQLite back end |
+| Web platform | Plain HTML, CSS and JavaScript front end; FastAPI and SQLite back end |
+| Language models | Google Gemini and Groq, with automatic fallback, always through a fixed schema |
+| Speech | Edge neural voices for questions, Groq Whisper for transcription, browser speech as a fallback |
+| Urgent-symptom rules | Plain regular-expression rules in English, Hindi and romanised Hindi |
+| Prescription reading | Vision models, plain rules for shorthand, and fuzzy matching against Indian medicine listings |
+| Lab reports | Local PDF text parsing, with AI vision for scans only |
+| Security | Argon2 passwords, hashed sessions, AES-256-GCM document encryption, rate limits counted in SQLite |
+| Optional integrations | MongoDB Atlas (CareFlow timeline), YugabyteDB (AI run records), Meko (search index) |
 
 ---
 
 <div align="center">
 
-**Diagnosia: faster diagnosis for doctors, clearer care for patients.**
+**Diagnosia: connected, organised and intelligent care.**
 
 </div>

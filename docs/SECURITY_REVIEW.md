@@ -64,7 +64,7 @@ automatically.
 | An open CareFlow stream keeps its workflow list until it reconnects. It only ever says that something changed, and the reload rechecks access | S3 | Accepted |
 | CareFlow's references are pseudonymous, but event timing could still identify someone to a person who knows the visit | S2 | Keep to synthetic data, and review before any real use |
 | DiagnoFast links are bearer tokens in a URL, so they appear in server access logs until used | S2 | Set log retention. Links are single use |
-| No rate limit on DiagnoFast links or AI routes, so a signed-in user can run up AI costs | S2 | Technical work |
+| Signed-in AI routes have no rate limit, so a signed-in user can run up AI costs. The kiosk, DiagnoFast patient links and prescription read-aloud are limited | S2 | Technical work |
 | DiagnoFast has no retention limit for recordings | S2 | Policy decision |
 | Server access logs hold URLs, with record IDs and drug-name lookups | S2 | Set log retention |
 | Filenames in the database can hold names | S2 | Covered by disk encryption |

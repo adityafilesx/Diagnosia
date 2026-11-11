@@ -36,12 +36,10 @@ No code from any GPL, AGPL, MPL or unlicensed source is in this repository.
 `backend/lablens/analytes.json` was written for this project as unreviewed starter
 data. Their accuracy needs professional review, covered in `CLINICAL_GOVERNANCE.md`.
 
-## Data and models from the original tools
+## Data that isn't in git
 
-These aren't in git, and each limits how the product can be used.
+It isn't in git, and it limits how the product can be used.
 
 | Item | Licence | Effect |
 |---|---|---|
-| PanDerm code and weights | CC-BY-NC-ND 4.0 | Non-commercial academic research only. Replace before charging |
-| ISIC 2019 images | CC-BY-NC | Non-commercial |
 | Indian Medicine Dataset | Repository is MIT, but the data looks scraped, so upstream permission is unconfirmed | Fine for a demo. Replace before selling |

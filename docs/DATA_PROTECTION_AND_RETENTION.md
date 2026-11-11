@@ -35,7 +35,7 @@ distinct from consent given in the app.
 | DiagnoFast recordings | `settings.documents_dir/intake-audio` | **Yes**, AES-256-GCM | Not set |
 | DiagnoFast answers, transcripts and reports | Database | No | Not set |
 | Transcripts | Database | No | Until signing, unless retention agreed |
-| Prescription and skin photos | Not stored | n/a | None |
+| Prescription photos | Not stored | n/a | None |
 | Medicines a patient saved from a prescription | Database | No | Not set |
 | Patient packs: finished records as text | Meko, in one datapack per patient | Not stated by Meko | Until consent is revoked. Meko doesn't state whether deletion reaches its backups |
 | Audit events | Database | No | Not set |

@@ -36,7 +36,3 @@ Change streams need `ENABLE_MONGODB_CHANGE_STREAMS=true`. Without them the page 
 ## An AI run shows as interrupted
 
 The process stopped during that call. It's recorded at the next start. Nothing else needs doing.
-
-## Skin downloads
-
-`python -m backend.skin.training.download_isic` resumes by itself, and checks the finished file against S3's ETag. Don't delete `ISIC_2019_Training_Input.zip` or its `.progress.json` while it's running.

@@ -307,3 +307,12 @@ CREATE TABLE IF NOT EXISTS platform_secrets (
     updated_by INTEGER NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+-- Hits on the public and costly routes, counted by backend/ratelimit.py. Only a hash of
+-- each key (address, link or account) is kept, and old hits are swept away.
+CREATE TABLE IF NOT EXISTS rate_limit_hits (
+    bucket TEXT NOT NULL,
+    key_hash TEXT NOT NULL,
+    hit_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS rate_limit_hits_lookup ON rate_limit_hits (bucket, key_hash, hit_at);

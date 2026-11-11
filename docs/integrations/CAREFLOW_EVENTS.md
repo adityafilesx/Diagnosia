@@ -41,14 +41,6 @@ The same for every tool. The event stays in the SQLite outbox, which committed w
 - **Human review:** Yes: the doctor reads the report.
 - **Events:** `intake.completed`, `intake.failed`, `intake.link_created`, `intake.review_required`, `intake.started`, `intake.transcription.completed`
 
-### Skin Cancer Detection
-
-- **Operations:** Analyze an image.
-- **Stage:** `during_visit`
-- **Trigger:** `backend/skin/routes.py`
-- **Human review:** Yes: every result.
-- **Events:** `skin_analysis.completed`, `skin_analysis.failed`, `skin_analysis.review_required`, `skin_analysis.started`
-
 ### Prescription Analyzer
 
 - **Operations:** Read photos and explain.
@@ -94,6 +86,8 @@ The same for every tool. The event stays in the SQLite outbox, which committed w
 - **Events:** `referral.accepted`, `referral.acknowledged`, `referral.appointment_offered`, `referral.attended`, `referral.completed`, `referral.contact_attempted`, `referral.created`, `referral.declined`, `referral.needs_information`, `referral.no_show`, `referral.outcome_returned`, `referral.priority_changed`, `referral.redirected`, `referral.rescheduled`, `referral.reviewed`, `referral.scheduled`, `referral.sent`
 
 ## Handoffs
+
+Skin Cancer Detection has been removed as well. Its old events (`skin_analysis.*`) stay readable, because the MongoDB validator accepts `RETIRED_MODULES`, but a new one is refused.
 
 No tool produces a handoff today. The earlier ones were LabLens to ChronicCare and Prescription Analyzer to MedGuard, and both tools have been removed. The support stays in the code for a future tool: an event may carry a `target_module`, which sends it on to YugabyteDB and Meko as well as MongoDB. Tests exercise it with synthetic events. A receiving tool always re-reads the source record.
 

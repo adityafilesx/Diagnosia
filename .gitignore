@@ -13,17 +13,12 @@
 *.pth
 *.ckpt
 *.safetensors
-backend/skin/weights/
 datasets/
 
 # Runtime data: patient uploads, audio, databases
 backend/storage/
 *.db
 *.sqlite3
-
-# Old local chat logs and upload leftovers
-**/talkie/data/
-**/skin_cancer/temp_image.jpg
 
 # Python
 __pycache__/

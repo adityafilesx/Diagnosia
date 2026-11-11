@@ -17,10 +17,7 @@ from backend.config import WEB_DIR
         "/js/care/app.js",
         "/css/care.css",
         "/diagnofast_hiw.html",
-        "/skin_cancer_hiw.html",
         "/prescription_analyzer_hiw.html",
-        "/optikinesis_hiw.html",
-        "/optikinesis_download.html",
         "/css/index.css",
     ],
 )
@@ -35,8 +32,8 @@ def test_public_pages_are_served(client, path):
         "/.git/config",
         "/backend/app.py",
         "/backend/storage/diagnosia.db",
-        "/archive/php/connect.php",
-        "/archive/talkie/.env",
+        "/docs/SECURITY_REVIEW.md",
+        "/pitch/MVL27_PITCH_STATS.md",
         "/connect.php",
         "/../backend/app.py",
         "/%2e%2e/backend/app.py",
@@ -56,13 +53,12 @@ def test_api_docs_are_off(client):
         assert client.get(path).status_code == 404
 
 
-TOOL_NAMES = [
-    "DiagnoFast", "ClinScribe", "LabLens", "Skin Cancer Detection", "Prescription Analyzer",
-    "ReferralLoop", "DischargeCare", "OptiKinesis",
-]
+TOOL_NAMES = ["DiagnoFast", "ClinScribe", "LabLens", "Prescription Analyzer", "ReferralLoop", "DischargeCare"]
+# Removed as a product decision. Their pages, scripts and route are gone, and no page names them.
+REMOVED_TOOLS = ["Skin Cancer Detection", "OptiKinesis"]
 
 
-def test_the_homepage_has_one_catalogue_of_all_eight_tools_in_visit_order(client):
+def test_the_homepage_has_one_catalogue_of_all_six_tools_in_visit_order(client):
     page = client.get("/index.html").text
     catalogue = page[page.index('class="catalogue"'):page.index('id="FAQ"')]
     assert re.findall(r'<h4><a href="[^"]+">([^<]+)</a></h4>', catalogue) == TOOL_NAMES
@@ -83,14 +79,33 @@ def test_the_homepage_no_longer_shows_reviews_of_tools_that_do_not_exist(client)
 
 def test_the_workspace_lists_the_same_tools_in_the_same_order(client):
     source = client.get("/js/care/catalogue.js").text
-    assert re.findall(r"label: '([^']+)'", source) == [name for name in TOOL_NAMES if name != "OptiKinesis"]
+    assert re.findall(r"label: '([^']+)'", source) == TOOL_NAMES
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/skin_cancer.html", "/skin_cancer_hiw.html", "/optikinesis_hiw.html", "/optikinesis_download.html", "/js/care/skin.js"],
+)
+def test_removed_tools_have_no_pages(client, path):
+    assert client.get(path).status_code == 404
+
+
+@pytest.mark.parametrize("path", ["/index.html", "/care.html", "/js/care/catalogue.js", "/js/care/app.js", "/privacy.html"])
+def test_no_page_names_a_removed_tool(client, path):
+    text = client.get(path).text
+    for name in REMOVED_TOOLS:
+        assert name not in text
+
+
+def test_the_skin_route_is_gone(client):
+    # Without a route, the static site answers, and it refuses a POST with 405.
+    assert client.post("/api/skin/analyze").status_code in (404, 405)
 
 
 @pytest.mark.parametrize(
     "path, target",
     [
         ("/diagnofast.html", "care.html#/diagnofast"),
-        ("/skin_cancer.html", "care.html#/skin"),
         ("/prescription_analyzer.html", "care.html#/prescription"),
         ("/dashboard.html", "care.html#/account"),
     ],
@@ -99,17 +114,11 @@ def test_old_tool_pages_lead_into_the_workspace(client, path, target):
     assert f"url={target}" in client.get(path).text
 
 
-def test_skin_keeps_its_safety_statement_and_licence_credits(client):
-    source = client.get("/js/care/skin.js").text
-    assert "This is not a diagnosis" in source
-    assert "PanDerm" in source and "CC-BY-NC-ND 4.0" in source and "ISIC 2019" in source
-
-
 def test_sign_in_only_returns_to_places_inside_the_workspace(client):
     assert r"/^care\.html(#\/[a-z0-9/-]*)?$/" in client.get("/js/auth.js").text
 
 
-def test_the_workspace_may_show_heatmaps_but_no_other_data_scripts(client):
+def test_the_workspace_may_show_local_images_but_no_other_data_scripts(client):
     policy = client.get("/care.html").headers["content-security-policy"]
     assert "img-src 'self' data: blob:" in policy
     assert "script-src 'self';" in policy

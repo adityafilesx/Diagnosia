@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.formparsers import MultiPartParser
 
-from backend import auth, llm, safety, settings_store, speech
+from backend import auth, llm, ratelimit, safety, settings_store, speech
 from backend.careflow import delivery as careflow_delivery
 from backend.careflow import events as careflow_events
 from backend.careflow import live as careflow_live
@@ -40,7 +40,6 @@ from backend.records import staff
 from backend.referralloop import routes as referralloop
 from backend.reminders import routes as reminders
 from backend.reminders import service as reminder_service
-from backend.skin import routes as skin
 
 logger = logging.getLogger("diagnosia")
 
@@ -67,6 +66,7 @@ def _sweep_once() -> None:
     try:
         care.escalate_overdue(connection)
         reminder_service.process_due(connection)
+        ratelimit.forget_expired(connection)
         connection.commit()
     finally:
         connection.close()
@@ -146,7 +146,6 @@ _tool(dischargecare.router, "discharge")
 _tool(referralloop.router, "referrals")
 _tool(diagnofast.router, "diagnofast")
 _tool(prescription.router, "prescription")
-_tool(skin.router, "skin")
 app.include_router(reminders.router)
 
 

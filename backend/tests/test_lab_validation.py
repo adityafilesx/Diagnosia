@@ -1,4 +1,4 @@
-"""LabLens against synthetic Indian report layouts. See docs/EXTERNAL_INTEGRATION_VALIDATION.md."""
+"""LabLens against synthetic Indian report layouts. See docs/integrations/TESTING.md."""
 import pytest
 
 from backend.lablens import extract, parser

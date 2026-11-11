@@ -12,7 +12,6 @@ export const STAGES = [
         tools: [
             { id: 'clinscribe', label: 'ClinScribe', audience: 'clinician', blurb: 'Turns a consultation into a draft note to check and sign.' },
             { id: 'lablens', label: 'LabLens', blurb: 'Reads lab reports into results a person confirms.' },
-            { id: 'skin', label: 'Skin Cancer Detection', audience: 'staff', blurb: 'A research screening aid with a heatmap, for a second opinion.' },
         ],
     },
     {

@@ -1,5 +1,5 @@
 // Real Chrome, real MediaRecorder, fake audio device. Speech is faked by serve.py.
-// See docs/EXTERNAL_INTEGRATION_VALIDATION.md for how to run this.
+// See docs/integrations/TESTING.md for how to run this.
 import { createRequire } from 'module';
 import { execFileSync } from 'child_process';
 

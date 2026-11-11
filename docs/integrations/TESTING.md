@@ -28,4 +28,35 @@ It refuses a database without `e2e` in its path. With container names it stops t
 
 ## Browser
 
-Run the demo, start a server, and pass `--expect-stream` when change streams are on, and `--mongo-container NAME` to test an outage. It checks signing in, events, filters, handoffs, labels, status, live updates, fallback and error states. Skin tests need `backend/requirements-skin.txt`.
+Run the demo, start a server, and pass `--expect-stream` when change streams are on, and `--mongo-container NAME` to test an outage. It checks signing in, events, filters, handoffs, labels, status, live updates, fallback and error states.
+
+## Microphone
+
+Speech is faked by the server. The run covers permission refusal, missing and busy devices, empty
+recordings, network and transcription failures, long recordings and revoked consent, in Chrome with
+a fake audio device. It is not a test of a real microphone.
+
+```bash
+DIAGNOSIA_DB=/tmp/test-run/mic.db DIAGNOSIA_DOCUMENTS=/tmp/test-run/docs \
+DIAGNOSIA_DOCUMENT_KEY_FILE=/path/outside/keys.json python -m backend.tests.browser.serve 8124
+node backend/tests/browser/run_microphone.mjs <puppeteer node_modules> 8124 /tmp/test-run/mic.db .venv/bin/python
+```
+
+## Lab report layouts
+
+`backend/tests/lab_validation/` generates synthetic Indian lab report layouts, and
+`backend/tests/test_lab_validation.py` checks them in the normal run. To score LabLens on them:
+
+```bash
+python -m backend.tests.lab_validation.score
+```
+
+## AI providers
+
+Marked `live`, excluded from the normal run, synthetic data only. They skip themselves without real
+keys in `GROQ_API_KEY` and `GEMINI_API_KEY`, and are the only proof that the chosen models accept
+our requests. Re-run them after changing a model.
+
+```bash
+DIAGNOSIA_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live
+```

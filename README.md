@@ -1,32 +1,26 @@
-<p align="center">
-  <img src="assets/diagnosia-banner.png" alt="Diagnosia — AI-powered care continuity platform" width="100%" />
-</p>
-
 <h1 align="center">Diagnosia</h1>
 
 <p align="center">
-  <strong>AI-powered care continuity for safer, more connected healthcare.</strong><br />
-  A modular healthcare workspace connecting clinical information, specialist workflows, shared agent context and operational intelligence.
+  <strong>Healthcare that is connected, organised and intelligent.</strong><br />
+  An AI-powered healthcare platform that brings patient records, medical history and clinical tools together in one place.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Project-Scope%20Locked-6554C0?style=for-the-badge" alt="Project scope locked" />
   <img src="https://img.shields.io/badge/Clinical%20Modules-4%20Add--ons-2563EB?style=for-the-badge" alt="Four add-ons" />
-  <img src="https://img.shields.io/badge/MLH%20Tracks-3-0F766E?style=for-the-badge" alt="Three sponsor tracks" />
   <img src="https://img.shields.io/badge/Operating%20Mode-Synthetic%20Pilot%20Only-D97706?style=for-the-badge" alt="Synthetic pilot only" />
 </p>
 
 <p align="center">
   <a href="#overview">Overview</a> ·
   <a href="#the-four-add-ons">Four Add-ons</a> ·
-  <a href="#the-three-sponsor-integrations">Sponsor Integrations</a> ·
+  <a href="#integrations">Integrations</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#getting-started">Getting Started</a> ·
-  <a href="#safety-and-readiness">Safety & Readiness</a>
+  <a href="#current-readiness-and-known-limitations">Safety & Readiness</a>
 </p>
 
 > [!CAUTION]
-> **PILOT ONLY — NO-GO FOR REAL PATIENTS.** Diagnosia is a development and hackathon prototype. Use synthetic data only. It is not approved for diagnosis, treatment decisions, clinical deployment or storage of real patient information. Passing software tests does not establish clinical validity, regulatory compliance or production security.
+> **PILOT ONLY — NO-GO FOR REAL PATIENTS.** Diagnosia is a development prototype. Use synthetic data only. It is not approved for diagnosis, treatment decisions, clinical deployment or storage of real patient information. Passing software tests does not establish clinical validity, regulatory compliance or production security.
 
 ---
 
@@ -37,7 +31,7 @@
 - [Product scope](#product-scope)
 - [Core Diagnosia tools](#core-diagnosia-tools)
 - [The four add-ons](#the-four-add-ons)
-- [The three sponsor integrations](#the-three-sponsor-integrations)
+- [Integrations](#integrations)
 - [How the technologies work together](#how-the-technologies-work-together)
 - [Architecture](#architecture)
 - [End-to-end demonstration](#end-to-end-demonstration)
@@ -49,18 +43,18 @@
 - [Security and safety boundaries](#security-and-safety-boundaries)
 - [Current readiness and known limitations](#current-readiness-and-known-limitations)
 - [Project documentation](#project-documentation)
-- [Final scope and contribution boundaries](#final-scope-and-contribution-boundaries)
-- [Sponsor and technical references](#sponsor-and-technical-references)
+- [Contributing](#contributing)
+- [References](#references)
 
 ---
 
 ## Overview
 
-**Diagnosia is a connected healthcare workflow platform designed to help clinicians, specialists, patients and care teams manage information across the patient journey.** It brings patient intake, medical-document understanding, clinical documentation, laboratory reports, discharge coordination and specialist referrals into one shared patient-record experience.
+**Diagnosia is an AI-powered healthcare platform that brings patient records, medical history and clinical tools together in one place, helping doctors make better-informed decisions and manage their workflows more efficiently.** The goal is to make healthcare more connected, organised and intelligent. Patient intake, clinical documentation, laboratory reports, prescriptions, specialist referrals and discharge coordination all share one patient record.
 
-The project combines three core clinical tools with four integrated add-on modules. For the MLH hackathon scope, three sponsor technologies extend the platform in clearly separated roles:
+The product has six tools: two core tools and four add-on modules, in the order of a visit. Optional integrations extend the platform in clearly separated roles:
 
-| Sponsor technology | Responsibility in Diagnosia |
+| Integration | Responsibility in Diagnosia |
 |---|---|
 | **Google Gemini API** | Multimodal understanding, structured extraction, summarization and controlled requests to existing backend functions |
 | **YugabyteDB** | Technical records of AI runs, attempts and handoffs, in a database Diagnosia owns |
@@ -75,10 +69,9 @@ The goal is not to create a collection of disconnected AI demos. Diagnosia is de
 |---|---|
 | **Product category** | Healthcare workflow and care-continuity platform |
 | **Primary users** | Doctors, specialists, patients and care teams |
-| **Core tools** | DiagnoFast, Skin Cancer Detection, Prescription Analyzer |
-| **Add-on modules** | 8 focused workflows |
-| **Accessibility companion** | OptiKinesis (separate assistive-computing application) |
-| **Hackathon integrations** | Gemini API, YugabyteDB, Meko, MongoDB Atlas |
+| **Core tools** | DiagnoFast (before the visit), Prescription Analyzer (after it) |
+| **Add-on modules** | ClinScribe and LabLens (during the visit), ReferralLoop and DischargeCare (after it) |
+| **Integrations** | Gemini API, YugabyteDB, Meko, MongoDB Atlas |
 | **Backend foundation** | Python, FastAPI and the existing Diagnosia data/authentication layer |
 | **Frontend** | HTML, CSS and JavaScript served by FastAPI |
 | **Demo data policy** | Synthetic data only |
@@ -99,17 +92,17 @@ Diagnosia is intended to assist and coordinate these workflows. It does not repl
 
 ## Product scope
 
-The project scope is now **feature-frozen**. The final product consists of:
+The product consists of:
 
-- The existing core Diagnosia tools.
-- The four selected add-on modules described below.
-- The three selected sponsor integrations.
+- The core Diagnosia tools.
+- The four add-on modules described below.
+- The optional integrations.
 - Shared platform capabilities required to connect, secure, observe and demonstrate those modules.
 - One shared operational analytics view: the **Care Continuity Observatory**.
 
-The Care Continuity Observatory is a platform-level analytics surface, **not a fifth clinical add-on**. No additional standalone healthcare tools are planned. Remaining development should focus on implementing the finalized integrations, closing technical gaps, validating existing workflows, improving reliability, documentation and review evidence—not expanding the product scope.
+The Care Continuity Observatory is a platform-level analytics surface, **not a fifth clinical add-on**.
 
-> **Implementation-status note:** the four add-ons have been built into Diagnosia and exercised end to end as pilots. Gemini, YugabyteDB, Meko and MongoDB integrations are built. See [the validation record](docs/integrations/EXTERNAL_INTEGRATION_VALIDATION.md) for exactly what has been proved against each real service.
+> **Implementation-status note:** the four add-ons have been built into Diagnosia and exercised end to end as pilots. Gemini, YugabyteDB, Meko and MongoDB integrations are built. See [the testing guide](docs/integrations/TESTING.md) for how each is tested, and what a mock, a local stand-in and a real service each prove.
 
 ## Core Diagnosia tools
 
@@ -127,6 +120,7 @@ DiagnoFast helps collect a patient's history before or during a clinical visit. 
 - Neural Indian English (Neerja) and Hindi (Swara) question playback through Edge-TTS, with Groq English and browser voice fallbacks.
 - Six department choices, optional quick-answer chips, and a printable clinical requisition with source labels and physician workspace.
 - AI-assisted extraction into structured intake fields and a concise clinician-facing draft.
+- Two-layer urgent-symptom check: plain rules in English, Hindi and romanised Hindi run before the AI on every answer and end the interview at once, even when the AI is unavailable; the AI's own urgent list is the second layer.
 - Intended support for Hindi and Indian English workflows.
 
 **Self-service kiosk:** set `DIAGNOFAST_KIOSK_DOCTOR_ID` to the numeric user ID of a verified clinic doctor, restart the server, and open `/intake.html`. No patient links need to be created in advance. Visits enter that doctor's queue. Without this setting, reception-created links still work. The kiosk cannot attach existing charts or fetch ABHA history. Neural speech is enabled by default; set `DIAGNOSIA_NEURAL_TTS=0` to disable Microsoft question playback.
@@ -139,27 +133,7 @@ Each interview step is recorded in CareFlow: the link, the start, each transcrib
 </details>
 
 <details open>
-<summary><strong>2. Skin Cancer Detection — image-based screening support</strong></summary>
-
-The existing skin-image workflow uses a PanDerm-based visual representation with a classifier for eight lesion categories:
-
-- Melanoma (`MEL`)
-- Basal cell carcinoma (`BCC`)
-- Squamous cell carcinoma (`SCC`)
-- Actinic keratosis (`AK`)
-- Benign keratosis-like lesion (`BKL`)
-- Dermatofibroma (`DF`)
-- Melanocytic nevus (`NV`)
-- Vascular lesion (`VASC`)
-
-The documented pipeline includes image preprocessing, classifier output, Grad-CAM visualization, calibration and out-of-distribution uncertainty handling. The workflow is intended for clinician review, not standalone patient diagnosis.
-
-**Integration status:** the model boundary stays as it is. Gemini must not replace or overrule the skin model, generate a second unvalidated diagnosis or turn a model output into a clinical decision. CareFlow records that an analysis ran and needs review, and never records the finding.
-**Boundary:** this module has an unresolved calibration test failure and requires a CDSCO/regulatory assessment and appropriate clinical validation before any real-world use.
-</details>
-
-<details open>
-<summary><strong>3. Prescription Analyzer — prescription understanding and guidance</strong></summary>
+<summary><strong>2. Prescription Analyzer — prescription understanding and guidance</strong></summary>
 
 The Prescription Analyzer helps interpret prescription images and explain readable instructions in a patient-friendly format.
 
@@ -175,12 +149,6 @@ The Prescription Analyzer helps interpret prescription images and explain readab
 
 **Boundary:** model extraction is not a verified prescription or medication order.
 </details>
-
-### OptiKinesis — accessibility companion
-
-OptiKinesis is a related but separately distributed assistive-computing application. It uses webcam-based head tracking and blink interaction to help people with motor impairments control a computer. The documented technology includes MediaPipe facial landmarks, head-pose mapping, calibration, blink-to-click interaction and accessibility controls.
-
-OptiKinesis is **not counted among the four Diagnosia clinical add-ons** and is not a diagnostic module. Its role in the broader project ecosystem is digital accessibility and hands-free computer interaction.
 
 ## The four add-ons
 
@@ -235,9 +203,9 @@ ReferralLoop tracks a referral from request through routing, scheduling, special
 **Guardrail:** referral urgency and clinical appropriateness remain decisions for qualified clinicians. Workflow analytics must not silently prioritize or deprioritize patients.
 </details>
 
-## The three sponsor integrations
+## Integrations
 
-Each has one job, and none replaces the Diagnosia database. All are optional, and off by default. Status as of the last validation is in [EXTERNAL_INTEGRATION_VALIDATION.md](docs/integrations/EXTERNAL_INTEGRATION_VALIDATION.md). Local stand-ins are never reported as these services.
+Each has one job, and none replaces the Diagnosia database. All are optional, and off by default. [TESTING.md](docs/integrations/TESTING.md) explains how each is tested. Local stand-ins are never reported as these services.
 
 ### 1. Google Gemini API: reading documents
 
@@ -258,7 +226,6 @@ Atlas stores one safe event for each workflow step and a prepared summary for ea
 | Tool | AI | CareFlow events | Handoff |
 |---|---|---|---|
 | DiagnoFast | Gemini first for confirmed-answer extraction; configurable fallback | Yes | None |
-| Skin Cancer Detection | Local model | Yes, with no finding recorded | None |
 | Prescription Analyzer | Gemini, then Groq | Yes | None |
 | ClinScribe | Groq, then Gemini | Yes | None |
 | LabLens | Gemini, then Groq, for scans | Yes | None |
@@ -283,7 +250,7 @@ flowchart TD
     U[Patient / Doctor / Specialist / Care Team] --> WEB[Diagnosia Web Workspace]
     WEB --> API[FastAPI Application and Authorization]
 
-    API --> CORE[Existing Core Tools<br/>DiagnoFast · Skin Detection · Prescription Analyzer]
+    API --> CORE[Core Tools<br/>DiagnoFast · Prescription Analyzer]
     API --> ADDONS[Four Add-ons<br/>ClinScribe · LabLens<br/>DischargeCare · ReferralLoop]
 
     API --> DB[(Existing Diagnosia Database<br/>Identity · Consent · Permissions<br/>Approved Records · Audit)]
@@ -306,9 +273,9 @@ flowchart TD
 
 ### Data ownership rules
 
-| Data category | Authoritative owner | Role of sponsor technology |
+| Data category | Authoritative owner | Role of the integration |
 |---|---|---|
-| Accounts, sessions, staff verification | Existing Diagnosia database | No sponsor database becomes the identity authority |
+| Accounts, sessions, staff verification | Existing Diagnosia database | No integration becomes the identity authority |
 | Patient identity, consent and care-team access | Existing Diagnosia database | Meko, Atlas and YugabyteDB must not override access decisions |
 | Approved clinical records and audit events | Existing Diagnosia database | Gemini creates drafts, Meko supplies context, and Atlas holds workflow projections |
 | Original clinical document | Diagnosia encrypted document storage | Never copied to Gemini for keeping, or to Meko, Atlas or YugabyteDB |
@@ -319,7 +286,7 @@ flowchart TD
 
 ### Why the separation matters
 
-Putting the same patient data into every system would create conflicting sources of truth, duplicate retention obligations, difficult deletion workflows and more places where sensitive data could be exposed. Each system therefore has one defined responsibility. The existing Diagnosia database remains the authority for identity and approved records; the sponsor systems extend context, event tracking and analytics.
+Putting the same patient data into every system would create conflicting sources of truth, duplicate retention obligations, difficult deletion workflows and more places where sensitive data could be exposed. Each system therefore has one defined responsibility. The existing Diagnosia database remains the authority for identity and approved records; the integrations extend context, event tracking and analytics.
 
 ## End-to-end demonstration
 
@@ -375,7 +342,6 @@ The stack as implemented.
 | Existing database | SQLite in the documented development setup; configured through `DIAGNOSIA_DB` | Existing accounts, sessions and patient/workflow records |
 | Data access | Plain `sqlite3` with parameterised SQL | Persistence |
 | Frontend | HTML, CSS, JavaScript | Landing pages, auth, dashboards and care workspace |
-| Clinical image pipeline | PanDerm-based visual representation, PyTorch and scikit-learn classifier components | Existing skin-image workflow |
 | Language models | Google Gemini and Groq, with fallback | Structured extraction, drafting and reading |
 | Speech | Edge neural questions, Groq Whisper/Orpheus, browser speech | Voice interview, transcript preview and read-aloud |
 | Shared context | Meko, through MCP | Approved knowledge, memory and handoff notes |
@@ -497,23 +463,11 @@ Run the repository's normal automated test suite from the project root:
 .venv/bin/pytest -q
 ```
 
-The skin-model tests require a separate environment with the optional Torch/model dependencies installed. Follow the repository's skin-model test instructions; do not weaken or skip the calibration assertion to make the suite appear green.
+### What the suite needs
 
-### Last reported test evidence
+The suite needs no API keys and no network: every AI and speech call is replaced by a fake. Live tests against the real AI providers and integrations are marked `live`, skipped by default, and described in [docs/integrations/TESTING.md](docs/integrations/TESTING.md), along with the browser microphone check and the synthetic lab report layouts.
 
-The following results were reported at the time this README was prepared. Re-run the tests after code changes; these are not a guarantee of the current checkout state.
-
-| Test area | Last reported result | Important qualification |
-|---|---:|---|
-| Main automated suite | **1,121 passed** | Run on 1 November 2026, after removing four tools, without the skin suite. Synthetic/unit/integration coverage; not clinical validation |
-| Skin model suite | **21 passed** | Run in a separate environment with Torch. The trained model itself isn't on this machine yet |
-| Chrome microphone workflow | **30/30 passed** | Used a fake audio device, not a real microphone |
-| Full Chrome workflow | No page/server errors reported | Synthetic test data; phone-width layout also checked |
-| CareFlow in Chrome | **19/19 passed** | Local MongoDB, not Atlas. Reported before the four tools were removed, and not re-run since |
-| YugabyteDB live | **7 passed** | A real server in Docker, not a cloud cluster |
-| MongoDB Atlas and Meko live | **Not run** | `BLOCKED_MISSING_CREDENTIALS` |
-
-Not yet demonstrated in the reported test run:
+Not yet demonstrated:
 
 - Real microphone recording and real speech on real devices.
 - MongoDB Atlas and Meko themselves, which need credentials.
@@ -535,19 +489,20 @@ Diagnosia incorporates safeguards in its pilot implementation, including:
 - Unreviewed AI output visibly marked and excluded from approved clinical records and FHIR exports.
 - Cross-organization/cross-site access restrictions.
 - Pilot-mode controls that prevent real-patient operation until readiness requirements are satisfied.
+- Rate limits on the public kiosk, DiagnoFast patient links and prescription read-aloud, counted in SQLite and storing only hashed keys.
+- Rule-based urgent-symptom screening in DiagnoFast (English, Hindi, romanised Hindi), which sends the patient to reception even when the AI is unavailable.
 
 These controls reduce risk but do not establish regulatory compliance or production security. Configuration, deployment, independent testing and professional review remain necessary.
 
 ## Current readiness and known limitations
 
-**Latest reported assessment: NO-GO for real patients.** All 10 required human sign-offs are outstanding, and the readiness checks fail until they are recorded. Run `python -m backend.operator_cli readiness` for the current count. Use `docs/DIAGNOSIA_READINESS_REPORT.md` as the detailed source of truth and update it as evidence changes.
+**Latest reported assessment: NO-GO for real patients.** All 10 required human sign-offs are outstanding, and the readiness checks fail until they are recorded. Run `python -m backend.operator_cli readiness` for the current count; that command is the source of truth.
 
 | Area | Current known state |
 |---|---|
 | Overall deployment | Pilot only; synthetic data only |
 | LOINC | 58 proposed mappings remain unapproved; local laboratory test names are retained in exports |
 | Reminders | In-app/staff follow-up workflow; SMS and voice channels are not connected |
-| Skin model | One calibration test remains failed and requires model-owner investigation |
 | Staff security | MFA and password-reset work remain open in the latest reported review |
 | Patient rights workflows | Whole-record export and erasure workflows remain open in the latest reported review |
 | Security assurance | Independent penetration test remains outstanding |
@@ -565,35 +520,34 @@ The repository's `docs/` directory contains the detailed implementation and gove
 
 | Document | Purpose |
 |---|---|
-| [`docs/DIAGNOSIA_READINESS_REPORT.md`](docs/DIAGNOSIA_READINESS_REPORT.md) | Current go/no-go status, readiness checks, test evidence and human sign-offs |
 | [`docs/CLINICAL_GOVERNANCE.md`](docs/CLINICAL_GOVERNANCE.md) | Clinical safety boundaries, review requirements and governance decisions |
 | [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) | Security findings and remaining technical work |
-| [`docs/PRODUCTION_READINESS_AUDIT.md`](docs/PRODUCTION_READINESS_AUDIT.md) | Hardening-sprint audit and technical findings |
 | [`docs/DATA_PROTECTION_AND_RETENTION.md`](docs/DATA_PROTECTION_AND_RETENTION.md) | Document protection, privacy and retention considerations |
 | [`docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md`](docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md) | Deployment prerequisites and readiness controls |
+| [`docs/integrations/TESTING.md`](docs/integrations/TESTING.md) | How each kind of test is run, and what it proves |
 | [`docs/addons/`](docs/addons/) | One detailed document for each of the four add-ons |
 | [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | Third-party acknowledgements, reused material and license notices |
 
 If a linked document is absent in a particular branch or release, treat the link as a documentation task rather than assuming the requirement has been met.
 
-## Final scope and contribution boundaries
+## Contributing
 
-The product scope is frozen at the three core clinical tools, four add-ons, OptiKinesis companion and three selected sponsor integrations. Please do not add another standalone module, chatbot, diagnostic engine or parallel patient database.
+Diagnosia is one product on one shared patient record. Before adding a new standalone tool, chatbot, diagnostic engine or parallel patient database, agree it as a product decision with the project owner.
 
-Useful contributions within the approved scope include:
+Useful contributions include:
 
-- Completing and testing the three selected sponsor integrations.
 - Fixing defects and improving reliability without weakening safety checks.
 - Improving provenance, review workflows, permission enforcement and auditability.
 - Strengthening automated tests and reproducible synthetic demo scenarios.
+- Completing and testing the optional integrations.
 - Improving accessibility, documentation, deployment repeatability and observability.
 - Resolving readiness blockers and preparing evidence for qualified reviewers.
 
-Before making changes, inspect `git status` and preserve existing uncommitted work. Never commit secrets, patient information, encryption keys or local database files.
+Branch from `main`, run the test suite, and open a pull request. See [`agent_context.md`](agent_context.md) for the rules every change must keep. Before making changes, inspect `git status` and preserve existing uncommitted work. Never commit secrets, patient information, encryption keys or local database files.
 
-## Sponsor and technical references
+## References
 
-### Selected sponsor technologies
+### Integrations
 
 - [Google Gemini API documentation](https://ai.google.dev/gemini-api/docs)
 - [Gemini document processing](https://ai.google.dev/gemini-api/docs/document-processing)
@@ -606,17 +560,10 @@ Before making changes, inspect `git status` and preserve existing uncommitted wo
 - [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changestreams/)
 - [YugabyteDB YSQL](https://docs.yugabyte.com/stable/api/ysql/)
 
-### MLH student resources supplied with the track description
-
-- [MongoDB student credit](https://mlh.link/mongodb)
-- [MongoDB Atlas free tier](https://mlh.link/mongodb-free)
-- [MongoDB University resources](https://mlh.link/mongodb-university)
-
-### Existing technology references
+### Other technology
 
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Pydantic](https://docs.pydantic.dev/)
-- [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker)
 - [Groq](https://console.groq.com/docs)
 - [ABDM FHIR Implementation Guide](https://www.nrces.in/ndhm/fhir/r4/)
 
@@ -625,5 +572,5 @@ Before making changes, inspect `git status` and preserve existing uncommitted wo
 <p align="center">
   <strong>Diagnosia</strong><br />
   Connecting clinical information, care workflows and operational insight.<br />
-  <sub>Built for a synthetic-data hackathon pilot. Human review remains essential.</sub>
+  <sub>A synthetic-data pilot. Human review remains essential.</sub>
 </p>

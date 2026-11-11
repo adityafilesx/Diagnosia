@@ -487,18 +487,6 @@ button:not(.quiet):not(.danger):not(.link-button):not(.patient-row),
 .calendar-import-note p { margin: 0; }
 .calendar-link { color: var(--action); font-weight: 600; text-decoration: underline; }
 
-/* Skin Cancer Detection */
-.priority { padding: 8px 12px; margin-bottom: 12px; border-radius: 4px; background: var(--band); font-weight: 500; }
-.priority.refer { background: var(--alert-tint); color: var(--alert); }
-.priority.uncertain { background: var(--highlighter); color: var(--highlighter-ink); }
-.result-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(60px, 1fr) 3rem; gap: 12px; align-items: center; padding: 4px 0; font-size: .925rem; }
-.result-row > :last-child { text-align: right; font-variant-numeric: tabular-nums; }
-.result-bar { height: 8px; border-radius: 4px; background: var(--band); overflow: hidden; }
-.result-bar span { display: block; height: 100%; background: var(--line); }
-.heatmap-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
-.heatmap-pair figure { margin: 0; }
-.heatmap-pair img { display: block; width: 100%; border-radius: 4px; }
-
 @media (max-width: 520px) {
   .brand img { width: 118px; height: auto; }
   .topbar { gap: 12px; padding: 10px 16px; }
