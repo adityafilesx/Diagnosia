@@ -7,8 +7,8 @@ with real patient data switched on, or outside the development environment.
     python -m backend.synthetic.seed_accounts            # creates what's missing
     python -m backend.synthetic.seed_accounts --patients 80
 
-The logins are written to backend/storage/synthetic/ (git-ignored), as a CSV and a
-short readable list. The same seed always makes the same people.
+The logins are written to next to the database, in backend/storage/synthetic/ (git-ignored), as
+CSV files and a short readable list. The same seed always makes the same people.
 """
 import argparse
 import csv
@@ -26,7 +26,6 @@ from backend.db import connect, init_db
 from backend.records import staff
 from backend.records.store import now_iso
 
-OUTPUT_DIR = Path(__file__).resolve().parents[1] / "storage" / "synthetic"
 # One shared password keeps manual testing quick. These accounts exist only on a local,
 # development, synthetic database.
 PASSWORD = "Synthetic-demo-only-1"
@@ -58,6 +57,10 @@ VISIT_REASONS = [
     ("Burning urine", 3), ("Pregnancy check-up", 2),
 ]
 ALLERGIES = [("Penicillin", "Rash", "moderate"), ("Sulfa drugs", "Itching", "mild"), ("Peanuts", "Swelling of lips", "severe"), ("Dust", "Sneezing", "mild")]
+
+
+def output_dir() -> Path:
+    return settings.db_path.parent / "synthetic"
 
 
 def _pick(rng: random.Random, options: List[tuple]) -> str:
@@ -198,38 +201,64 @@ def run(patients: int, with_login: int, seed: int) -> int:
             http.close()
         print(f"Created {len(doctors)} staff accounts and {len(people)} patient records.")
     else:
-        print("The synthetic hospital already exists, so nothing was added. Your earlier logins are still in")
-        print(f"{OUTPUT_DIR}. To make new ones, use a fresh database (set DIAGNOSIA_DB to a new file).")
-        return 0
+        print("The synthetic hospital already exists, so nothing was added. Rewriting the login list from the database.")
+        return export_logins()
 
-    return _write_files(doctors, people)
+    return export_logins()
 
 
-def _write_files(doctors: List[dict], people: List[dict]) -> int:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    accounts = doctors + [item for item in people if item["role"] == "patient"]
-    with open(OUTPUT_DIR / "accounts.csv", "w", newline="", encoding="utf-8") as handle:
+def export_logins() -> int:
+    """Writes the logins from the database itself, so the files always match who can really sign in.
+
+    They go next to the database (backend/storage/synthetic/ by default), so seeding a
+    different database never overwrites another one's list.
+    """
+    out = output_dir()
+    out.mkdir(parents=True, exist_ok=True)
+    db = connect()
+    try:
+        users = db.execute(
+            "SELECT id, email, first_name, last_name, role, account_status FROM users WHERE email LIKE '%@example.com' ORDER BY id"
+        ).fetchall()
+        charts = db.execute(
+            """
+            SELECT p.id, p.first_name, p.last_name, p.date_of_birth, p.sex, p.preferred_language, u.email AS login,
+                   (SELECT d.email FROM care_team c JOIN users d ON d.id = c.user_id
+                    WHERE c.patient_id = p.id AND c.role = 'clinician' AND c.revoked_at IS NULL ORDER BY c.granted_at LIMIT 1) AS owner,
+                   (SELECT reason FROM encounters WHERE patient_id = p.id ORDER BY started_at LIMIT 1) AS reason,
+                   (SELECT substance FROM allergies WHERE patient_id = p.id LIMIT 1) AS allergy
+            FROM patients p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.created_at, p.id
+            """
+        ).fetchall()
+        specialty = {item["email"]: item for item in _doctor_rows(random.Random(0))}
+    finally:
+        db.close()
+
+    with open(out / "accounts.csv", "w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["role", "email", "password", "name", "specialty_or_visit_reason", "note"])
-        for item in doctors:
-            writer.writerow(["doctor", item["email"], PASSWORD, f"Dr {item['first_name']} {item['last_name']}", item["specialty"], item["note"]])
-        for item in people:
-            if item["role"] == "patient":
-                writer.writerow(["patient", item["email"], PASSWORD, f"{item['first_name']} {item['last_name']}", item["reason"], f"Chart owner: {item['doctor_email']}"])
-    with open(OUTPUT_DIR / "patients.csv", "w", newline="", encoding="utf-8") as handle:
+        writer.writerow(["role", "email", "password", "name", "status", "specialty", "note"])
+        for user in users:
+            known = specialty.get(user["email"], {})
+            name = f"Dr {user['first_name']} {user['last_name']}" if user["role"] == "doctor" else f"{user['first_name']} {user['last_name']}"
+            writer.writerow([user["role"], user["email"], PASSWORD, name, user["account_status"], known.get("specialty", ""), known.get("note", "")])
+    with open(out / "patients.csv", "w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["patient_id", "name", "age", "sex", "language", "reason_for_visit", "allergy", "has_login", "login_email", "chart_owner"])
-        for item in people:
+        writer.writerow(["patient_id", "name", "date_of_birth", "sex", "language", "reason_for_visit", "allergy", "login_email", "chart_owner"])
+        for chart in charts:
             writer.writerow([
-                item["patient_id"], f"{item['first_name']} {item['last_name']}", item["age"], item["sex"], item["language"],
-                item["reason"], item["allergy"][0] if item["allergy"] else "", item["role"] == "patient", item["email"], item["doctor_email"],
+                chart["id"], f"{chart['first_name']} {chart['last_name']}", chart["date_of_birth"], chart["sex"],
+                chart["preferred_language"], chart["reason"] or "", chart["allergy"] or "", chart["login"] or "", chart["owner"] or "",
             ])
+    staff_users = [user for user in users if user["role"] == "doctor"]
+    patient_users = [user for user in users if user["role"] == "patient"]
     lines = [f"Synthetic logins. Shared password for every account: {PASSWORD}", "", "STAFF"]
-    lines += [f"  {item['email']:30} {item['specialty'] or '-':18} {item['note']}" for item in doctors]
-    lines += ["", "PATIENTS WITH A LOGIN (first 10 of the CSV)"]
-    lines += [f"  {item['email']:30} {item['first_name']} {item['last_name']} ({item['reason']})" for item in [p for p in people if p['role'] == 'patient'][:10]]
-    (OUTPUT_DIR / "README.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"Logins written to {OUTPUT_DIR} ({len(accounts)} accounts). That folder is git-ignored.")
+    for user in staff_users:
+        known = specialty.get(user["email"], {})
+        lines.append(f"  {user['email']:30} {known.get('specialty') or '-':18} {user['account_status']}")
+    lines += ["", f"PATIENTS WITH A LOGIN ({len(patient_users)}; the full list is in accounts.csv)"]
+    lines += [f"  {user['email']:30} {user['first_name']} {user['last_name']}" for user in patient_users[:10]]
+    (out / "README.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"{len(users)} logins and {len(charts)} charts written to {out} (git-ignored).")
     return 0
 
 
@@ -238,7 +267,11 @@ def main(arguments=None) -> int:
     parser.add_argument("--patients", type=int, default=60, help="how many patient records to make")
     parser.add_argument("--with-login", type=int, default=30, help="how many of those also get a patient login")
     parser.add_argument("--seed", type=int, default=2026, help="same seed, same people")
+    parser.add_argument("--export-only", action="store_true", help="only rewrite the login list from the database")
     args = parser.parse_args(arguments)
+    if args.export_only:
+        init_db()
+        return export_logins()
     return run(args.patients, args.with_login, args.seed)
 
 

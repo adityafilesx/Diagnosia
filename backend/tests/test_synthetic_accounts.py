@@ -8,9 +8,9 @@ from backend.synthetic import seed_accounts
 
 
 @pytest.fixture
-def seeded(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(seed_accounts, "OUTPUT_DIR", tmp_path / "synthetic")
+def seeded(client, tmp_path):
     assert seed_accounts.run(patients=12, with_login=6, seed=7) == 0
+    # The list is written next to the database, so a test database never touches the real one.
     with open(tmp_path / "synthetic" / "accounts.csv", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
 
