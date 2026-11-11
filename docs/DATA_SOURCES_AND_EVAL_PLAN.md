@@ -162,5 +162,14 @@ sources only to make it realistic.
 - `python -m backend.synthetic.seed_accounts` makes synthetic doctors, patients with logins, and
   patient records without logins, with consents, a visit and sometimes an allergy. The logins are
   written to `backend/storage/synthetic/` (git-ignored). See the README in that folder.
-- Next: the generators above, one tool at a time, starting with DiagnoFast red-flag cases and
-  LabLens layouts, because their gold labels need no clinician.
+- `python -m backend.synthetic.diagnofast_data` builds the DiagnoFast test set in
+  `backend/tests/ai_eval/diagnofast/v1/`: 1,200 interviews (200 per form; English, Hindi, romanised Hindi and
+  Hinglish) and 486 labelled single answers, with a frozen test split guarded by SHA-256 hashes.
+  `python -m backend.synthetic.diagnofast_eval` scores the urgent-symptom rules, and `--live` scores whole
+  interviews with your AI keys. `python -m backend.synthetic.diagnofast_links` creates waiting interview links
+  and a script of answers for manual testing. The baseline, and the gaps it found in the rules, are in
+  `backend/tests/ai_eval/diagnofast/README.md`.
+- Limits: text only, not clinician or native-speaker reviewed, and dev and test share one phrase bank. See
+  `v1/DATASHEET.md`.
+- Next: LabLens layouts (gold labels need no clinician), then ClinScribe, Prescription Analyzer, ReferralLoop
+  and DischargeCare.

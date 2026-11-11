@@ -1,0 +1,17 @@
+{
+  "counts": {
+    "interviews": 1200,
+    "interviews_test": 243,
+    "screening": 486,
+    "screening_test": 82
+  },
+  "per_form": 200,
+  "seed": 2026,
+  "sha256": {
+    "interviews_dev.jsonl": "cb33b87d87d7bb7c4265e7b7ba624734de76ffe936415d02339bc786d780bc77",
+    "interviews_test.jsonl": "b08b91c0a48625a940b04094ff47f6739b740de75ff434351c17350303dd491b",
+    "screening_dev.jsonl": "6ddacb84e5ec8734d6fbba12847875c985ac55b6968c20bb7f217109f5ed5ec8",
+    "screening_test.jsonl": "45449d61d630c093a8921f94742e6f33a20c785ae2e7ef6c4ce5f3cfc08cf8b9"
+  },
+  "version": "v1"
+}
