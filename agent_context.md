@@ -42,9 +42,10 @@ backend/    One FastAPI app: accounts and one folder per tool.
   llm.py            Groq and Gemini calls, with fallback. ask(system, content, schema, tool)
   speech.py         Groq transcription/WAV speech; Edge neural question playback
   images.py         Upload checks (JPG/PNG, size)
+  ratelimit.py      Limits on the public and costly routes, counted in SQLite
   config.py         Settings from environment / .env
   prescription/     analyzer.py, shorthand.py, medicines.py, routes.py
-  diagnofast/       agent.py, abha.py, recordings.py, routes.py, forms/*.json
+  diagnofast/       agent.py, red_flags.py, abha.py, recordings.py, routes.py, forms/*.json
   records/          The shared patient record, access gate, audit, encrypted documents
   clinscribe/ lablens/ referralloop/ dischargecare/ reminders/   One folder per tool, each with its schema.sql
   skin/             classifier.py, encoder.py, routes.py, training/, metrics.json
@@ -117,12 +118,19 @@ The photo isn't stored. A consent box says it goes to outside AI services.
 - `intake.html` without a token opens the self-service specialty grid when
   `DIAGNOFAST_KIOSK_DOCTOR_ID` names a verified doctor. New visits go only to that doctor;
   public callers cannot attach a chart, choose a doctor or fetch ABHA records. The kiosk is
-  unavailable when unconfigured or when that doctor loses verification.
-- The interview is a **controlled loop**, not a free-running agent. The AI picks the next question
-  and extracts fields. `agent.apply_turn` keeps the rules in code: only fields on the form are
-  kept, required fields must be filled, there's a maximum of 12 questions, and urgent symptoms
-  (chest pain, trouble breathing and similar) end the interview at once and send the patient to
-  reception. The AI never diagnoses.
+  unavailable when unconfigured or when that doctor loses verification, except in demo mode,
+  where it falls back to the first verified doctor. The kiosk and the patient routes are
+  rate-limited (`ratelimit.py`).
+- The interview is a **controlled loop**, not a free-running agent. `agent.advance` runs each
+  answer. The AI picks the next question and extracts fields. `agent.apply_turn` keeps the rules in
+  code: only fields on the form are kept, required fields must be filled, and there's a maximum of
+  12 questions. The AI never diagnoses.
+- Urgent symptoms (chest pain, trouble breathing and similar) end the interview at once and send
+  the patient to reception. Two layers check for them. First `red_flags.screen` runs plain rules on
+  the answer in English, Hindi and romanised Hindi, skipping clearly negated symptoms; a match stops
+  the interview without calling the AI, so it works even when the AI is down. If the rules find
+  nothing, the AI's `urgent_symptoms` still can. The rules deliberately skip words that usually
+  describe history (stroke, heart attack, epilepsy, food poisoning) and leave those to the AI.
 - Voice: Edge neural voices read questions in Indian English (Neerja) and Hindi (Swara).
   `DIAGNOSIA_NEURAL_TTS=0` disables this service. After an 8-second neural timeout, English
   can use Groq WAV and Hindi uses the browser. Browser voice and typing remain fallbacks.
@@ -254,8 +262,13 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
 
 - **Not hosted.** Netlify can't run this backend. It needs a Python host, and the skin tool needs a
   GPU. Set `DIAGNOSIA_HTTPS=1` in production.
-- **No rate limiting.** Anyone with an account can run up AI costs, and patient links can be
-  guessed at only by luck (they're long random tokens). Add limits before a public launch.
+- **Rate limiting covers only the public routes.** The kiosk, the patient interview routes and
+  prescription read-aloud are limited (`ratelimit.py`, counted in SQLite). The other signed-in AI
+  routes still have no limit, so anyone with an account can run up AI costs. Behind a reverse proxy,
+  run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>`, or every visitor shares the
+  proxy's limit. Patient links can be guessed at only by luck (they're long random tokens).
+- **Demo mode opens the kiosk.** With `DIAGNOFAST_KIOSK_DOCTOR_ID` unset, demo mode sends kiosk
+  visits to the first verified doctor. Set it, or turn demo mode off, before real use.
 - **Prescription reading varies between runs.** The same photo can read `Azu` one time and `Azee`
   the next, and a confident "clear" can still be wrong. The patient confirmation step is the safety
   net. An idea not built: read each prescription twice and flag fields where the readings differ.

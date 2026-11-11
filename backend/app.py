@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.formparsers import MultiPartParser
 
-from backend import auth, llm, safety, settings_store, speech
+from backend import auth, llm, ratelimit, safety, settings_store, speech
 from backend.careflow import delivery as careflow_delivery
 from backend.careflow import events as careflow_events
 from backend.careflow import live as careflow_live
@@ -67,6 +67,7 @@ def _sweep_once() -> None:
     try:
         care.escalate_overdue(connection)
         reminder_service.process_due(connection)
+        ratelimit.forget_expired(connection)
         connection.commit()
     finally:
         connection.close()

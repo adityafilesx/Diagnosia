@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
-from backend import llm
+from backend import llm, ratelimit
 from backend.auth import require_user
 from backend.careflow import events
 from backend.db import get_db
@@ -127,7 +127,7 @@ def calendar(request: CalendarRequest, _user=Depends(require_user)) -> dict:
     )
 
 
-@router.post("/speak")
-def read_aloud(request: SpeakRequest, _user=Depends(require_user)) -> Response:
+@router.post("/speak", dependencies=[Depends(ratelimit.per_user(ratelimit.SPEECH_PER_USER))])
+def read_aloud(request: SpeakRequest) -> Response:
     return Response(speak(request.text, request.language), media_type="audio/wav")
 

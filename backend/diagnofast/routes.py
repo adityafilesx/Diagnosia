@@ -28,7 +28,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
-from backend import llm, speech
+from backend import llm, ratelimit, speech
 from backend.auth import require_doctor
 from backend.careflow import events
 from backend.config import settings
@@ -141,7 +141,14 @@ def kiosk_config(db: sqlite3.Connection = Depends(get_db)) -> dict:
     return {"forms": agent.list_forms()}
 
 
-@router.post("/kiosk/intakes", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/kiosk/intakes",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(ratelimit.per_client(ratelimit.KIOSK_PER_DEVICE)),
+        Depends(ratelimit.overall(ratelimit.KIOSK_OVERALL)),
+    ],
+)
 def kiosk_intake(details: KioskIntake, db: sqlite3.Connection = Depends(get_db)) -> dict:
     doctor = _kiosk_doctor(db)
     if not details.consent:
@@ -264,7 +271,7 @@ def patient_page(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
     return {"patient_name": row["patient_name"], "has_abha_id": bool(row["abha_id"])}
 
 
-@router.post("/patient/{token}/start")
+@router.post("/patient/{token}/start", dependencies=[Depends(ratelimit.per_client(ratelimit.INTERVIEW_STARTS_PER_DEVICE))])
 def start_interview(
     token: str, request: StartRequest, db: sqlite3.Connection = Depends(get_db)
 ) -> dict:
@@ -302,7 +309,7 @@ def _read_audio(audio: UploadFile) -> tuple:
     return data, content_type
 
 
-@router.post("/patient/{token}/transcribe")
+@router.post("/patient/{token}/transcribe", dependencies=[Depends(ratelimit.per_path_value(ratelimit.INTERVIEW_PREVIEWS, "token"))])
 def preview_transcript(token: str, audio: UploadFile = File(...), db: sqlite3.Connection = Depends(get_db)) -> dict:
     row = _open_intake(token, db)
     if row["status"] != "in_progress":
@@ -349,7 +356,7 @@ def _build_report(intake_id: int) -> None:
         db.close()
 
 
-@router.post("/patient/{token}/answer")
+@router.post("/patient/{token}/answer", dependencies=[Depends(ratelimit.per_path_value(ratelimit.INTERVIEW_ANSWERS, "token"))])
 def answer(
     token: str,
     background: BackgroundTasks,
@@ -382,11 +389,10 @@ def answer(
     answers = json.loads(row["answers"])
     conversation = [{"question": turn["question"], "answer": turn["answer"]} for turn in transcript]
     try:
-        turn = agent.next_turn(form, answers, conversation, language)
+        step = agent.advance(form, answers, conversation, row["questions_asked"], language)
     except (llm.AIUnavailable, llm.AIDeclined) as error:
         events.emit_separately(MODULE, "intake.failed", lambda connection: _workflow(connection, row), "failed", metadata={"error_category": events.category_of(error)})
         raise
-    step = agent.apply_turn(form, answers, turn, row["questions_asked"], language)
     if audio is not None:
         audio_name = recordings.save(row["id"], len(transcript) - 1, data, content_type)
         transcript[-1]["audio"] = audio_name

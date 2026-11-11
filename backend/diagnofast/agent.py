@@ -12,6 +12,7 @@ from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 from backend import llm
+from backend.diagnofast import red_flags
 from backend.speech import Language
 
 FORMS_DIR = Path(__file__).parent / "forms"
@@ -195,6 +196,20 @@ def next_turn(form: dict, answers: Dict[str, str], conversation: List[dict], lan
     )
     # Patients are waiting on this between questions, so keep it quick.
     return llm.ask(TURN_SYSTEM, request, Turn, tool="diagnofast_turn", timeout=PATIENT_WAIT_SECONDS)
+
+
+def advance(form: dict, answers: Dict[str, str], conversation: List[dict], questions_asked: int, language: Language) -> Step:
+    """Takes the patient's latest answer and decides what the interview does next.
+
+    The rules check the answer first, so an urgent symptom stops the interview
+    even when the AI would miss it or can't be reached. Only when they find
+    nothing does the AI pick the next question.
+    """
+    flags = red_flags.screen(conversation[-1]["answer"]) if conversation else []
+    if flags:
+        return Step(dict(answers), urgent=flags)
+    turn = next_turn(form, answers, conversation, language)
+    return apply_turn(form, answers, turn, questions_asked, language)
 
 
 def write_report(form: dict, answers: Dict[str, str], conversation: List[dict], records: Optional[dict]) -> Report:

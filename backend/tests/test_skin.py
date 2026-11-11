@@ -1,8 +1,9 @@
 import io
 
 import numpy as np
-import pandas as pd
 import pytest
+
+pd = pytest.importorskip("pandas")  # only the skin tool's extra requirements install it
 from PIL import Image
 
 from backend.app import app

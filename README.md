@@ -535,6 +535,8 @@ Diagnosia incorporates safeguards in its pilot implementation, including:
 - Unreviewed AI output visibly marked and excluded from approved clinical records and FHIR exports.
 - Cross-organization/cross-site access restrictions.
 - Pilot-mode controls that prevent real-patient operation until readiness requirements are satisfied.
+- Rate limits on the public kiosk, DiagnoFast patient links and prescription read-aloud, counted in SQLite and storing only hashed keys.
+- Rule-based urgent-symptom screening in DiagnoFast (English, Hindi, romanised Hindi), which sends the patient to reception even when the AI is unavailable.
 
 These controls reduce risk but do not establish regulatory compliance or production security. Configuration, deployment, independent testing and professional review remain necessary.
 
