@@ -1,0 +1,82 @@
+{"expected": ["Severe allergic reaction"], "id": "000fc4da9bef", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "दवा के बाद चेहरा सूज गया है और सांस रुक रही है, सुबह से"}
+{"expected": ["Heavy bleeding"], "id": "00486f38e1ff", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "डॉक्टर साहब, खून रुक नहीं रहा"}
+{"expected": [], "id": "00835c3c8c1f", "kind": "history", "note": "", "script": "dev", "split": "test", "text": "दिल का दौरा पड़ा था दो साल पहले"}
+{"expected": ["Poisoning or overdose"], "id": "01be8ed8092b", "kind": "clause_break", "note": "negation then symptom", "script": "rom", "split": "test", "text": "bukhar nahi hai. usne zeher kha liya hai"}
+{"expected": ["Fainting or unconsciousness"], "id": "01cf65172138", "kind": "positive", "note": "", "script": "rom", "split": "test", "text": "woh behosh ho gaya"}
+{"expected": [], "id": "01ebc58b1c87", "kind": "negated", "note": "", "script": "rom", "split": "test", "text": "saans lene mein takleef nahi hua"}
+{"expected": ["Possible stroke signs"], "id": "04bec1baa082", "kind": "positive", "note": "", "script": "dev", "split": "test", "text": "एक तरफ का हाथ पैर अचानक कमज़ोर पड़ गया"}
+{"expected": ["Poisoning or overdose"], "id": "06d15cd68235", "kind": "positive", "note": "", "script": "dev", "split": "test", "text": "उसने ज़हर खा लिया है"}
+{"expected": [], "id": "088d5d260301", "kind": "negated", "note": "", "script": "rom", "split": "test", "text": "bolne mein ladkhadahat kabhi nahi hua"}
+{"expected": ["Severe allergic reaction"], "id": "08af72aac92f", "kind": "clause_break", "note": "no Chest pain, but Severe allergic reaction", "script": "dev", "split": "test", "text": "सीने में दर्द नहीं हुआ और दवा के बाद चेहरा सूज गया है और सांस रुक रही है"}
+{"expected": ["Poisoning or overdose"], "id": "09793a5c95b5", "kind": "positive", "note": "carrier sentence", "script": "rom", "split": "test", "text": "usne zeher kha liya hai, subah se"}
+{"expected": [], "id": "0a7421a7a30d", "kind": "history", "note": "", "script": "en", "split": "test", "text": "He had a heart attack in 2019"}
+{"expected": ["Possible stroke signs"], "id": "0b7b5dbccdc9", "kind": "positive", "note": "", "script": "en", "split": "test", "text": "She has slurred speech since an hour"}
+{"expected": ["Heavy bleeding"], "id": "0b92554e3ece", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "बहुत खून बह रहा है"}
+{"expected": [], "id": "0d4af4c03afc", "kind": "negated", "note": "", "script": "rom", "split": "test", "text": "zeher khana kabhi nahi hua"}
+{"expected": [], "id": "0ddfc63128c6", "kind": "ordinary", "note": "", "script": "en", "split": "test", "text": "Blocked nose and sore throat"}
+{"expected": [], "id": "0e50e1f33e99", "kind": "negated", "note": "", "script": "en", "split": "test", "text": "I don't have any trouble breathing"}
+{"expected": ["Fainting or unconsciousness"], "id": "0f1c4ce8024c", "kind": "positive", "note": "", "script": "rom", "split": "test", "text": "main subah behosh ho gaya tha"}
+{"expected": [], "id": "106f9ead93d6", "kind": "negated", "note": "", "script": "rom", "split": "test", "text": "behoshi nahi hua"}
+{"expected": ["Trouble breathing"], "id": "119936e66a06", "kind": "positive", "note": "", "script": "dev", "split": "test", "text": "साँस लेना मुश्किल हो गया है"}
+{"expected": [], "id": "11b3cfe2c0b9", "kind": "negated", "note": "", "script": "dev", "split": "test", "text": "बहुत खून बहना नहीं है"}
+{"expected": [], "id": "11ff552856a3", "kind": "negated", "note": "", "script": "rom", "split": "test", "text": "behoshi kabhi nahi hua"}
+{"expected": [], "id": "12a5b444149e", "kind": "history", "note": "carrier sentence", "script": "rom", "split": "test", "text": "dil ka daura pada tha do saal pehle, subah se"}
+{"expected": [], "id": "12bf8afced02", "kind": "negated", "note": "", "script": "dev", "split": "test", "text": "ज़हर खाना कभी नहीं हुआ"}
+{"expected": ["Possible stroke signs"], "id": "12f1cc0e5f84", "kind": "positive", "note": "", "script": "en", "split": "test", "text": "My mouth has gone crooked"}
+{"expected": ["Severe allergic reaction"], "id": "1378803d1b6f", "kind": "clause_break", "note": "negation then symptom", "script": "en", "split": "test", "text": "No fever and Severe allergic reaction, swelling of the face"}
+{"expected": ["Chest pain"], "id": "13c01bfae1b5", "kind": "positive", "note": "carrier sentence", "script": "rom", "split": "test", "text": "seene mein tez dard utha hai"}
+{"expected": ["Severe allergic reaction"], "id": "13d07ace504a", "kind": "positive", "note": "", "script": "en", "split": "test", "text": "Severe allergic reaction, swelling of the face"}
+{"expected": ["Trouble breathing"], "id": "1425709005e2", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "Doctor, I'm gasping for air"}
+{"expected": ["Thoughts of self-harm"], "id": "14cf17583a46", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "Yes. I have been thinking of ending my life"}
+{"expected": ["Thoughts of self-harm"], "id": "14d3fd5527ed", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "I want to kill myself"}
+{"expected": [], "id": "14f5160409a3", "kind": "ordinary", "note": "carrier sentence", "script": "rom", "split": "test", "text": "haan. subah se sir dard hai"}
+{"expected": ["Possible stroke signs"], "id": "151e631deed9", "kind": "clause_break", "note": "negation then symptom", "script": "rom", "split": "test", "text": "bukhar nahi hai, lekin chehra ek taraf latak gaya hai"}
+{"expected": [], "id": "152efa720578", "kind": "ordinary", "note": "carrier sentence", "script": "en", "split": "test", "text": "I have a cough and cold, please help"}
+{"expected": ["Chest pain"], "id": "159af56395f5", "kind": "positive", "note": "", "script": "dev", "split": "test", "text": "सीने पर भारीपन और दबाव है"}
+{"expected": ["Trouble breathing"], "id": "160c21e3f912", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "Yes. I am struggling to breathe"}
+{"expected": ["Possible stroke signs"], "id": "17330761af17", "kind": "positive", "note": "", "script": "en", "split": "test", "text": "Sudden numbness in my left arm and face"}
+{"expected": [], "id": "17ec3d5d1068", "kind": "history", "note": "carrier sentence", "script": "en", "split": "test", "text": "I have epilepsy, taking tablets regularly, since this morning"}
+{"expected": [], "id": "19e31307c4ed", "kind": "negated", "note": "", "script": "en", "split": "test", "text": "I haven't had trouble breathing"}
+{"expected": [], "id": "1b030017fc1a", "kind": "negated", "note": "", "script": "dev", "split": "test", "text": "ज़हर खाना नहीं है"}
+{"expected": [], "id": "1bb5546c6fb3", "kind": "ordinary", "note": "carrier sentence", "script": "en", "split": "test", "text": "A headache since morning, please help"}
+{"expected": ["Heavy bleeding"], "id": "1bbbc0a2d403", "kind": "positive", "note": "", "script": "en", "split": "test", "text": "There is heavy bleeding from the cut"}
+{"expected": [], "id": "1bdd29dbcccc", "kind": "ordinary", "note": "", "script": "dev", "split": "test", "text": "नाक बंद और गला खराब"}
+{"expected": ["Poisoning or overdose"], "id": "1c037196d3d6", "kind": "clause_break", "note": "negation then symptom", "script": "en", "split": "test", "text": "No fever. She swallowed rat poison"}
+{"expected": [], "id": "1c4f6cba5d93", "kind": "negated", "note": "", "script": "en", "split": "test", "text": "I don't have any overdose"}
+{"expected": [], "id": "1cbd4526d77e", "kind": "negated", "note": "", "script": "en", "split": "test", "text": "There is no seizure"}
+{"expected": [], "id": "1d33756b9166", "kind": "negated", "note": "", "script": "dev", "split": "test", "text": "दौरा नहीं है"}
+{"expected": ["Fainting or unconsciousness"], "id": "1e1d324c2314", "kind": "positive", "note": "", "script": "en", "split": "test", "text": "He passed out in the bathroom"}
+{"expected": [], "id": "1e7b5a723370", "kind": "history", "note": "", "script": "en", "split": "test", "text": "Paralysis as a child, recovered"}
+{"expected": ["Severe allergic reaction", "Thoughts of self-harm"], "id": "1ef1a932b41c", "kind": "positive", "note": "two symptoms", "script": "en", "split": "test", "text": "I think it's anaphylaxis, I can't swallow, but I have been thinking of ending my life"}
+{"expected": ["Heavy bleeding"], "id": "1f2bec1f306b", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "डॉक्टर साहब, खून की उल्टी हुई है"}
+{"expected": ["Trouble breathing"], "id": "20f5aa723a3c", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "सांस लेने में बहुत तकलीफ है, सुबह से"}
+{"expected": ["Possible stroke signs"], "id": "2124ea5baeeb", "kind": "clause_break", "note": "no Severe allergic reaction, but Possible stroke signs", "script": "dev", "split": "test", "text": "गला सूजना कभी नहीं हुआ। चेहरा एक तरफ लटक गया है"}
+{"expected": ["Severe allergic reaction"], "id": "2148ec079c1b", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "गला बंद हो रहा है"}
+{"expected": ["Possible stroke signs"], "id": "21bfdb547d9c", "kind": "clause_break", "note": "negation then symptom", "script": "rom", "split": "test", "text": "bukhar nahi hai aur muh tedha ho gaya hai"}
+{"expected": ["Heavy bleeding"], "id": "2284e5d7613b", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "Severe bleeding after delivery, please help"}
+{"expected": null, "id": "234f37c6d59a", "kind": "ambiguous", "note": "needs a clinician's decision", "script": "rom", "split": "test", "text": "kabhi kabhi chakkar aate hain"}
+{"expected": ["Seizure"], "id": "23e2fb181b54", "kind": "clause_break", "note": "negation then symptom", "script": "rom", "split": "test", "text": "bukhar nahi hai aur haath pair akad gaye hain aur jhatke aa rahe hain"}
+{"expected": ["Seizure"], "id": "24f7e8786a99", "kind": "positive", "note": "", "script": "dev", "split": "test", "text": "मिर्गी का दौरा पड़ रहा है"}
+{"expected": [], "id": "262f3fe8c820", "kind": "history", "note": "carrier sentence", "script": "en", "split": "test", "text": "Doctor, My mother has had fits since youth"}
+{"expected": [], "id": "2648995f869d", "kind": "negated", "note": "", "script": "dev", "split": "test", "text": "सीने में दर्द कभी नहीं हुआ"}
+{"expected": ["Possible stroke signs"], "id": "26cd27e6052d", "kind": "clause_break", "note": "no Chest pain, but Possible stroke signs", "script": "rom", "split": "test", "text": "seene mein dard kabhi nahi hua, lekin ek taraf ka haath pair achanak kamzor pad gaya"}
+{"expected": ["Seizure"], "id": "26e8faed9a32", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "हाँ। मिर्गी का दौरा पड़ रहा है"}
+{"expected": ["Trouble breathing"], "id": "27ae6f98f5c9", "kind": "positive", "note": "", "script": "en", "split": "test", "text": "Breathing has become very difficult"}
+{"expected": ["Trouble breathing"], "id": "28def4f0c305", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "हाँ। सांस फूल रही है"}
+{"expected": ["Thoughts of self-harm"], "id": "29228c993546", "kind": "positive", "note": "carrier sentence", "script": "rom", "split": "test", "text": "main marna chahta hoon"}
+{"expected": ["Possible stroke signs"], "id": "29a1aeb93377", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "His face is drooping on one side, please help"}
+{"expected": ["Chest pain"], "id": "2a4c6f46b7e7", "kind": "positive", "note": "carrier sentence", "script": "rom", "split": "test", "text": "seene par bhaaripan aur dabav hai, subah se"}
+{"expected": ["Severe allergic reaction"], "id": "2a5aa8331f07", "kind": "clause_break", "note": "no Thoughts of self-harm, but Severe allergic reaction", "script": "en", "split": "test", "text": "I haven't had thoughts of suicide, but His lips and tongue are swollen after the medicine"}
+{"expected": ["Heavy bleeding"], "id": "2b27816601d2", "kind": "positive", "note": "carrier sentence", "script": "rom", "split": "test", "text": "bahut khoon beh raha hai"}
+{"expected": [], "id": "2b4261dc5476", "kind": "negated", "note": "", "script": "dev", "split": "test", "text": "बेहोशी नहीं हुआ"}
+{"expected": [], "id": "2c34b493bcab", "kind": "ordinary", "note": "carrier sentence", "script": "rom", "split": "test", "text": "baahon par khujli hai, subah se"}
+{"expected": ["Seizure"], "id": "2ce48d5f52d9", "kind": "positive", "note": "carrier sentence", "script": "dev", "split": "test", "text": "हाथ पैर अकड़ गए हैं और झटके आ रहे हैं, सुबह से"}
+{"expected": ["Fainting or unconsciousness"], "id": "2d63639e6374", "kind": "positive", "note": "carrier sentence", "script": "rom", "split": "test", "text": "bachcha behosh pada hai, subah se"}
+{"expected": ["Trouble breathing"], "id": "2e1cb391cc0b", "kind": "positive", "note": "carrier sentence", "script": "rom", "split": "test", "text": "saans phool rahi hai, subah se"}
+{"expected": ["Seizure"], "id": "3056f07a93d0", "kind": "clause_break", "note": "negation then symptom", "script": "dev", "split": "test", "text": "बुखार नहीं है और हाथ पैर अकड़ गए हैं और झटके आ रहे हैं"}
+{"expected": ["Fainting or unconsciousness"], "id": "30c928ae8d28", "kind": "positive", "note": "", "script": "en", "split": "test", "text": "I blacked out for a minute"}
+{"expected": ["Trouble breathing"], "id": "30d874aeac31", "kind": "positive", "note": "carrier sentence", "script": "rom", "split": "test", "text": "saans nahi aa rahi"}
+{"expected": ["Possible stroke signs"], "id": "318add14d0e0", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "Yes. He suddenly can't speak clearly"}
+{"expected": ["Possible stroke signs"], "id": "31d68de808b6", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "Sudden weakness on one side of my body"}
+{"expected": ["Heavy bleeding"], "id": "32aac43c95b7", "kind": "positive", "note": "carrier sentence", "script": "en", "split": "test", "text": "Yes. I am bleeding a lot"}
+{"expected": null, "id": "3325ad9ed003", "kind": "ambiguous", "note": "needs a clinician's decision", "script": "en", "split": "test", "text": "I get short of breath on climbing stairs"}

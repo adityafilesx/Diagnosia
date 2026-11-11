@@ -54,7 +54,8 @@ backend/    One FastAPI app: accounts and one folder per tool.
   speech.py         Groq transcription/WAV speech; Edge neural question playback
   images.py         Upload checks (JPG/PNG, size)
   ratelimit.py      Limits on the public and costly routes, counted in SQLite
-  synthetic/        seed_accounts.py: made-up doctors and patients with logins, for manual testing
+  synthetic/        Made-up test data: seed_accounts.py (logins), diagnofast_data.py and diagnofast_eval.py (labelled
+                    interviews and a scorer), diagnofast_links.py (waiting interview links for manual testing)
   config.py         Settings from environment / .env
   prescription/     analyzer.py, shorthand.py, medicines.py, routes.py
   diagnofast/       agent.py, red_flags.py, abha.py, recordings.py, routes.py, forms/*.json
