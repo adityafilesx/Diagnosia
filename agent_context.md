@@ -19,8 +19,8 @@ Diagnosia has four AI tools that help doctors work faster and help patients unde
 | **OptiKinesis** | People who can't use their hands | Hands-free cursor control with a webcam | **Separate repo** (see the end). Don't work on it here |
 
 Removed tools (Talkie, Curl Counter, BMI Calculator, DocFinder, the old Symptom Checker and
-Prescription Generator) and the sidelined VisionTrack live in `archive/`. Nothing there is
-served or maintained. VisionTrack may come back, so don't delete it.
+Prescription Generator) and the sidelined VisionTrack were deleted along with the `archive/`
+folder. They remain in git history if anyone needs to look at them.
 
 More background: `PROJECT_DESCRIPTION.md` (the product, in plain language), `README.md` (setup),
 `pitch/` (pitch statistics with sources, video script, slides).
@@ -53,7 +53,6 @@ backend/    One FastAPI app: accounts and one folder per tool.
   integrations/     Optional Meko and YugabyteDB adapters, and AI run records
   patient_pack/     One searchable view of a patient's records, on Meko: render, sync, access, brief, routes
   tests/            pytest suite (no API keys needed)
-archive/    Retired tools. See archive/README.md.
 pitch/      Pitch material.
 datasets/, backend/skin/weights/, backend/storage/   Not in git (see below).
 ```

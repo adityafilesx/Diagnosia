@@ -35,7 +35,7 @@ that decision would defeat the control.
 - **The ClinScribe verifier is a text check.** It catches many errors, not all, and can
   only compare by hand in Hindi. Speaker labels are manual.
 - **LabLens was measured on synthetic layouts only.** See
-  `EXTERNAL_INTEGRATION_VALIDATION.md`.
+  `integrations/TESTING.md`.
 - **Trends can't detect a change of method between laboratories.**
 - **Emergency numbers 112 and 108 are shown.** Confirm these for each deployment.
 - **SMS and voice reminders aren't connected.** A person must make those calls.

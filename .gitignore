@@ -21,10 +21,6 @@ backend/storage/
 *.db
 *.sqlite3
 
-# Old local chat logs and upload leftovers
-**/talkie/data/
-**/skin_cancer/temp_image.jpg
-
 # Python
 __pycache__/
 *.py[cod]
