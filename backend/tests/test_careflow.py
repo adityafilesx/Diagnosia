@@ -216,9 +216,10 @@ def test_a_workflow_reference_must_be_generated(reference):
         CareEvent(**valid_event(workflow_ref=reference))
 
 
-def test_a_module_can_only_record_its_own_events():
+@pytest.mark.parametrize("module", ["MedGuard", "Skin Cancer Detection"])
+def test_a_module_can_only_record_its_own_events(module):
     with pytest.raises(ValueError):
-        CareEvent(**valid_event(module="MedGuard"))
+        CareEvent(**valid_event(module=module))
 
 
 def test_a_handoff_goes_to_a_different_known_module():
@@ -387,26 +388,6 @@ def test_a_failed_prescription_read_says_so(doctor, monkeypatch):
     assert doctor.post("/api/prescription/read", files=[("images", ("rx.jpg", photo_bytes(), "image/jpeg"))], data={"consent": "true"}).status_code == 503
     found = event_types()
     assert "prescription.processing.failed" in found and "prescription.extraction.completed" not in found
-
-
-def test_the_skin_tool_reports_no_finding(doctor):
-    from backend.app import app
-    from backend.skin import routes as skin
-    from backend.skin.classifier import Analysis, Condition
-    from backend.tests.test_prescription import photo_bytes
-
-    class Fake:
-        def analyze(self, _photo):
-            return Analysis(priority="refer", conditions=[Condition("MEL", "Melanoma", "cancer", 0.91)], heatmap=None, concern_score=0.91)
-
-    app.dependency_overrides[skin.classifier_dependency] = lambda: Fake()
-    try:
-        response = doctor.post("/api/skin/analyze", files={"image": ("a.jpg", photo_bytes(), "image/jpeg")}, data={"image_type": "dermoscopic"})
-    finally:
-        app.dependency_overrides.clear()
-    assert response.status_code == 200
-    assert {"skin_analysis.started", "skin_analysis.completed", "skin_analysis.review_required"} <= set(event_types())
-    assert "Melanoma" not in stored_text() and "refer" not in stored_text().replace("referral", "")
 
 
 # Delivery

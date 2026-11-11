@@ -294,21 +294,6 @@ def test_requirements_hold_no_anthropic_client():
     assert json.dumps({})
 
 
-def test_without_torch_the_skin_tool_says_it_isnt_installed(monkeypatch):
-    from fastapi import HTTPException
-
-    from backend.skin import routes as skin
-
-    def missing():
-        raise ImportError("torch")
-
-    monkeypatch.setattr(skin, "get_classifier", missing)
-    monkeypatch.setattr(skin.events, "emit_separately", lambda *args, **options: None)
-    with pytest.raises(HTTPException) as refused:
-        skin.classifier_dependency({"id": 1, "role": "doctor"})
-    assert refused.value.status_code == 503
-
-
 def test_each_provider_has_its_own_sealed_key(admin, monkeypatch):
     secret = "AQ.synthetic_gemini_value_9876"
     assert admin.put("/api/platform/ai-key?provider=gemini", json={"key": secret}).json() == {"configured": True, "last_four": "9876"}

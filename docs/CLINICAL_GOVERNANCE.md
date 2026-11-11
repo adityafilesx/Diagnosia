@@ -1,6 +1,6 @@
 # Clinical governance
 
-All tools, including the original DiagnoFast, Prescription Analyzer and Skin Cancer Detection, are **pilot software, not validated for patient care**. No
+All six tools, including the original DiagnoFast and Prescription Analyzer, are **pilot software, not validated for patient care**. No
 clinician, laboratory professional, lawyer or regulator
 has reviewed anything here. Use synthetic data only.
 
@@ -42,7 +42,6 @@ that decision would defeat the control.
 - **Whisper can invent words from silence.** Segments it marks as probably not speech are dropped,
   but a clinician must still check transcripts.
 - **Hindi reading aloud uses the device's voice,** so quality varies, and some devices have none.
-- **Existing Skin Cancer Detection is outside this sprint**, but see the CDSCO table.
 
 ## Rules built into the code, with tests
 
@@ -88,7 +87,6 @@ What it says that matters here:
 
 | Function | Why it needs assessing | Early view |
 |---|---|---|
-| Skin Cancer Detection (existing) | Closely resembles Example 8 | **Strong candidate.** Highest priority, despite being outside this sprint |
 | ClinScribe drafting | AI summarising clinical content | Needs assessment. Documentation only is arguably closer to 5.2 |
 | LabLens extraction and range display | Record-keeping, but shows above or below range | Needs assessment against the LIS note |
 | Prescription Analyzer (existing) | Explains medicines to patients | Needs assessment |

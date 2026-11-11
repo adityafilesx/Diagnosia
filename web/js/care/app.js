@@ -8,7 +8,6 @@ import { renderLabLens } from './lablens.js';
 import { renderCareFlow } from './careflow.js';
 import { renderDiagnoFast } from './diagnofast.js';
 import { renderPrescription } from './prescription.js';
-import { renderSkin } from './skin.js';
 import { renderReferrals } from './referrals.js';
 import { renderDischarge } from './discharge.js';
 import { renderGovernance } from './governance.js';
@@ -28,7 +27,6 @@ const RENDERERS = {
     diagnofast: renderDiagnoFast,
     clinscribe: renderClinScribe,
     lablens: renderLabLens,
-    skin: renderSkin,
     prescription: renderPrescription,
     referrals: renderReferrals,
     discharge: renderDischarge,
@@ -71,8 +69,7 @@ function renderRail() {
                 .filter((tool) => canUse(tool, state))
                 .map((tool) => h('a', { href: `#/${tool.id}`, 'aria-current': tool.id === active ? 'page' : null }, tool.label));
             return links.length ? h('div', {}, group.title && h('h2', {}, group.title), links) : null;
-        }),
-        h('div', {}, h('h2', {}, 'Access'), h('a', { href: 'optikinesis_hiw.html' }, 'OptiKinesis')));
+        }));
 }
 
 async function renderWristband() {

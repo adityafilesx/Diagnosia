@@ -24,7 +24,6 @@ EVENT_TYPES: Dict[str, set] = {
         "intake.link_created", "intake.started", "intake.transcription.completed", "intake.completed",
         "intake.review_required", "intake.failed",
     },
-    "Skin Cancer Detection": {"skin_analysis.started", "skin_analysis.completed", "skin_analysis.review_required", "skin_analysis.failed"},
     "Prescription Analyzer": {
         "prescription.processing.started", "prescription.extraction.completed", "prescription.confirmation_required",
         "prescription.explained", "prescription.processing.failed",
@@ -49,14 +48,13 @@ EVENT_TYPES: Dict[str, set] = {
 MODULES = set(EVENT_TYPES)
 # Tools that were removed. Their old events can still sit in an outbox or in MongoDB, so a database
 # validator keeps accepting them. New events from these modules are refused.
-RETIRED_MODULES = {"MedGuard", "ChronicCare", "MaternaCare", "AMR Guard"}
+RETIRED_MODULES = {"MedGuard", "ChronicCare", "MaternaCare", "AMR Guard", "Skin Cancer Detection"}
 
 # The same order of a visit that the workspace uses.
 WORKFLOW_STAGES = {
     "DiagnoFast": "before_visit",
     "ClinScribe": "during_visit",
     "LabLens": "during_visit",
-    "Skin Cancer Detection": "during_visit",
     "Prescription Analyzer": "after_visit",
     "ReferralLoop": "after_visit",
     "DischargeCare": "after_visit",

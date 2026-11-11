@@ -69,7 +69,7 @@ says what is missing.
 |---|---|
 | AI key | Add, replace or remove |
 | AI models | The model for each job. Any model name the provider supports is accepted |
-| Tools | Switch any tool on or off, including DiagnoFast, Prescription Analyzer and Skin Cancer Detection. Off applies to the API too, not only the screen |
+| Tools | Switch any tool on or off, including DiagnoFast and Prescription Analyzer. Off applies to the API too, not only the screen |
 | ClinScribe | Default language, your clinic's own note headings |
 | LabLens | Whether AI reads reports we can't read locally |
 | ReferralLoop | Suggested reply times |

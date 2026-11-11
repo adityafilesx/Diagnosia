@@ -1,8 +1,8 @@
 <h1 align="center">Diagnosia</h1>
 
 <p align="center">
-  <strong>AI-powered care continuity for safer, more connected healthcare.</strong><br />
-  A modular healthcare workspace connecting clinical information, specialist workflows, shared agent context and operational intelligence.
+  <strong>Healthcare that is connected, organised and intelligent.</strong><br />
+  An AI-powered healthcare platform that brings patient records, medical history and clinical tools together in one place.
 </p>
 
 <p align="center">
@@ -50,9 +50,9 @@
 
 ## Overview
 
-**Diagnosia is a connected healthcare workflow platform designed to help clinicians, specialists, patients and care teams manage information across the patient journey.** It brings patient intake, medical-document understanding, clinical documentation, laboratory reports, discharge coordination and specialist referrals into one shared patient-record experience.
+**Diagnosia is an AI-powered healthcare platform that brings patient records, medical history and clinical tools together in one place, helping doctors make better-informed decisions and manage their workflows more efficiently.** The goal is to make healthcare more connected, organised and intelligent. Patient intake, clinical documentation, laboratory reports, prescriptions, specialist referrals and discharge coordination all share one patient record.
 
-The project combines three core clinical tools with four integrated add-on modules. Optional integrations extend the platform in clearly separated roles:
+The product has six tools: two core tools and four add-on modules, in the order of a visit. Optional integrations extend the platform in clearly separated roles:
 
 | Integration | Responsibility in Diagnosia |
 |---|---|
@@ -69,9 +69,8 @@ The goal is not to create a collection of disconnected AI demos. Diagnosia is de
 |---|---|
 | **Product category** | Healthcare workflow and care-continuity platform |
 | **Primary users** | Doctors, specialists, patients and care teams |
-| **Core tools** | DiagnoFast, Skin Cancer Detection, Prescription Analyzer |
-| **Add-on modules** | 8 focused workflows |
-| **Accessibility companion** | OptiKinesis (separate assistive-computing application) |
+| **Core tools** | DiagnoFast (before the visit), Prescription Analyzer (after it) |
+| **Add-on modules** | ClinScribe and LabLens (during the visit), ReferralLoop and DischargeCare (after it) |
 | **Integrations** | Gemini API, YugabyteDB, Meko, MongoDB Atlas |
 | **Backend foundation** | Python, FastAPI and the existing Diagnosia data/authentication layer |
 | **Frontend** | HTML, CSS and JavaScript served by FastAPI |
@@ -121,6 +120,7 @@ DiagnoFast helps collect a patient's history before or during a clinical visit. 
 - Neural Indian English (Neerja) and Hindi (Swara) question playback through Edge-TTS, with Groq English and browser voice fallbacks.
 - Six department choices, optional quick-answer chips, and a printable clinical requisition with source labels and physician workspace.
 - AI-assisted extraction into structured intake fields and a concise clinician-facing draft.
+- Two-layer urgent-symptom check: plain rules in English, Hindi and romanised Hindi run before the AI on every answer and end the interview at once, even when the AI is unavailable; the AI's own urgent list is the second layer.
 - Intended support for Hindi and Indian English workflows.
 
 **Self-service kiosk:** set `DIAGNOFAST_KIOSK_DOCTOR_ID` to the numeric user ID of a verified clinic doctor, restart the server, and open `/intake.html`. No patient links need to be created in advance. Visits enter that doctor's queue. Without this setting, reception-created links still work. The kiosk cannot attach existing charts or fetch ABHA history. Neural speech is enabled by default; set `DIAGNOSIA_NEURAL_TTS=0` to disable Microsoft question playback.
@@ -133,27 +133,7 @@ Each interview step is recorded in CareFlow: the link, the start, each transcrib
 </details>
 
 <details open>
-<summary><strong>2. Skin Cancer Detection — image-based screening support</strong></summary>
-
-The existing skin-image workflow uses a PanDerm-based visual representation with a classifier for eight lesion categories:
-
-- Melanoma (`MEL`)
-- Basal cell carcinoma (`BCC`)
-- Squamous cell carcinoma (`SCC`)
-- Actinic keratosis (`AK`)
-- Benign keratosis-like lesion (`BKL`)
-- Dermatofibroma (`DF`)
-- Melanocytic nevus (`NV`)
-- Vascular lesion (`VASC`)
-
-The documented pipeline includes image preprocessing, classifier output, Grad-CAM visualization, calibration and out-of-distribution uncertainty handling. The workflow is intended for clinician review, not standalone patient diagnosis.
-
-**Integration status:** the model boundary stays as it is. Gemini must not replace or overrule the skin model, generate a second unvalidated diagnosis or turn a model output into a clinical decision. CareFlow records that an analysis ran and needs review, and never records the finding.
-**Boundary:** this module has an unresolved calibration test failure and requires a CDSCO/regulatory assessment and appropriate clinical validation before any real-world use.
-</details>
-
-<details open>
-<summary><strong>3. Prescription Analyzer — prescription understanding and guidance</strong></summary>
+<summary><strong>2. Prescription Analyzer — prescription understanding and guidance</strong></summary>
 
 The Prescription Analyzer helps interpret prescription images and explain readable instructions in a patient-friendly format.
 
@@ -169,12 +149,6 @@ The Prescription Analyzer helps interpret prescription images and explain readab
 
 **Boundary:** model extraction is not a verified prescription or medication order.
 </details>
-
-### OptiKinesis — accessibility companion
-
-OptiKinesis is a related but separately distributed assistive-computing application. It uses webcam-based head tracking and blink interaction to help people with motor impairments control a computer. The documented technology includes MediaPipe facial landmarks, head-pose mapping, calibration, blink-to-click interaction and accessibility controls.
-
-OptiKinesis is **not counted among the four Diagnosia clinical add-ons** and is not a diagnostic module. Its role in the broader project ecosystem is digital accessibility and hands-free computer interaction.
 
 ## The four add-ons
 
@@ -252,7 +226,6 @@ Atlas stores one safe event for each workflow step and a prepared summary for ea
 | Tool | AI | CareFlow events | Handoff |
 |---|---|---|---|
 | DiagnoFast | Gemini first for confirmed-answer extraction; configurable fallback | Yes | None |
-| Skin Cancer Detection | Local model | Yes, with no finding recorded | None |
 | Prescription Analyzer | Gemini, then Groq | Yes | None |
 | ClinScribe | Groq, then Gemini | Yes | None |
 | LabLens | Gemini, then Groq, for scans | Yes | None |
@@ -277,7 +250,7 @@ flowchart TD
     U[Patient / Doctor / Specialist / Care Team] --> WEB[Diagnosia Web Workspace]
     WEB --> API[FastAPI Application and Authorization]
 
-    API --> CORE[Existing Core Tools<br/>DiagnoFast · Skin Detection · Prescription Analyzer]
+    API --> CORE[Core Tools<br/>DiagnoFast · Prescription Analyzer]
     API --> ADDONS[Four Add-ons<br/>ClinScribe · LabLens<br/>DischargeCare · ReferralLoop]
 
     API --> DB[(Existing Diagnosia Database<br/>Identity · Consent · Permissions<br/>Approved Records · Audit)]
@@ -369,7 +342,6 @@ The stack as implemented.
 | Existing database | SQLite in the documented development setup; configured through `DIAGNOSIA_DB` | Existing accounts, sessions and patient/workflow records |
 | Data access | Plain `sqlite3` with parameterised SQL | Persistence |
 | Frontend | HTML, CSS, JavaScript | Landing pages, auth, dashboards and care workspace |
-| Clinical image pipeline | PanDerm-based visual representation, PyTorch and scikit-learn classifier components | Existing skin-image workflow |
 | Language models | Google Gemini and Groq, with fallback | Structured extraction, drafting and reading |
 | Speech | Edge neural questions, Groq Whisper/Orpheus, browser speech | Voice interview, transcript preview and read-aloud |
 | Shared context | Meko, through MCP | Approved knowledge, memory and handoff notes |
@@ -491,8 +463,6 @@ Run the repository's normal automated test suite from the project root:
 .venv/bin/pytest -q
 ```
 
-The skin-model tests require a separate environment with the optional Torch/model dependencies installed. Follow the repository's skin-model test instructions; do not weaken or skip the calibration assertion to make the suite appear green.
-
 ### What the suite needs
 
 The suite needs no API keys and no network: every AI and speech call is replaced by a fake. Live tests against the real AI providers and integrations are marked `live`, skipped by default, and described in [docs/integrations/TESTING.md](docs/integrations/TESTING.md), along with the browser microphone check and the synthetic lab report layouts.
@@ -533,7 +503,6 @@ These controls reduce risk but do not establish regulatory compliance or product
 | Overall deployment | Pilot only; synthetic data only |
 | LOINC | 58 proposed mappings remain unapproved; local laboratory test names are retained in exports |
 | Reminders | In-app/staff follow-up workflow; SMS and voice channels are not connected |
-| Skin model | One calibration test remains failed and requires model-owner investigation |
 | Staff security | MFA and password-reset work remain open in the latest reported review |
 | Patient rights workflows | Whole-record export and erasure workflows remain open in the latest reported review |
 | Security assurance | Independent penetration test remains outstanding |
@@ -595,7 +564,6 @@ Branch from `main`, run the test suite, and open a pull request. See [`agent_con
 
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Pydantic](https://docs.pydantic.dev/)
-- [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker)
 - [Groq](https://console.groq.com/docs)
 - [ABDM FHIR Implementation Guide](https://www.nrces.in/ndhm/fhir/r4/)
 

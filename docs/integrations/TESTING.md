@@ -28,7 +28,7 @@ It refuses a database without `e2e` in its path. With container names it stops t
 
 ## Browser
 
-Run the demo, start a server, and pass `--expect-stream` when change streams are on, and `--mongo-container NAME` to test an outage. It checks signing in, events, filters, handoffs, labels, status, live updates, fallback and error states. Skin tests need `backend/requirements-skin.txt`.
+Run the demo, start a server, and pass `--expect-stream` when change streams are on, and `--mongo-container NAME` to test an outage. It checks signing in, events, filters, handoffs, labels, status, live updates, fallback and error states.
 
 ## Microphone
 

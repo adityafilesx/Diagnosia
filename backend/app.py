@@ -40,7 +40,6 @@ from backend.records import staff
 from backend.referralloop import routes as referralloop
 from backend.reminders import routes as reminders
 from backend.reminders import service as reminder_service
-from backend.skin import routes as skin
 
 logger = logging.getLogger("diagnosia")
 
@@ -147,7 +146,6 @@ _tool(dischargecare.router, "discharge")
 _tool(referralloop.router, "referrals")
 _tool(diagnofast.router, "diagnofast")
 _tool(prescription.router, "prescription")
-_tool(skin.router, "skin")
 app.include_router(reminders.router)
 
 

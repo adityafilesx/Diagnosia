@@ -13,7 +13,6 @@
 *.pth
 *.ckpt
 *.safetensors
-backend/skin/weights/
 datasets/
 
 # Runtime data: patient uploads, audio, databases

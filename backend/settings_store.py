@@ -23,7 +23,6 @@ MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{1,80}$")
 TOOLS = {
     "diagnofast": "DiagnoFast",
     "prescription": "Prescription Analyzer",
-    "skin": "Skin Cancer Detection",
     "clinscribe": "ClinScribe",
     "lablens": "LabLens",
     "referrals": "ReferralLoop",

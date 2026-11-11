@@ -18,10 +18,11 @@ the same product, not a separate brochure.
 
 ## Product purpose
 
-One platform for the whole visit: before it (DiagnoFast), during it (ClinScribe, LabLens,
-Skin Cancer Detection), after it (Prescription Analyzer, ReferralLoop, DischargeCare), plus
-OptiKinesis for people who can't use their hands. Success means a person never has to think about which product they
-are in.
+Patient records, medical history and clinical tools in one place, so doctors make
+better-informed decisions and manage their workflow more efficiently. Six tools on one shared
+patient record, for the whole visit: before it (DiagnoFast), during it (ClinScribe, LabLens),
+after it (Prescription Analyzer, ReferralLoop, DischargeCare). Success means a person never has
+to think about which product they are in.
 
 ## Brand personality
 

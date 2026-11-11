@@ -52,8 +52,8 @@ python -m backend.operator_cli signoff --item <item> --signed-by "<name>" --role
 - [ ] LOINC notice copied into notices and terms
 - [ ] Privacy notice and terms reviewed by counsel
 - [ ] Retention periods set, and export and erasure built
-- [ ] CDSCO classification decided, including the existing Skin Cancer Detection tool
-- [ ] Skin model replaced before any paid use, and the medicine list's data permission confirmed
+- [ ] CDSCO classification decided for each clinical function
+- [ ] The medicine list's data permission confirmed, or the list replaced, before any paid use
 - [ ] Real ABHA access approved, or the DiagnoFast demo records stay labelled
 - [ ] Data agreement signed with Groq, and zero data retention switched on in Groq's console
 - [ ] Data terms with Google reviewed if a Gemini key stays set, on a plan that doesn't train on content. Otherwise remove the key
