@@ -1,0 +1,52 @@
+"""Starts the app with the synthetic test accounts already in place. Development only.
+
+    python -m backend.synthetic.serve            # seeds if needed, then serves on 127.0.0.1:8000
+    python -m backend.synthetic.serve --port 8001
+
+It seeds the database named in your .env (or the default one), skips seeding when the
+accounts already exist, and prints the logins before the server starts. One command, so
+a fresh checkout can sign in straight away.
+"""
+import argparse
+import sys
+
+from backend.config import settings
+from backend.db import connect, init_db
+from backend.synthetic import seed_accounts
+
+
+def _has_accounts() -> bool:
+    init_db()
+    db = connect()
+    try:
+        return db.execute("SELECT 1 FROM organizations WHERE name = ?", (seed_accounts.ORGANIZATION,)).fetchone() is not None
+    finally:
+        db.close()
+
+
+def main(arguments=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--reload", action="store_true", help="restart when code changes")
+    args = parser.parse_args(arguments)
+
+    if not _has_accounts():
+        status = seed_accounts.run(patients=60, with_login=30, seed=2026)
+        if status:
+            return status
+    else:
+        seed_accounts.export_logins()
+    print(f"\nDatabase: {settings.db_path}")
+    print(f"Sign in at http://{args.host}:{args.port}/login.html with doctor01@example.com or patient001@example.com")
+    print(f"Password for every test account: {seed_accounts.PASSWORD}")
+    print(f"All logins: {seed_accounts.output_dir() / 'README.txt'}\n")
+
+    import uvicorn
+
+    uvicorn.run("backend.app:app", host=args.host, port=args.port, reload=args.reload)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

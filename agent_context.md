@@ -87,7 +87,8 @@ copy .env.example .env        # add the keys, see below
 ```
 
 Open <http://127.0.0.1:8000>. `python -m backend.operator_cli setup-local` creates demo accounts, and
-`python -m backend.synthetic.seed_accounts` creates 14 staff and 60 patient records (30 with logins).
+`python -m backend.synthetic.serve` seeds 14 staff and 60 patient records (30 with logins) if they
+aren't there yet, then starts the server (`seed_accounts` alone only seeds).
 Data sources and the plan for a labelled test set: `docs/DATA_SOURCES_AND_EVAL_PLAN.md`.
 Staff accounts are **not** self-declared: a doctor stays pending until an organization administrator
 verifies them, and the first administrator is only created from the command line.
