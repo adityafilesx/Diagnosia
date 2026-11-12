@@ -1,5 +1,5 @@
 /**
- * Diagnosia - Interactive Cursor Navbar Engine
+ * Curai - Interactive Cursor Navbar Engine
  * Implements smooth cursor spotlight tracking and subtle magnetic spring pull
  */
 (function () {

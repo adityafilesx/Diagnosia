@@ -1,6 +1,6 @@
 """CareFlow: a read-only activity timeline across the tools.
 
-Who may see what is decided here, from the Diagnosia database, on every request. The event store is
+Who may see what is decided here, from the Curai database, on every request. The event store is
 only asked for references the person is already allowed to open, so a store can't widen access.
 """
 import logging
@@ -19,7 +19,7 @@ from backend.integrations import execution, meko, yugabyte
 from backend.integrations import status as integration_status
 from backend.records import access as gate
 
-logger = logging.getLogger("diagnosia.careflow")
+logger = logging.getLogger("curai.careflow")
 router = APIRouter(prefix="/api/careflow")
 
 MAX_WORKFLOWS = 500
@@ -68,7 +68,7 @@ def _store(db: sqlite3.Connection):
 
 
 def _label(db: sqlite3.Connection, workflow: sqlite3.Row) -> str:
-    """A readable name, from the Diagnosia database, only for someone already allowed to see it."""
+    """A readable name, from the Curai database, only for someone already allowed to see it."""
     if workflow["patient_id"]:
         row = db.execute("SELECT first_name, last_name FROM patients WHERE id = ?", (workflow["patient_id"],)).fetchone()
         if row:

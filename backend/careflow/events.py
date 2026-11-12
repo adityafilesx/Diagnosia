@@ -22,7 +22,7 @@ from backend.config import settings
 from backend.db import connect
 from backend.integrations import execution
 
-logger = logging.getLogger("diagnosia.careflow")
+logger = logging.getLogger("curai.careflow")
 
 HANDOFF_CHANNELS = ("yugabyte", "meko")
 ERROR_CATEGORIES = {

@@ -30,7 +30,7 @@ FORM_WORDS = {
     "nebulizer", "nebuliser", "nebulisation", "respule", "rotacap", "rotacaps",
 }
 
-logger = logging.getLogger("diagnosia.medicines")
+logger = logging.getLogger("curai.medicines")
 _load_lock = threading.Lock()
 
 

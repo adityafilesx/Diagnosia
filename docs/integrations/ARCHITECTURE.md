@@ -89,7 +89,7 @@ crash between the two writes.
 | Kafka, Debezium, Atlas Stream Processing | Nothing here needs them |
 | Vector search in YugabyteDB | Meko already does retrieval, and a second embedding store would have no clear job |
 | An `integration_agent_tasks` table | Runs and attempts cover what happens. Delivery state already lives in the outbox |
-| `ai_drafts` in MongoDB | Nothing needs it, and draft text belongs in the Diagnosia database |
+| `ai_drafts` in MongoDB | Nothing needs it, and draft text belongs in the Curai database |
 | Meko text in clinical prompts | Meko's text never reaches a prompt. For packs it only says which records to read, and they're read again from SQLite |
 | Meko memory for patient records | It rewrites text with an LLM and can drop details |
 | A second delivery system | SQLite's outbox decides what's sent. MongoDB's `integration_delivery` is only a view of it |

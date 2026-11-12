@@ -172,7 +172,7 @@ and images. Turning the second key on doubles the number of vendors that need an
 ### C3. DiagnoFast speech additions (1 November 2026)
 
 The kiosk can send question text to Microsoft through `edge-tts` (Neerja/Swara voices).
-This is enabled by default and can be disabled with `DIAGNOSIA_NEURAL_TTS=0`.
+This is enabled by default and can be disabled with `CURAI_NEURAL_TTS=0`.
 Browser SpeechRecognition may also send patient audio to the browser's recognition provider.
 In demo mode there is no consent screen, so nothing tells the patient about either path. One is needed before real use. Neither service has a reviewed data agreement or
 retention assessment here; the existing **synthetic-data-only** rule applies. Patient confirmation

@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Tuple
 
 from backend.config import settings
 
-logger = logging.getLogger("diagnosia.integrations")
+logger = logging.getLogger("curai.integrations")
 
 BOOT_ID = uuid.uuid4().hex
 BUSY_TIMEOUT_SECONDS = 2

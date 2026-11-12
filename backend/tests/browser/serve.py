@@ -41,6 +41,6 @@ app.router.routes.insert(0, Route("/test/speech-mode", set_mode, methods=["POST"
 app.router.routes.insert(0, Route("/test/speech-state", read_mode))
 
 if __name__ == "__main__":
-    if "test-run" not in os.environ.get("DIAGNOSIA_DB", ""):
-        sys.exit("Use a throwaway DIAGNOSIA_DB containing 'test-run'.")
+    if "test-run" not in os.environ.get("CURAI_DB", ""):
+        sys.exit("Use a throwaway CURAI_DB containing 'test-run'.")
     uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]), log_level="warning")

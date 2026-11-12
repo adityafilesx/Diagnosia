@@ -91,7 +91,7 @@ function downloadIcs(icsText) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'diagnosia_reminders.ics';
+    a.download = 'curai_reminders.ics';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -173,7 +173,7 @@ function calendarRemindersView(reminders, language) {
             onclick: () => {
                 downloadIcs(reminders.ics_calendar);
                 show(helperContainer, h('div', { class: 'calendar-import-note' },
-                    h('strong', {}, '📅 Reminders file downloaded (diagnosia_reminders.ics)!'),
+                    h('strong', {}, '📅 Reminders file downloaded (curai_reminders.ics)!'),
                     h('p', {},
                         'To import all slots into Google Calendar in one go: ',
                         h('a', {
@@ -342,7 +342,7 @@ export function renderPrescription(container) {
         },
     },
     h('label', {}, 'Photos of your prescription (JPG or PNG). Add the front and back if both have writing, up to 4 photos.', photos),
-    h('label', { class: 'tick' }, consent, "I agree to my photo being sent to outside AI services to read it. Diagnosia doesn't keep the photo."),
+    h('label', { class: 'tick' }, consent, "I agree to my photo being sent to outside AI services to read it. Curai doesn't keep the photo."),
     readButton);
 
     show(container,

@@ -7,7 +7,7 @@ reached only through its documented MCP server, `https://mcp.mekodata.ai/mcp`.
 ## Connect
 
 1. Sign up at [cloud.mekodata.ai](https://cloud.mekodata.ai), and create a datapack named for
-   Diagnosia's demo. Don't use a personal one.
+   Curai's demo. Don't use a personal one.
 2. Create an API key under Settings > API Keys. It's shown once.
 3. Add to `.env`:
 

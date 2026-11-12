@@ -31,7 +31,7 @@ def test_public_pages_are_served(client, path):
         "/.env",
         "/.git/config",
         "/backend/app.py",
-        "/backend/storage/diagnosia.db",
+        "/backend/storage/curai.db",
         "/docs/SECURITY_REVIEW.md",
         "/pitch/MVL27_PITCH_STATS.md",
         "/connect.php",
@@ -62,7 +62,7 @@ def test_the_homepage_has_one_catalogue_of_all_six_tools_in_visit_order(client):
     page = client.get("/index.html").text
     catalogue = page[page.index('class="catalogue"'):page.index('id="FAQ"')]
     assert re.findall(r'<h4><a href="[^"]+">([^<]+)</a></h4>', catalogue) == TOOL_NAMES
-    assert "Medical Tools" not in page and "Diagnosia Care" not in page
+    assert "Medical Tools" not in page and "Curai Care" not in page
 
 
 def test_the_faq_covers_every_tool(client):

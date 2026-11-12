@@ -5,7 +5,7 @@
 It reports what each service really is, so a stand-in can't be mistaken for the real thing. Give a
 container name to stop that server for real during the outage step. Without one, the outage is
 simulated by making the destination fail, which is the only safe way to test against a cloud service.
-Use a throwaway DIAGNOSIA_DB. It refuses to run against one without `e2e` in its path.
+Use a throwaway CURAI_DB. It refuses to run against one without `e2e` in its path.
 """
 import argparse
 import json
@@ -119,7 +119,7 @@ def main() -> int:
     parser.add_argument("--yugabyte-container")
     options = parser.parse_args()
     if "e2e" not in str(settings.db_path):
-        print("Use a throwaway DIAGNOSIA_DB with e2e in its path.", file=sys.stderr)
+        print("Use a throwaway CURAI_DB with e2e in its path.", file=sys.stderr)
         return 1
     init_db()
     for item in status.overview(deep=True):

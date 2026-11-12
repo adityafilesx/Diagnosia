@@ -2,7 +2,7 @@
 
 Atlas stores the CareFlow timeline. Everything in it can be rebuilt from the local outbox.
 
-1. Create a cluster, and a database user limited to `readWrite` on `diagnosia_atlas`.
+1. Create a cluster, and a database user limited to `readWrite` on `curai_atlas`.
 2. Allow your server's address under Network Access.
 3. Install the driver: `pip install -r backend/requirements-integrations.txt`
 4. Add to `.env`, never to code:
@@ -34,7 +34,7 @@ The app looks at the servers it actually connected to. Only hosts under `mongodb
 
 Indexes: `(workflow_ref, occurred_at)`, `(tenant_ref, occurred_at)`, `(module, occurred_at)`, `(status, occurred_at)`, `(tenant_ref, last_activity_at)` on projections, and `(state, next_attempt_at)` and `(destination, state)` on delivery. `workflow_ref` is the pseudonymous case reference. `_id` already gives the unique event ID.
 
-`ai_drafts` isn't created. Nothing in the app needs it, and draft text stays in the Diagnosia database.
+`ai_drafts` isn't created. Nothing in the app needs it, and draft text stays in the Curai database.
 
 ## Delivery
 

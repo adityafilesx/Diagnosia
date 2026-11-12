@@ -24,7 +24,7 @@ from backend import settings_store
 from backend.config import settings
 from backend.integrations import execution
 
-logger = logging.getLogger("diagnosia")
+logger = logging.getLogger("curai")
 
 Schema = TypeVar("Schema", bound=BaseModel)
 

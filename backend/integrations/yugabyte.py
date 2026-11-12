@@ -1,6 +1,6 @@
 """Technical execution metadata in a separately provisioned YugabyteDB, through YSQL.
 
-This is Diagnosia's own database, and has nothing to do with the YugabyteDB inside Meko, which is
+This is Curai's own database, and has nothing to do with the YugabyteDB inside Meko, which is
 never connected to. It sits outside every request path: only the delivery worker writes to it, so
 an outage can't touch a clinical workflow.
 
@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Tuple
 
 from backend.config import settings
 
-logger = logging.getLogger("diagnosia.integrations")
+logger = logging.getLogger("curai.integrations")
 # The pool's own messages quote the server's error text, which can name a user or a host.
 logging.getLogger("psycopg.pool").setLevel(logging.CRITICAL)
 

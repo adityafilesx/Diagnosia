@@ -1,4 +1,4 @@
--- Technical execution metadata owned by Diagnosia, in a separately provisioned YugabyteDB.
+-- Technical execution metadata owned by Curai, in a separately provisioned YugabyteDB.
 -- No clinical records, identities, consent or event history belong here.
 CREATE TABLE IF NOT EXISTS integration_agent_runs (
     run_id TEXT PRIMARY KEY,

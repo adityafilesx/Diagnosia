@@ -5,7 +5,7 @@ been made. Replaces `DATA_RETENTION_AND_CONSENT.md`.
 
 ## Consent purposes
 
-**In demo mode no person gives these.** Every purpose is recorded automatically, marked `demo_default`, and the workspace has no consent panel, so revoking needs the API. This switches off with `ALLOW_REAL_PATIENT_DATA`, outside demo mode, or with `DIAGNOSIA_DEFAULT_CONSENT=0`. Tools then ask for each agreement when they need it.
+**In demo mode no person gives these.** Every purpose is recorded automatically, marked `demo_default`, and the workspace has no consent panel, so revoking needs the API. This switches off with `ALLOW_REAL_PATIENT_DATA`, outside demo mode, or with `CURAI_DEFAULT_CONSENT=0`. Tools then ask for each agreement when they need it.
 
 Each is checked by code when it matters, and revoking takes effect at once. Every grant
 keeps who recorded it, how, when, and the policy version (`2026-10-draft`). Consents are
@@ -49,7 +49,7 @@ distinct from consent given in the app.
 from a key ring. The authenticated data ties a file to its patient and document, so a file
 moved to another record won't open. A SHA-256 check confirms content on every read.
 
-- **Keys** live in the file named by `DIAGNOSIA_DOCUMENT_KEY_FILE`. It is refused if it is
+- **Keys** live in the file named by `CURAI_DOCUMENT_KEY_FILE`. It is refused if it is
   in the repository or beside the database or documents, or readable by anyone but its owner.
 - **No keys means no storage.** Uploads return 503 in every environment, with no fallback.
   There is no separate development mode.
@@ -59,7 +59,7 @@ moved to another record won't open. A SHA-256 check confirms content on every re
 ### Commands
 
 ```bash
-python -m backend.operator_cli generate-key --path ~/.diagnosia/document-keys.json
+python -m backend.operator_cli generate-key --path ~/.curai/document-keys.json
 python -m backend.operator_cli add-key --key-id k2          # new active key
 python -m backend.operator_cli rewrap-documents             # move files to it
 python -m backend.operator_cli retire-key --key-id k1       # refused while in use

@@ -18,7 +18,7 @@ from pydantic import BaseModel, EmailStr, Field
 from backend.config import settings
 from backend.db import connect, get_db
 
-SESSION_COOKIE = "diagnosia_session"
+SESSION_COOKIE = "curai_session"
 SESSION_LIFETIME = timedelta(days=14)
 STAFF_SESSION_LIFETIME = timedelta(hours=12)  # staff accounts reach many patients' records
 BAD_LOGIN = "Incorrect email or password."
@@ -83,10 +83,10 @@ def _start_session(db: sqlite3.Connection, response: Response, user_id: int, rol
 
 
 def current_user(
-    diagnosia_session: Optional[str] = Cookie(default=None),
+    curai_session: Optional[str] = Cookie(default=None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> Optional[sqlite3.Row]:
-    if not diagnosia_session:
+    if not curai_session:
         return None
     return db.execute(
         """
@@ -95,7 +95,7 @@ def current_user(
         WHERE sessions.token_hash = ? AND sessions.expires_at > ?
           AND users.account_status != 'suspended'
         """,
-        (_hash_token(diagnosia_session), _now().isoformat()),
+        (_hash_token(curai_session), _now().isoformat()),
     ).fetchone()
 
 
@@ -204,11 +204,11 @@ def login(
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     response: Response,
-    diagnosia_session: Optional[str] = Cookie(default=None),
+    curai_session: Optional[str] = Cookie(default=None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
-    if diagnosia_session:
-        db.execute("DELETE FROM sessions WHERE token_hash = ?", (_hash_token(diagnosia_session),))
+    if curai_session:
+        db.execute("DELETE FROM sessions WHERE token_hash = ?", (_hash_token(curai_session),))
     response.delete_cookie(SESSION_COOKIE, path="/")
 
 
