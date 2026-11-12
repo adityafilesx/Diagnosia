@@ -1,6 +1,6 @@
 # Platform setup
 
-How to get Diagnosia working end to end on one machine, and what can be configured.
+How to get Curai working end to end on one machine, and what can be configured.
 
 ## First run
 
@@ -12,11 +12,11 @@ uv pip install -r backend/requirements.txt
 
 `setup-local` runs in development only, and only once. It:
 
-- creates the document encryption key at `~/.diagnosia/document-keys.json`, outside the project
+- creates the document encryption key at `~/.curai/document-keys.json`, outside the project
 - adds the settings it needs to `.env`
 - creates a verified demo clinic, a demo specialist centre, and demo accounts
 - runs a synthetic patient journey through the record-based tools and leaves a DiagnoFast link waiting, using the real API
-- saves the logins to `~/.diagnosia/local-accounts.txt`
+- saves the logins to `~/.curai/local-accounts.txt`
 
 **Back up the key file.** Losing it makes stored documents unreadable.
 

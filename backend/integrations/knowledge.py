@@ -1,4 +1,4 @@
-"""Puts Diagnosia's shared knowledge into Meko, through its documented upload tool.
+"""Puts Curai's shared knowledge into Meko, through its documented upload tool.
 
 The flow is the documented one: `knowledgebase_upload_document` gives a presigned URL, the file is
 posted to it, and `knowledgebase_document_status` is polled until indexing finishes. Files live in
@@ -21,7 +21,7 @@ import httpx
 
 from backend.integrations.meko import MekoClient, MekoUnavailable
 
-logger = logging.getLogger("diagnosia.integrations")
+logger = logging.getLogger("curai.integrations")
 
 FOLDER = Path(__file__).parent / "knowledge_base"
 REQUIRED_FIELDS = ("id", "title", "category", "version", "source", "review_status", "clinical_content")

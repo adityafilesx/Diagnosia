@@ -23,7 +23,7 @@ from backend.careflow import stores
 from backend.config import settings
 from backend.db import connect
 
-logger = logging.getLogger("diagnosia.careflow")
+logger = logging.getLogger("curai.careflow")
 
 KEEP_RECENT = 500
 WAIT_MS = 1000

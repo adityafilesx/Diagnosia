@@ -134,5 +134,5 @@ def seed(people: Dict[str, object], organizations: Dict[str, str]) -> Dict[str, 
 
 def describe_accounts(accounts: Dict[str, dict]) -> str:
     rows = [f"{item['label']}: {item['email']}  password: {item['password']}" for item in accounts.values()]
-    return "Diagnosia local demo accounts. Synthetic data only.\n\n" + "\n".join(rows) + "\n"
+    return "Curai local demo accounts. Synthetic data only.\n\n" + "\n".join(rows) + "\n"
 

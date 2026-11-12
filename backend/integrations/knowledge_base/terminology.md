@@ -10,7 +10,7 @@ clinical_content: none
 
 # Approved terminology
 
-Words used across Diagnosia, so agents and people mean the same thing.
+Words used across Curai, so agents and people mean the same thing.
 
 - **Workflow reference:** a generated reference such as a case reference. It identifies a workflow without identifying a person.
 - **Handoff:** one tool making confirmed information available to another. It carries references only.

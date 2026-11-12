@@ -252,7 +252,7 @@ def generate_ics_calendar(slots: List[dict]) -> str:
     now_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     events_str = []
     for item in slots:
-        uid = f"{uuid.uuid4().hex}@diagnosia"
+        uid = f"{uuid.uuid4().hex}@curai"
         clean_desc = (
             item["description"]
             .replace("\\", "\\\\")
@@ -284,7 +284,7 @@ def generate_ics_calendar(slots: List[dict]) -> str:
     return (
         "BEGIN:VCALENDAR\r\n"
         "VERSION:2.0\r\n"
-        "PRODID:-//Diagnosia//Prescription Reminders//EN\r\n"
+        "PRODID:-//Curai//Prescription Reminders//EN\r\n"
         "CALSCALE:GREGORIAN\r\n"
         "METHOD:PUBLISH\r\n"
         f"{events_block}\r\n"
@@ -478,7 +478,7 @@ def build_calendar_reminders(
             start_dt = datetime(first_date.year, first_date.month, first_date.day, hour, minute)
             dtstart_str = start_dt.strftime("%Y%m%dT%H%M%S")
             dtend_str = (start_dt + timedelta(minutes=15)).strftime("%Y%m%dT%H%M%S")
-            title = f"{titles[slot]} - Diagnosia"
+            title = f"{titles[slot]} - Curai"
             if len(meds) and len({m["duration_days"] for m in meds}) > 1:
                 title += f" (days {first_day}-{last_day})" if language != "hi-IN" else f" (दिन {first_day}-{last_day})"
             lines = "\n".join(_line(item, language) for item in group)
@@ -509,7 +509,7 @@ def build_calendar_reminders(
             events.append(segment)
         slot_results[slot] = {
             "slot": slot,
-            "title": segments[0]["title"] if len(segments) == 1 else f"{titles[slot]} - Diagnosia",
+            "title": segments[0]["title"] if len(segments) == 1 else f"{titles[slot]} - Curai",
             "time": times[slot],
             "duration_days": segments[-1]["last_day"],
             "medicines": meds,

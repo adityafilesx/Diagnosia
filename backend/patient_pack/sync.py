@@ -25,7 +25,7 @@ from backend.patient_pack import render
 from backend.records import care
 from backend.records.store import insert, now_iso, update
 
-logger = logging.getLogger("diagnosia.patient_pack")
+logger = logging.getLogger("curai.patient_pack")
 
 STORE_PURPOSE = "patient_pack"
 SHARE_PURPOSE = "pack_sharing"

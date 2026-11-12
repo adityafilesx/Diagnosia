@@ -6,7 +6,7 @@ Results must say what they ran against. A mock, a local stand-in and a real serv
 |---|---|---|---|
 | Unit and mock | `.venv/bin/python -m pytest` | Fakes only | Logic. Never a connection |
 | Local stand-ins | `LOCAL_MONGODB_URI=... LOCAL_POSTGRES_DSN=... .venv/bin/python -m pytest -m local_stack backend/tests/local_stack` | A local MongoDB and PostgreSQL | The real drivers and queries work. **Never a live result** |
-| Live | `DIAGNOSIA_LIVE_INTEGRATIONS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_integrations.py` | Real Atlas, YugabyteDB, Meko | The real service works |
+| Live | `CURAI_LIVE_INTEGRATIONS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_integrations.py` | Real Atlas, YugabyteDB, Meko | The real service works |
 | End to end | `python -m backend.tests.local_stack.end_to_end` | Whatever is configured | The journey, outages and recovery |
 | Browser | `node backend/tests/browser/run_careflow.mjs <puppeteer-core> <port>` | A running server | The screen |
 
@@ -20,7 +20,7 @@ Each one checks what it's connected to first. The Atlas tests fail on any server
 ## End-to-end run
 
 ```bash
-DIAGNOSIA_DB=/tmp/e2e/e2e.db DIAGNOSIA_DOCUMENTS=/tmp/e2e/docs .venv/bin/python -m backend.tests.local_stack.end_to_end \
+CURAI_DB=/tmp/e2e/e2e.db CURAI_DOCUMENTS=/tmp/e2e/docs .venv/bin/python -m backend.tests.local_stack.end_to_end \
     --real-ai --mongo-container NAME --yugabyte-container NAME
 ```
 
@@ -37,8 +37,8 @@ recordings, network and transcription failures, long recordings and revoked cons
 a fake audio device. It is not a test of a real microphone.
 
 ```bash
-DIAGNOSIA_DB=/tmp/test-run/mic.db DIAGNOSIA_DOCUMENTS=/tmp/test-run/docs \
-DIAGNOSIA_DOCUMENT_KEY_FILE=/path/outside/keys.json python -m backend.tests.browser.serve 8124
+CURAI_DB=/tmp/test-run/mic.db CURAI_DOCUMENTS=/tmp/test-run/docs \
+CURAI_DOCUMENT_KEY_FILE=/path/outside/keys.json python -m backend.tests.browser.serve 8124
 node backend/tests/browser/run_microphone.mjs <puppeteer node_modules> 8124 /tmp/test-run/mic.db .venv/bin/python
 ```
 
@@ -58,5 +58,5 @@ keys in `GROQ_API_KEY` and `GEMINI_API_KEY`, and are the only proof that the cho
 our requests. Re-run them after changing a model.
 
 ```bash
-DIAGNOSIA_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live
+CURAI_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live
 ```

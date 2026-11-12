@@ -1,5 +1,5 @@
 /**
- * Diagnosia - Live Interactive Hero Pink Gradient Engine
+ * Curai - Live Interactive Hero Pink Gradient Engine
  * Simulates organic floating gradient mesh physics with dynamic cursor interactivity
  */
 (function () {

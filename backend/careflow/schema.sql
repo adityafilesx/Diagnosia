@@ -1,6 +1,6 @@
--- Diagnosia CareFlow: technical bookkeeping for the activity timeline. Nothing here is a clinical record.
+-- Curai CareFlow: technical bookkeeping for the activity timeline. Nothing here is a clinical record.
 
--- Maps a pseudonymous reference to what it stands for. This mapping stays in Diagnosia's own database,
+-- Maps a pseudonymous reference to what it stands for. This mapping stays in Curai's own database,
 -- which is what keeps the references pseudonymous in every other store.
 CREATE TABLE IF NOT EXISTS careflow_workflows (
     workflow_ref TEXT PRIMARY KEY,

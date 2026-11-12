@@ -20,7 +20,7 @@ EXTENSIONS = {
 }
 CONTENT_TYPES = {extension: kind for kind, extension in EXTENSIONS.items()}
 
-logger = logging.getLogger("diagnosia.diagnofast")
+logger = logging.getLogger("curai.diagnofast")
 
 
 def _path(intake_id: int, name: str) -> Path:

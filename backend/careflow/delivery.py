@@ -18,7 +18,7 @@ from backend.config import settings
 from backend.db import connect
 from backend.integrations import execution, meko, yugabyte
 
-logger = logging.getLogger("diagnosia.careflow")
+logger = logging.getLogger("curai.careflow")
 
 MAX_BACKOFF_SECONDS = 3600
 JITTER = 0.2  # so several failing deliveries don't all retry at the same moment

@@ -18,7 +18,7 @@ automatically.
 | Cross-organization | Roles and staff decisions stop at the organization | Staff tests |
 | Consent revocation | Takes effect on the next request, for referral, document, inbox and new sends | `test_the_consent_revocation_reach` |
 | Sessions | Hashed tokens, server-side logout, expiry, suspended accounts lose sessions, 12-hour staff sessions | Auth, security tests |
-| Cookies | HttpOnly, SameSite=Lax, Secure with `DIAGNOSIA_HTTPS=1` | Security tests |
+| Cookies | HttpOnly, SameSite=Lax, Secure with `CURAI_HTTPS=1` | Security tests |
 | CSRF | Origin and Sec-Fetch-Site checked on writes, plus SameSite | Security tests |
 | CareFlow access | Each read is limited to workflows the person can open in SQLite, so a store can't widen access. Revocation applies at once | CareFlow tests |
 | Sign-in redirect | Only paths inside the workspace are accepted, so a crafted link can't send someone elsewhere | Site test |

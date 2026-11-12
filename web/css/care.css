@@ -488,7 +488,7 @@ button:not(.quiet):not(.danger):not(.link-button):not(.patient-row),
 .calendar-link { color: var(--action); font-weight: 600; text-decoration: underline; }
 
 @media (max-width: 520px) {
-  .brand img { width: 118px; height: auto; }
+  .brand img { width: 96px; height: auto; }
   .topbar { gap: 12px; padding: 10px 16px; }
   .topbar-actions { gap: 12px; }
   .topbar-actions a[href="index.html#FAQ"] { display: none; }

@@ -1,4 +1,4 @@
-# Agent context: Diagnosia
+# Agent context: Curai
 
 Read this first. It tells you what this project is, how it's built, what you must never
 break, and what's still unfinished. Where it disagrees with the code, trust the code and fix
@@ -6,7 +6,12 @@ this file.
 
 ## What it is
 
-Diagnosia is an AI-powered healthcare platform for India that brings patient records, medical
+**The project was renamed from Diagnosia to Curai** in November 2026. The domain is curai.in and the
+public contact is support@curai.in. Settings are `CURAI_*` (the old `DIAGNOSIA_*` names are no longer
+read), the default database is `backend/storage/curai.db`, and the session cookie is `curai_session`.
+The GitHub repository may still carry the old name. Use "Curai" in everything new.
+
+Curai is an AI-powered healthcare platform for India that brings patient records, medical
 history and clinical tools together in one place. It helps doctors make better-informed decisions
 and manage their workflows more efficiently, so care is more connected, organised and intelligent.
 It started as a school project in 2023 and is being launched as a startup. India has too few
@@ -143,7 +148,7 @@ The photo isn't stored. A consent box says it goes to outside AI services.
   nothing, the AI's `urgent_symptoms` still can. The rules deliberately skip words that usually
   describe history (stroke, heart attack, epilepsy, food poisoning) and leave those to the AI.
 - Voice: Edge neural voices read questions in Indian English (Neerja) and Hindi (Swara).
-  `DIAGNOSIA_NEURAL_TTS=0` disables this service. After an 8-second neural timeout, English
+  `CURAI_NEURAL_TTS=0` disables this service. After an 8-second neural timeout, English
   can use Groq WAV and Hindi uses the browser. Browser voice and typing remain fallbacks.
 - The two-column interview shows live browser recognition and optional answer chips. Recordings
   stop at 28 seconds. Where live recognition is unavailable or incomplete, Groq prepares a
@@ -247,7 +252,7 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
 
 ## Known gaps and open work
 
-- **Not hosted.** Netlify can't run this backend. It needs a Python host. Set `DIAGNOSIA_HTTPS=1`
+- **Not hosted.** Netlify can't run this backend. It needs a Python host. Set `CURAI_HTTPS=1`
   in production.
 - **Rate limiting covers only the public routes.** The kiosk, the patient interview routes and
   prescription read-aloud are limited (`ratelimit.py`, counted in SQLite). The other signed-in AI
@@ -261,7 +266,7 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
   net. An idea not built: read each prescription twice and flag fields where the readings differ.
 - **Live on both, lightly.** A Hindi interview and a synthetic prescription work on Groq and Gemini.
   Reading quality on real handwriting and real Hindi speech is untested. Run `backend/tests/live/`
-  with `DIAGNOSIA_LIVE_TESTS=1` after changing a model.
+  with `CURAI_LIVE_TESTS=1` after changing a model.
 - **Reading tools use Gemini first.** Prescription reading and explaining, and lab report reading, are pinned to Gemini (own settings), after a comparison on synthetic photos in `backend/tests/ai_eval/`. Re-run it when models change.
 - **Model choice.** Each tool's Groq model is a setting, and Gemini has one model for the other tools. A
   failed call goes to the other provider, or providers take turns (`ai.strategy`). With one provider,

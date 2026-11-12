@@ -1,5 +1,5 @@
 /**
- * Diagnosia - Interactive Medical Suite Catalogue
+ * Curai - Interactive Medical Suite Catalogue
  * Handles category filtering with staggered reveal
  */
 

@@ -43,7 +43,7 @@ OPEN_STATUSES = ("waiting", "in_progress")
 
 MODULE = "DiagnoFast"
 
-logger = logging.getLogger("diagnosia.diagnofast")
+logger = logging.getLogger("curai.diagnofast")
 router = APIRouter(prefix="/api/diagnofast")
 
 

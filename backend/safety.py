@@ -46,8 +46,8 @@ def _configuration_checks() -> List[Check]:
 
     key_ok, key_detail = vault.status()
     return [
-        Check("known_environment", settings.environment in KNOWN_ENVIRONMENTS, f"DIAGNOSIA_ENV is {settings.environment}", "Operations"),
-        Check("https_cookies", settings.cookie_secure, "DIAGNOSIA_HTTPS must be 1", "Operations"),
+        Check("known_environment", settings.environment in KNOWN_ENVIRONMENTS, f"CURAI_ENV is {settings.environment}", "Operations"),
+        Check("https_cookies", settings.cookie_secure, "CURAI_HTTPS must be 1", "Operations"),
         Check("document_encryption", key_ok, key_detail, "Security"),
         Check(
             "external_messaging_reviewed",
@@ -102,13 +102,13 @@ def assert_safe_to_start(db: sqlite3.Connection) -> None:
     """Refuses to start a deployment that asks for more than it has earned."""
     problems: List[str] = []
     if settings.environment not in KNOWN_ENVIRONMENTS:
-        problems.append(f"Unknown DIAGNOSIA_ENV: {settings.environment}")
+        problems.append(f"Unknown CURAI_ENV: {settings.environment}")
     if is_production():
         problems += [f"{check.name}: {check.detail}" for check in _configuration_checks() if not check.passed]
     if settings.allow_real_patient_data or not settings.clinical_pilot_mode:
         problems += [f"{check.name}: {check.detail}" for check in readiness(db) if not check.passed]
     if problems:
-        raise RuntimeError("Diagnosia refused to start:\n- " + "\n- ".join(dict.fromkeys(problems)))
+        raise RuntimeError("Curai refused to start:\n- " + "\n- ".join(dict.fromkeys(problems)))
 
 
 def public_status(db: sqlite3.Connection) -> dict:

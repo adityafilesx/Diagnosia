@@ -1,6 +1,6 @@
 # Third-party notices
 
-Diagnosia is licensed under the Apache License 2.0 (see `LICENSE`). Parts of the
+Curai is licensed under the Apache License 2.0 (see `LICENSE`). Parts of the
 add-on tools are adapted from the works below, whose notices are kept here as
 their licences require.
 
@@ -76,7 +76,7 @@ Source: https://github.com/Sofeso/healthtech-referral-management-toolkit at comm
 
 ## LOINC
 
-**Notice pending.** Diagnosia uses LOINC codes, but the required notice has not been added,
+**Notice pending.** Curai uses LOINC codes, but the required notice has not been added,
 because the licence page could not be read automatically and wording must not be written from
 memory. A person must copy the current notice from https://loinc.org/kb/license here and into
 the terms of use, then record the `loinc_notice` signoff. Until then, LOINC-coded content

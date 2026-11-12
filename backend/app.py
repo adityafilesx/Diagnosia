@@ -1,4 +1,4 @@
-"""The Diagnosia web app: the API plus the public site in web/.
+"""The Curai web app: the API plus the public site in web/.
 
 Run from the project folder with:  uvicorn backend.app:app --reload
 """
@@ -41,7 +41,7 @@ from backend.referralloop import routes as referralloop
 from backend.reminders import routes as reminders
 from backend.reminders import service as reminder_service
 
-logger = logging.getLogger("diagnosia")
+logger = logging.getLogger("curai")
 
 SWEEP_SECONDS = 300
 DELIVERY_SECONDS = 5
@@ -126,7 +126,7 @@ async def lifespan(_: FastAPI):
         await run_in_threadpool(watching.stop)
 
 
-app = FastAPI(title="Diagnosia", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+app = FastAPI(title="Curai", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(records.router)
 app.include_router(staff.router)
