@@ -30,7 +30,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
-from backend import llm, ratelimit, speech
+from backend import llm, ratelimit, settings_store, speech
 from backend.auth import require_doctor
 from backend.careflow import events
 from backend.config import neural_tts_allowed, settings
@@ -259,6 +259,15 @@ def queue(
     return [{**dict(row), "urgent": json.loads(row["urgent"])} for row in rows]
 
 
+def _report_view(stored: Optional[str], db: sqlite3.Connection) -> Optional[dict]:
+    if not stored:
+        return None
+    report = json.loads(stored)
+    if not settings_store.get("features.diagnofast_investigations", db):
+        report.pop("suggested_investigations", None)  # older reports may hold some; they stay out of sight
+    return report
+
+
 @router.get("/intakes/{intake_id}")
 def intake_detail(
     intake_id: int,
@@ -288,7 +297,7 @@ def intake_detail(
         ],
         "urgent": json.loads(row["urgent"]),
         "records": json.loads(row["records"]) if row["records"] else None,
-        "report": json.loads(row["report"]) if row["report"] else None,
+        "report": _report_view(row["report"], db),
         "transcript": [
             {"question": turn["question"], "answer": turn["answer"], "has_audio": bool(turn.get("audio"))}
             for turn in transcript
@@ -436,6 +445,8 @@ def _build_report(intake_id: int) -> None:
                 ],
                 json.loads(row["records"]) if row["records"] else None,
             )
+            if not settings_store.get("features.diagnofast_investigations", db):
+                report.suggested_investigations = []  # held for regulatory review: never stored while off
             db.execute(
                 "UPDATE intakes SET report = ?, status = 'done' WHERE id = ?",
                 (report.model_dump_json(), intake_id),

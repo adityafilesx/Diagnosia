@@ -111,7 +111,7 @@ export function reportView(detail, context) {
         history.length ? reportTable(['Record type', 'Details / date if known', 'Source'], history)
             : h('p', {}, 'No history available. ABHA records were not included.'),
         report?.gaps?.length > 0 && row('Unclear or missing — verify', report.gaps.join(' • ')),
-        report && [h('h3', {}, 'Suggested initial investigations · Physician review only'),
+        report && 'suggested_investigations' in report && [h('h3', {}, 'Suggested initial investigations · Physician review only'),
             h('p', { class: 'requisition-legend' }, 'Suggestions are not orders. The physician decides whether any investigation is indicated.'),
             report.suggested_investigations?.length ? h('div', { class: 'investigation-checklist' },
                 report.suggested_investigations.map((item) => h('label', {}, h('input', { type: 'checkbox' }), item)))
@@ -187,7 +187,7 @@ export function preparePrintReport(container, detail) {
             (records[key] || []).forEach((x) => add(label, x));
     }
     if (report?.gaps?.length) { section('Unclear or missing · verify'); report.gaps.forEach((x) => add('Verify', x)); }
-    if (report?.suggested_investigations?.length) {
+    if (report && 'suggested_investigations' in report && report.suggested_investigations.length) {
         section('Suggested investigations · for physician review only · not orders');
         report.suggested_investigations.forEach((x) => add('Consider', x));
     }

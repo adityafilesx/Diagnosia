@@ -46,6 +46,11 @@ TEXT_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
 VISION_MODELS = ["qwen/qwen3.8-27b", "meta-models/muse-spark-open"]
 SPEECH_MODELS = ["whisper-large-v3", "whisper-large-v3-turbo"]
 
+HELD_FEATURES = {
+    "features.diagnofast_investigations": "DiagnoFast: investigations to consider",
+    "features.patient_pack_brief": "Patient packs: AI brief and questions",
+}
+
 SETTINGS: Dict[str, dict] = {
     "ai.model.clinscribe_note": {"section": "AI models", "label": "ClinScribe: drafting notes", "type": "model", "choices": TEXT_MODELS, "default": "openai/gpt-oss-120b"},
     "ai.model.prescription_explain": {"section": "AI models", "label": "Prescription: explaining to patients", "type": "model", "choices": TEXT_MODELS, "default": "openai/gpt-oss-20b"},
@@ -74,6 +79,9 @@ SETTINGS: Dict[str, dict] = {
     "referrals.urgent_days": {"section": "ReferralLoop", "label": "Suggested reply time, urgent (days)", "type": "int", "min": 1, "max": 30, "default": 3},
     "reminders.respond_within_hours": {"section": "Reminders", "label": "Hours a patient has to confirm", "type": "int", "min": 1, "max": 168, "default": 24},
     **{f"tools.{name}": {"section": "Tools", "label": label, "type": "bool", "default": True} for name, label in TOOLS.items()},
+    # Held until a written regulatory view arrives (audit plan D3, WI-112). Off means absent from the
+    # screen and refused by the API, not only hidden.
+    **{key: {"section": "Held for regulatory review", "label": label, "type": "bool", "default": False} for key, label in HELD_FEATURES.items()},
 }
 
 
@@ -162,6 +170,19 @@ def enabled_tools(db: sqlite3.Connection) -> List[str]:
     return [name for name in TOOLS if stored.get(f"tools.{name}", True)]
 
 
+def feature_enabled(key: str):
+    """A route guard for a feature held for review."""
+
+    def check(_user=Depends(require_user), db: sqlite3.Connection = Depends(get_db)) -> None:  # signed in first
+        if not get(key, db):
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                {"code": "feature_held", "message": f"{HELD_FEATURES[key]} is held for regulatory review and switched off."},
+            )
+
+    return check
+
+
 def tool_enabled(name: str):
     """A route guard. A tool switched off is off for the API too, not only hidden."""
 
@@ -235,6 +256,7 @@ def public_config(user=Depends(require_user), db: sqlite3.Connection = Depends(g
             "clinscribe_language": get("clinscribe.default_language", db),
             "clinscribe_custom_headings": get("clinscribe.custom_headings", db),
         },
+        "features": {key.split(".", 1)[1]: bool(get(key, db)) for key in HELD_FEATURES},
         "can_administer": user["role"] == "doctor" and user["account_status"] == "verified" and is_platform_admin(db, user),
     }
 

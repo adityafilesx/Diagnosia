@@ -227,6 +227,13 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
   `private_files.py`, because `chmod` does nothing on Windows. Pass `encoding="utf-8"` when reading
   text, because Windows otherwise uses cp1252.
 
+## Features held for regulatory review
+
+"Investigations to consider" in DiagnoFast and the patient-pack AI brief and questions are behind
+Settings switches (`features.*` in `settings_store.HELD_FEATURES`) that start off, until a written
+regulatory view arrives. Off means the API refuses them and nothing is stored or shown. Don't switch
+them on by default.
+
 ## CareFlow
 
 Events go through `backend/careflow/events.py`, never straight to a store. The outbox write shares the

@@ -103,7 +103,8 @@ export async function packPanel(patientId, context) {
     if (!pack.stored) {
         return h('div', {}, h('p', { class: 'muted' }, "Records are kept in Curai only. A pack needs the patient's agreement."), list);
     }
-    if (!isDoctor) return h('div', {}, list);
+    // The AI brief is held for regulatory review unless an administrator has switched it on.
+    if (!isDoctor || !context?.config?.features?.patient_pack_brief) return h('div', {}, list);
     const output = h('div', {});
     const write = h('button', { type: 'button' }, 'Write a brief');
     write.addEventListener('click', async () => {
