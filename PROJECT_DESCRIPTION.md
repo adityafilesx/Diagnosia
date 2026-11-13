@@ -89,10 +89,10 @@ DiagnoFast interviews the patient by voice while they wait, in Hindi or Indian
 English, and fills in the doctor's specialty form. When the patient enters the
 cabin, the doctor already has a short, organised report.
 
-1. **Reception creates a single-use link**, or the patient picks a specialty at
+1. **Reception creates a link for one interview**, which expires after a day, or the patient picks a specialty at
    a self-service kiosk. No patient account is needed.
-2. **It asks out loud.** Neural voices read each question in the patient's
-   language.
+2. **It asks out loud.** Each question is read in the patient's language: by
+   neural voices in the demo, by Groq or the browser's voice otherwise.
 3. **The patient answers out loud or types.** Live speech recognition shows the
    words as they speak. The patient checks and edits the text before sending.
 4. **The AI fills in the form.** It picks out the complaint, duration,

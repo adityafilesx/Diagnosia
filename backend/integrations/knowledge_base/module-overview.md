@@ -14,7 +14,7 @@ Curai has two core tools and four add-ons, on one shared patient record. This de
 
 ## Core tools
 
-- **DiagnoFast** takes a patient's history by a spoken interview in the waiting room, through a single-use link, and prepares a report for the doctor.
+- **DiagnoFast** takes a patient's history by a spoken interview in the waiting room, through a link good for one interview, and prepares a report for the doctor.
 - **Prescription Analyzer** reads a prescription photo. The patient confirms each medicine before anything is explained.
 
 ## Add-ons

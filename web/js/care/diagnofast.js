@@ -1,4 +1,4 @@
-// DiagnoFast: reception sends a single-use link, and the doctor reads the report.
+// DiagnoFast: reception sends a link for one interview, and the doctor reads the report.
 import { act, api, form, h, show, when } from './ui.js';
 import { packPanel } from './pack.js';
 
@@ -81,7 +81,15 @@ export function reportView(detail, context) {
             records && patient.abha_id && row('ABHA ID', patient.abha_id)),
         detail.urgent.length > 0 && h('div', { class: 'banner danger requisition-alert' },
             h('strong', {}, 'URGENT SYMPTOMS — PATIENT DIRECTED TO RECEPTION: '), detail.urgent.join(', ')),
-        detail.status === 'report_failed' && h('div', { class: 'banner' }, "The summary couldn't be written. Review the original answers below."),
+        detail.status === 'report_failed' && h('div', { class: 'banner no-print' }, "The summary couldn't be written. Review the original answers below. ",
+            h('button', {
+                type: 'button',
+                class: 'quiet',
+                onclick: async () => {
+                    const done = await act(() => api(`/api/diagnofast/intakes/${detail.id}/report/retry`, { method: 'POST' }), context, 'Writing the summary again');
+                    if (done) context?.refresh?.();
+                },
+            }, 'Try writing the summary again')),
         !report && detail.status !== 'report_failed' && h('p', { class: 'muted' }, STATUS_TEXT[detail.status] || detail.status),
         report && [
             h('p', { class: 'requisition-disclaimer' }, 'AI draft from reported history. Confirm with the patient. This is not a diagnosis, laboratory result or test order.'),

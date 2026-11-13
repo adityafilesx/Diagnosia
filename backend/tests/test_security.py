@@ -17,7 +17,9 @@ from backend.tests.conftest import grant, linked_patient, verified_organization
 PUBLIC = {("POST", "/api/auth/register"), ("POST", "/api/auth/login"), ("POST", "/api/auth/logout")}
 # Explicit deployment configuration gates self-service visits; no existing chart is exposed.
 PUBLIC |= {("GET", "/api/diagnofast/kiosk"), ("POST", "/api/diagnofast/kiosk/intakes")}
-# DiagnoFast's patient has no account. The single-use link in the path is the credential.
+# Health checks for a host or load balancer. They say only ok, or which of two checks failed.
+PUBLIC |= {("GET", "/healthz"), ("GET", "/readyz")}
+# DiagnoFast's patient has no account. The one-interview link in the path is the credential.
 LINK_ROUTES = {
     ("GET", "/api/diagnofast/patient/{token}"),
     ("POST", "/api/diagnofast/patient/{token}/start"),

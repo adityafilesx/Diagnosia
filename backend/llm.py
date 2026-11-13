@@ -16,6 +16,7 @@ import re
 import threading
 import time
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 from typing import List, Optional, Tuple, Type, TypeVar, Union
 
 import httpx
@@ -113,6 +114,9 @@ def build_request(system: str, content: Union[str, list], schema: Type[Schema], 
 
 def _post(body: dict, key: str, timeout: int, base_url: Optional[str] = None, attempts: int = MAX_ATTEMPTS) -> httpx.Response:
     url = f"{base_url or settings.ai_base_url}/chat/completions"
+    # Patient text goes only to the named providers. Another AI_BASE_URL is refused, not quietly used.
+    if (urlsplit(url).hostname or "").lower() not in settings.allowed_ai_hosts:
+        raise AINotConfigured("AI host not on the allowed list")
     wait = 1.0
     failure: Exception = AIUnavailable("no attempt made")
     for attempt in range(attempts):

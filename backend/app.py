@@ -61,14 +61,26 @@ CARE_PAGE_POLICY = (
 )
 
 
+SWEEP_STEPS = (
+    ("escalate_overdue", care.escalate_overdue),
+    ("reminders", reminder_service.process_due),
+    ("rate_limits", ratelimit.forget_expired),
+    ("expired_links", diagnofast.expire_stale),
+    ("stale_reports", diagnofast.fail_stale_reports),
+)
+
+
 def _sweep_once() -> None:
+    """Each step commits on its own, so one that fails is logged and the others still run."""
     connection = connect()
     try:
-        care.escalate_overdue(connection)
-        reminder_service.process_due(connection)
-        ratelimit.forget_expired(connection)
-        diagnofast.expire_stale(connection)
-        connection.commit()
+        for name, step in SWEEP_STEPS:
+            try:
+                step(connection)
+                connection.commit()
+            except Exception as error:  # the sweep must keep running whatever one step does
+                connection.rollback()
+                logger.warning("Sweep step %s failed: %s", name, type(error).__name__)
     finally:
         connection.close()
 
@@ -79,8 +91,8 @@ async def _sweep_forever() -> None:
         await asyncio.sleep(SWEEP_SECONDS)
         try:
             await run_in_threadpool(_sweep_once)
-        except sqlite3.Error as error:
-            logger.warning("Escalation sweep failed: %s", error)
+        except Exception as error:  # for example the database can't be opened; the next pass tries again
+            logger.warning("Sweep failed: %s", type(error).__name__)
 
 
 async def _deliver_forever() -> None:
@@ -115,6 +127,7 @@ async def lifespan(_: FastAPI):
     _prepare_content()
     lablens_jobs.recover_interrupted()
     execution.recover_interrupted()
+    _sweep_once()  # reports left preparing by a stopped process are found now, not in five minutes
     # Takes about 10 seconds, so load it now rather than during the first upload.
     threading.Thread(target=get_medicine_list, daemon=True).start()
     sweep = asyncio.create_task(_sweep_forever())
@@ -148,6 +161,30 @@ _tool(referralloop.router, "referrals")
 _tool(diagnofast.router, "diagnofast")
 _tool(prescription.router, "prescription")
 app.include_router(reminders.router)
+
+
+@app.get("/healthz")
+def healthz() -> dict:
+    """The process is up. Says nothing else, so it is safe to leave open."""
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+def readyz() -> JSONResponse:
+    """The database answers and the document key ring works. Names no patient, key or path."""
+    checks = {}
+    try:
+        connection = connect()
+        try:
+            connection.execute("SELECT 1").fetchone()
+        finally:
+            connection.close()
+        checks["database"] = True
+    except sqlite3.Error:
+        checks["database"] = False
+    checks["key_ring"] = vault.status()[0]
+    ready = all(checks.values())
+    return JSONResponse({"ready": ready, "checks": checks}, status_code=200 if ready else 503)
 
 
 @app.middleware("http")

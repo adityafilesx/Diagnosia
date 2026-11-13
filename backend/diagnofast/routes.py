@@ -1,6 +1,6 @@
 """The API for DiagnoFast.
 
-Reception creates a single-use link for each patient. The patient needs no
+Reception creates a link for one interview for each patient. The patient needs no
 account, and the link stops working when the interview ends or when it expires:
 a link nobody opens lasts CURAI_DIAGNOFAST_LINK_HOURS, and a started interview
 has CURAI_DIAGNOFAST_INTERVIEW_HOURS to finish. Everything the
@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 from backend import llm, ratelimit, speech
 from backend.auth import require_doctor
 from backend.careflow import events
-from backend.config import settings
+from backend.config import neural_tts_allowed, settings
 from backend.db import connect, get_db
 from backend.diagnofast import abha, agent, recordings
 from backend.patient_pack import sync as pack
@@ -105,7 +105,7 @@ def _hash(token: str) -> str:
 
 def _spoken(text: str, language: speech.Language) -> Optional[str]:
     """The question as audio. Without it, the page reads the words in the browser's voice."""
-    if settings.neural_tts_enabled:
+    if neural_tts_allowed():
         try:
             return "data:audio/mpeg;base64," + base64.b64encode(speech.speak_neural(text, language)).decode()
         except (speech.SpeechUnavailable, speech.SpeechRejected):
@@ -138,6 +138,22 @@ def _open_intake(token: str, db: sqlite3.Connection) -> sqlite3.Row:
     return row
 
 
+STALE_REPORT_MINUTES = 5
+
+
+def fail_stale_reports(db: sqlite3.Connection) -> int:
+    """A report job runs in the process that took the last answer. If that process stopped, the job is
+    gone, so after a few minutes the intake is marked failed: the doctor sees the answers and can retry."""
+    return db.execute(
+        """
+        UPDATE intakes SET status = 'report_failed'
+        WHERE status = 'preparing_report'
+          AND (report_requested_at IS NULL OR report_requested_at <= datetime('now', ?))
+        """,
+        (f"-{STALE_REPORT_MINUTES} minutes",),
+    ).rowcount
+
+
 def expire_stale(db: sqlite3.Connection) -> int:
     """Closes links past their time, so the queue shows them as expired. Run by the app's sweep."""
     return db.execute(
@@ -149,13 +165,13 @@ def expire_stale(db: sqlite3.Connection) -> int:
     ).rowcount
 
 
-def _readable_intake(intake_id: int, doctor: sqlite3.Row, db: sqlite3.Connection, action: str) -> sqlite3.Row:
+def _readable_intake(intake_id: int, doctor: sqlite3.Row, db: sqlite3.Connection, action: str, level=READ) -> sqlite3.Row:
     """The doctor who sent the link, or the care team of the patient it belongs to."""
     row = db.execute("SELECT * FROM intakes WHERE id = ?", (intake_id,)).fetchone()
     if row is None or (row["doctor_id"] != doctor["id"] and row["patient_id"] is None):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Patient not found.")
     if row["patient_id"]:
-        open_patient(db, doctor, row["patient_id"], action, READ)
+        open_patient(db, doctor, row["patient_id"], action, level)
     return row
 
 
@@ -295,6 +311,29 @@ def intake_audio(
     return Response(data, media_type=content_type)
 
 
+@router.post("/intakes/{intake_id}/report/retry", status_code=status.HTTP_202_ACCEPTED)
+def retry_report(
+    intake_id: int,
+    background: BackgroundTasks,
+    doctor: sqlite3.Row = Depends(require_doctor),
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    """Writes the summary again after a failure. The answers themselves are already saved."""
+    row = _readable_intake(intake_id, doctor, db, "diagnofast.report.retried", WRITE)
+    started = db.execute(
+        """
+        UPDATE intakes SET status = 'preparing_report', report_requested_at = datetime('now')
+        WHERE id = ? AND status = 'report_failed'
+        """,
+        (row["id"],),
+    ).rowcount
+    if not started:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only a report that failed can be retried.")
+    db.commit()  # the job reads this row on its own connection
+    background.add_task(_build_report, row["id"])
+    return {"status": "preparing_report"}
+
+
 @router.get("/patient/{token}")
 def patient_page(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
     row = _open_intake(token, db)
@@ -404,9 +443,10 @@ def _build_report(intake_id: int) -> None:
             if row["patient_id"]:  # an intake with no record has no patient to attach it to
                 pack.enqueue(db, row["patient_id"], "intake", intake_id)
             events.emit(db, MODULE, "intake.review_required", _workflow(db, row), "review_required", key=str(intake_id), metadata={"review_required": True}, used_ai=True)
-        except (llm.AIUnavailable, llm.AIDeclined) as error:
-            # The doctor can still read the answers and transcript.
-            logger.warning("Report failed for intake %s: %s", intake_id, error)
+        except Exception as error:  # any failure, so the intake never stays "preparing" for ever
+            # The doctor can still read the answers and transcript, and can retry.
+            db.rollback()
+            logger.warning("Report failed for intake %s: %s", intake_id, type(error).__name__)
             db.execute("UPDATE intakes SET status = 'report_failed' WHERE id = ?", (intake_id,))
             events.emit(db, MODULE, "intake.failed", _workflow(db, row), "failed", key=str(intake_id), metadata={"error_category": events.category_of(error)})
         db.commit()
@@ -498,6 +538,7 @@ def answer(
     if audio_name:
         events.emit(db, MODULE, "intake.transcription.completed", flow, actor="patient", metadata={"language": language})
     if finished:
+        db.execute("UPDATE intakes SET report_requested_at = datetime('now') WHERE id = ?", (row["id"],))
         events.emit(db, MODULE, "intake.completed", flow, actor="patient", key=str(row["id"]), metadata={"question_count": row["questions_asked"], "urgent_stop": bool(step.urgent)}, used_ai=True)
         # Commit first: the report task reads this row on its own connection.
         db.commit()

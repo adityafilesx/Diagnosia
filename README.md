@@ -179,7 +179,7 @@ LabLens extracts laboratory report content into structured, reviewable fields. T
 
 **CareFlow:** records each report from receipt to confirmation. Text PDFs are read locally, and scanned reports by Gemini first, then Groq. Confirmed results become observations in the patient record.
 
-**Current pilot limitations:** the parser has been exercised against synthetic layouts, not a representative real-world Indian laboratory dataset. The reported synthetic test set found 37/37 expected tests, but that is not a real-world accuracy claim. None of the 58 proposed LOINC mappings is approved; exports retain the laboratory's own test name rather than presenting an unreviewed mapping as verified.
+**Current pilot limitations:** the parser has been exercised against synthetic layouts, not a representative real-world Indian laboratory dataset. The reported synthetic test set found 37/37 expected tests, but that is not a real-world accuracy claim. None of the 49 proposed LOINC mappings is approved; exports retain the laboratory's own test name rather than presenting an unreviewed mapping as verified.
 
 **Guardrail:** extracted values remain drafts until reviewed. Do not infer missing values or silently normalize uncertain units.
 </details>
@@ -502,7 +502,7 @@ These controls reduce risk but do not establish regulatory compliance or product
 | Area | Current known state |
 |---|---|
 | Overall deployment | Pilot only; synthetic data only |
-| LOINC | 58 proposed mappings remain unapproved; local laboratory test names are retained in exports |
+| LOINC | 49 proposed mappings remain unapproved; local laboratory test names are retained in exports |
 | Reminders | In-app/staff follow-up workflow; SMS and voice channels are not connected |
 | Staff security | MFA and password-reset work remain open in the latest reported review |
 | Patient rights workflows | Whole-record export and erasure workflows remain open in the latest reported review |

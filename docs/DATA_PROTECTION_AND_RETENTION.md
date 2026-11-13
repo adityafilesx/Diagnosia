@@ -102,6 +102,29 @@ copy is re-proved before deletion. Failures are listed and leave that document u
 | Google Gemini, in the United States or elsewhere | The same text and images, but never audio, only when Groq fails or Settings say providers take turns, and only if a Gemini key is set | When a Gemini key exists |
 | MongoDB Atlas, YugabyteDB and Meko, only if switched on | Activity events, technical AI timings and handoff notes. No names, results, notes or images | Synthetic data only. CareFlow stops recording if real patient data is allowed |
 | Meko, only if packs are switched on, hosted by Yugabyte | Finished records as text, including results and notes. No names, contact details, images or files | Synthetic data only, with `patient_pack` consent. Packs stop if real patient data is allowed. See `integrations/PATIENT_PACKS.md` |
+| Microsoft Edge voices (`speech.platform.bing.com`, through the `edge-tts` library) | The text of each DiagnoFast question, in English or Hindi. Never the patient's answers | Demo mode only. Off outside demo mode, with real patient data allowed, or with `CURAI_NEURAL_TTS=0`. No agreement exists |
+
+The hosts the server itself can call are listed below. `backend/tests/test_egress.py` fails if the code
+names a host that isn't here. AI and speech calls also refuse any host outside `CURAI_ALLOWED_AI_HOSTS`
+(by default Groq, Gemini and this machine), so pointing `AI_BASE_URL` elsewhere stops the tools rather
+than sending patient text to an unnamed service.
+
+| Host | Why |
+|---|---|
+| `api.groq.com` | Groq AI and speech |
+| `generativelanguage.googleapis.com` | Gemini AI |
+| `mcp.mekodata.ai` | Meko, only when switched on |
+| `speech.platform.bing.com` | Edge voices, demo mode only (inside the `edge-tts` library) |
+| MongoDB Atlas and YugabyteDB | Only the addresses an operator configures, only when switched on |
+
+Two addresses appear in the code but are opened by the visitor's browser, not by the server:
+`calendar.google.com` (a link to add a reminder, which carries the medicine schedule the patient chose)
+and `assets.website-files.com` (fonts on the public pages).
+
+**The prescription consent tick.** The server refuses a photo without the agreement and the current
+wording's version, and stores that agreement. It cannot prove a person ticked the box: a client could
+send the same fields. That stays true until reading moves server-side behind a confirmed session
+(audit plan WI-211).
 
 Whether Groq may receive real patient data is covered in `CLINICAL_GOVERNANCE.md`. Today
 the answer is no.

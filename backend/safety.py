@@ -5,12 +5,15 @@ evidence below is also present, so nothing is enabled by one setting, and there
 is no switch that skips these checks. Human approvals are read from
 governance_signoffs, which only the server's command line can write.
 """
+import logging
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import List
 
 from backend.config import ROOT_DIR, settings
+
+logger = logging.getLogger("curai.safety")
 
 KNOWN_ENVIRONMENTS = ("development", "staging", "production")
 
@@ -26,6 +29,8 @@ REQUIRED_SIGNOFFS = {
     "security_penetration_test": "Independent security test of this deployment",
     "incident_response": "Named owners for clinical incidents and data breaches",
     "loinc_notice": "LOINC licence notice reviewed and displayed",
+    "edge_tts_terms": "Microsoft Edge voice terms reviewed, or the voice replaced (it runs only in demo mode today)",
+    "meko_agreement": "Signed data agreement with Meko and Yugabyte before patient packs hold any real record",
 }
 
 
@@ -103,12 +108,22 @@ def assert_safe_to_start(db: sqlite3.Connection) -> None:
     problems: List[str] = []
     if settings.environment not in KNOWN_ENVIRONMENTS:
         problems.append(f"Unknown CURAI_ENV: {settings.environment}")
+    if settings.demo_mode and settings.environment != "development" and not settings.demo_outside_development:
+        problems.append(
+            "Demo mode is on outside development. Set CURAI_DEMO_MODE=0, or CURAI_DEMO_OUTSIDE_DEVELOPMENT=1 "
+            "if this really is a public demo with made-up patients"
+        )
     if is_production():
         problems += [f"{check.name}: {check.detail}" for check in _configuration_checks() if not check.passed]
     if settings.allow_real_patient_data or not settings.clinical_pilot_mode:
         problems += [f"{check.name}: {check.detail}" for check in readiness(db) if not check.passed]
     if problems:
         raise RuntimeError("Curai refused to start:\n- " + "\n- ".join(dict.fromkeys(problems)))
+    if settings.demo_mode or settings.default_consent:
+        logger.warning(
+            "\n%s\nDEMO SETTINGS ON (demo mode: %s, default consent: %s). Made-up patients only.\n%s",
+            "=" * 72, "on" if settings.demo_mode else "off", "on" if settings.default_consent else "off", "=" * 72,
+        )
 
 
 def public_status(db: sqlite3.Connection) -> dict:

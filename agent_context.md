@@ -132,7 +132,7 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
 
 ### DiagnoFast (`backend/diagnofast/`)
 - Six specialty forms live in `forms/*.json`: general medicine, dermatology, cardiology, orthopedics, ENT and pediatrics (no form builder).
-- Reception creates a **single-use link** for each patient. The patient needs no account. The
+- Reception creates a **one-interview link** for each patient. The patient needs no account. The
   link stops working when the interview ends, after 24 hours unopened, or 2 hours after it starts
   (`CURAI_DIAGNOFAST_LINK_HOURS`, `CURAI_DIAGNOFAST_INTERVIEW_HOURS`). Only a hash of each link is stored.
   A reload carries on at the current question. An answer is saved only if its question is still
@@ -246,7 +246,10 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
   patients only.
 - In demo mode every consent is recorded by default, marked `demo_default`, and the workspace has no
   consent panel. `care.consent_by_default` must stay false with real patient data. Before real use, the
-  consent panel, the record of who opened a chart, FHIR export and the pilot warnings need bringing back.
+  consent panel, the record of who opened a chart and the pilot warnings need bringing back.
+- **FHIR export routes are live** (`GET /api/patients/{id}/fhir`, ClinScribe and LabLens exports), behind
+  the normal access gate and audit log. Only ClinScribe shows an export button. The output is generic
+  FHIR R4, not validated against ABDM profiles. See `docs/FHIR_MAPPING.md`.
 - Clinical text never goes in Meko memory or conversations.
 - Meko never returns a datapack slot, so live tests must not create them freely.
 

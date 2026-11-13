@@ -17,6 +17,12 @@ def _flag(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def _demo_mode(value) -> bool:
+    if value is None or not value.strip():
+        return os.environ.get("CURAI_ENV", "development") == "development"
+    return value.strip().lower() not in ("0", "false", "no", "off")
+
+
 def _prices(text: str) -> dict:
     try:
         table = json.loads(text) if text.strip() else {}
@@ -64,7 +70,17 @@ class Settings:
     ai_daily_tokens: int = field(default_factory=lambda: int(os.environ.get("CURAI_AI_DAILY_TOKENS", "5000000")))
     ai_daily_spend_usd: float = field(default_factory=lambda: float(os.environ.get("CURAI_AI_DAILY_SPEND_USD", "0")))
     ai_prices: dict = field(default_factory=lambda: _prices(os.environ.get("CURAI_AI_PRICES", "")))
+    # Edge neural voices send the question text to Microsoft with no agreement, so they only ever run in
+    # demo mode with made-up patients (see neural_tts_allowed). CURAI_NEURAL_TTS=0 turns them off there too.
     neural_tts_enabled: bool = field(default_factory=lambda: os.environ.get("CURAI_NEURAL_TTS", "1") != "0")
+    # The only AI hosts patient text may go to. A local model on this machine keeps the data here.
+    allowed_ai_hosts: tuple = field(default_factory=lambda: tuple(
+        host.strip().lower()
+        for host in os.environ.get(
+            "CURAI_ALLOWED_AI_HOSTS", "api.groq.com,generativelanguage.googleapis.com,localhost,127.0.0.1"
+        ).split(",")
+        if host.strip()
+    ))
     # A real key, or leave empty and add one in Settings. Placeholders count as empty.
     groq_api_key: str = field(default_factory=lambda: _real_key(os.environ.get("GROQ_API_KEY", "")))
     # A second provider, used as a fallback or in turn. Its OpenAI-compatible endpoint is the default.
@@ -75,7 +91,10 @@ class Settings:
         ).rstrip("/")
     )
     # Optional integrations. Each is off unless set to exactly 1, and none is needed to run the app.
-    demo_mode: bool = field(default_factory=lambda: os.environ.get("CURAI_DEMO_MODE", "1").strip().lower() not in ("0", "false", "no", "off"))
+    # Demo mode is on by default only for development. Anywhere else it needs CURAI_DEMO_MODE=1 and also
+    # CURAI_DEMO_OUTSIDE_DEVELOPMENT=1, or the app refuses to start (safety.assert_safe_to_start).
+    demo_mode: bool = field(default_factory=lambda: _demo_mode(os.environ.get("CURAI_DEMO_MODE")))
+    demo_outside_development: bool = field(default_factory=lambda: _flag("CURAI_DEMO_OUTSIDE_DEVELOPMENT"))
     mongodb_enabled: bool = field(default_factory=lambda: _flag("ENABLE_MONGODB_ATLAS_INTEGRATION"))
     mongodb_uri: str = field(default_factory=lambda: _real_key(os.environ.get("MONGODB_ATLAS_URI", "")))
     mongodb_database: str = field(default_factory=lambda: os.environ.get("MONGODB_DATABASE_NAME") or os.environ.get("MONGODB_DATABASE") or "curai_atlas")
@@ -101,3 +120,7 @@ class Settings:
 
 
 settings = Settings()
+
+
+def neural_tts_allowed() -> bool:
+    return settings.neural_tts_enabled and settings.demo_mode and not settings.allow_real_patient_data

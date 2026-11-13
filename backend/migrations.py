@@ -112,6 +112,11 @@ def _intake_expiry_and_answer_key(db: sqlite3.Connection) -> None:
     )
 
 
+def _intake_report_requested_at(db: sqlite3.Connection) -> None:
+    """When a report was asked for, so one whose background job died can be found and retried."""
+    db.execute("ALTER TABLE intakes ADD COLUMN report_requested_at TEXT")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -122,6 +127,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (7, "delivery_detail", _delivery_detail),
     (8, "document_description", _document_description),
     (9, "intake_expiry_and_answer_key", _intake_expiry_and_answer_key),
+    (10, "intake_report_requested_at", _intake_report_requested_at),
 ]
 
 
