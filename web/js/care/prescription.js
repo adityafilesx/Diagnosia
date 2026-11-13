@@ -255,8 +255,8 @@ function resultsView(data, language, reading, confirmedMeds) {
     const remindersSection = calendarRemindersView(reminders, language);
     const ticked = confirmedMeds.filter((medicine) => medicine.name.legibility !== 'unreadable');
     return [
-        guidance && h('div', { class: 'sheet' },
-            h('h2', {}, 'Your medicines'),
+        guidance && h('div', { class: 'sheet', lang: language.slice(0, 2) },
+            h('h2', { lang: 'en' }, 'Your medicines'),
             guidance.medicines.map((medicine) => h('div', { class: 'medicine-card' },
                 h('strong', {}, medicine.name),
                 medicine.purpose && h('p', {}, medicine.purpose),
@@ -288,7 +288,7 @@ export function renderPrescription(container) {
 
     const showConfirm = (reading) => {
         const list = h('div', {}, reading.medicines.map(medicineCard));
-        const language = h('select', {}, LANGUAGES.map(([value, label]) => h('option', { value }, label)));
+        const language = h('select', {}, LANGUAGES.map(([value, label]) => h('option', { value, lang: value.slice(0, 2) }, label)));
         const explain = h('button', { type: 'button' }, 'Explain my prescription');
         explain.addEventListener('click', async () => {
             explain.disabled = true;

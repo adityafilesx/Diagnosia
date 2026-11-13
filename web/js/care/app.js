@@ -121,9 +121,30 @@ function askConsent(detail) {
     notice.scrollIntoView({ block: 'center' });
 }
 
+let lastRoute = null;
+
+// Keeps the scroll padding equal to the sticky patient bar, whose height changes with the patient and width.
+function trackStickyHeight() {
+    const band = document.getElementById('wristband');
+    if (!band || !window.ResizeObserver) return;
+    new ResizeObserver(() => {
+        document.documentElement.style.setProperty('--sticky', `${band.offsetHeight}px`);
+    }).observe(band);
+}
+
+// After a route change, focus moves to the new page's heading so keyboard and screen reader users land on it.
+function focusHeading() {
+    const heading = main.querySelector('h1');
+    const target = heading || main;
+    if (heading) heading.tabIndex = -1;
+    target.focus({ preventScroll: true });
+}
+
 async function render() {
     renderRail();
     const { name, detail } = currentRoute();
+    const routeChanged = window.location.hash !== lastRoute;
+    lastRoute = window.location.hash;
     const label = TOOLS[name]?.label ?? LABELS[name];
     document.title = name === 'home' ? 'Curai' : `${label}: Curai`;
     loading(main);
@@ -145,8 +166,9 @@ async function render() {
             startNewPatient,
         });
     } catch (error) {
-        show(main, h('p', { class: 'error' }, error.message));
+        show(main, h('p', { class: 'error', role: 'alert' }, error.message));
     }
+    if (routeChanged) focusHeading();
 }
 
 // The add-a-patient form is the patient record's empty state.
@@ -233,6 +255,7 @@ async function renderOnboarding() {
 }
 
 async function start() {
+    trackStickyHeight();
     state.me = await api('/api/me');
     document.getElementById('who').textContent = `${state.me.first_name} ${state.me.last_name}`;
     if (state.me.role === 'doctor' && state.me.account_status !== 'verified') {

@@ -157,3 +157,35 @@ def test_the_workspace_never_passes_empty_parts_to_the_page(client):
     for script in (WEB_DIR / "js" / "care").glob("*.js"):
         uses = script.read_text(encoding="utf-8").count(".replaceChildren(")
         assert uses == (2 if script.name == "ui.js" else 0), script.name
+
+
+# Accessibility basics that a template edit could quietly undo (audit plan WI-109)
+
+
+@pytest.mark.parametrize("page", ["index.html", "login.html", "care.html", "intake.html"])
+def test_every_main_page_names_its_language_and_has_one_main(page):
+    html = (WEB_DIR / page).read_text(encoding="utf-8")
+    assert re.search(r"<html[^>]*\blang=\"en\"", html)
+    assert len(re.findall(r"<main\b|role=\"main\"", html)) == 1
+
+
+@pytest.mark.parametrize("page", ["index.html", "login.html"])
+def test_public_pages_have_unique_ids_and_no_dead_controls(page):
+    html = (WEB_DIR / page).read_text(encoding="utf-8")
+    ids = re.findall(r"\bid=\"([^\"]+)\"", html)
+    assert len(ids) == len(set(ids))
+    assert 'href="#"' not in html and 'href=""' not in html.replace('href="" class="button secondary small nav-cta hide', "")
+    assert "social-auth-btn" not in html
+
+
+def test_the_public_page_is_navigable():
+    html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    assert 'class="skip-link" href="#main"' in html
+    assert "<iframe title=" in html
+    assert "<object" not in html
+    assert html.count('role="tab"') == html.count('class="filter-tab-btn')
+
+
+def test_motion_can_be_paused_and_respects_the_system_setting():
+    script = (WEB_DIR / "js" / "hero-gradient.js").read_text(encoding="utf-8")
+    assert "prefers-reduced-motion" in script and "Pause background motion" in script

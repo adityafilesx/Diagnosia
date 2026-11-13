@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html data-wf-domain="curai.in" data-wf-page="6063be94db8e104fa954070d" data-wf-site="6063be93db8e103fd1540700" class=" w-mod-js w-mod-ix">
+<html lang="en" data-wf-domain="curai.in" data-wf-page="6063be94db8e104fa954070d" data-wf-site="6063be93db8e103fd1540700" class=" w-mod-js w-mod-ix">
    <head>
       <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
       <style>.wf-force-outline-none[tabindex="-1"]:focus{outline:none;}</style>
@@ -34,8 +34,9 @@
       </script>
    </head>
    <body class="body">
+      <a class="skip-link" href="#main">Skip to content</a>
       <!-- Fullscreen Edge-to-Edge ECG Loader (Zero Text) -->
-      <div id="loader" class="loader">
+      <div id="loader" class="loader" aria-hidden="true">
          <div class="spinner"></div>
       </div>
       <script>
@@ -50,7 +51,7 @@
             }, 300);
          });
       </script>
-      <div class="fixed-cta-container">
+      <div class="fixed-cta-container" role="navigation" aria-label="Account">
          <a id="account-cta" href="login.html" class="fixed-cta flow-button" aria-label="Login">
             <span class="flow-btn-text">LOGIN</span>
             <svg class="flow-btn-arr-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
@@ -59,9 +60,9 @@
          </a>
       </div>
       <div class="page-wrapper">
-         <div class="navbar">
+         <div class="navbar" role="banner">
             <div class="navbar-container">
-               <a id="w-node-b282fa53-c876-a363-d487-995c7a386309-a954070d" href="index.html" class="home w-inline-block">
+               <a id="w-node-b282fa53-c876-a363-d487-995c7a386309-a954070d" href="index.html" class="home w-inline-block" aria-label="Curai home">
                   <div class="relume-logo-primary w-embed">
                      <svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 114 34" width="114" height="34" role="img" aria-label="Curai">
                         <defs>
@@ -75,7 +76,7 @@
                      </svg>
                   </div>
                </a>
-               <div class="nav-menu premium-dock">
+               <div class="nav-menu premium-dock" role="navigation" aria-label="Main">
                   <a href="#How-It-works" class="nav-item-premium" title="Tools"><span>tools</span></a>
                   <a href="#FAQ" class="nav-item-premium" title="FAQ"><span>faq</span></a>
                   <a href="#Get-Started" class="nav-item-premium" title="About Us"><span>about us</span></a>
@@ -83,6 +84,7 @@
                <a id="w-node-b282fa53-c876-a363-d487-995c7a38632b-a954070d" data-w-id="b282fa53-c876-a363-d487-995c7a38632b" href="" class="button secondary small nav-cta hide w-button">get in touch</a>
             </div>
          </div>
+         <main id="main" tabindex="-1">
          <div class="hero-interactive-stage" id="hero-interactive-stage">
             <div class="hero-live-gradient-container" aria-hidden="true">
                <div class="hero-live-orb orb-primary" id="live-orb-1"></div>
@@ -151,10 +153,10 @@
                </div>
 
                <div class="catalogue-filter-bar" role="tablist" aria-label="Tool Stage Filter">
-                  <button type="button" class="filter-tab-btn active" data-filter="all">All AI Tools (6)</button>
-                  <button type="button" class="filter-tab-btn" data-filter="before">Before Visit (1)</button>
-                  <button type="button" class="filter-tab-btn" data-filter="during">During Visit (2)</button>
-                  <button type="button" class="filter-tab-btn" data-filter="after">After Visit (3)</button>
+                  <button type="button" class="filter-tab-btn active" data-filter="all" role="tab" aria-selected="true">All AI Tools (6)</button>
+                  <button type="button" class="filter-tab-btn" data-filter="before" role="tab" aria-selected="false">Before Visit (1)</button>
+                  <button type="button" class="filter-tab-btn" data-filter="during" role="tab" aria-selected="false">During Visit (2)</button>
+                  <button type="button" class="filter-tab-btn" data-filter="after" role="tab" aria-selected="false">After Visit (3)</button>
                </div>
 
                <div class="catalogue">
@@ -573,7 +575,7 @@
                   <h2 class="text-white text-centred margin-m">About us</h2>
                   <div class="container-about">
                      <div class="map1">
-                       <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3499.778847842636!2d77.11585507549925!3d28.749539075624765!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390d0138a748c0e7%3A0x455ffb27f87256d4!2sDelhi%20Technological%20University!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin" style="border:1px solid rgba(255,255,255,0.12); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                       <iframe title="Map: Delhi Technological University" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3499.778847842636!2d77.11585507549925!3d28.749539075624765!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390d0138a748c0e7%3A0x455ffb27f87256d4!2sDelhi%20Technological%20University!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin" style="border:1px solid rgba(255,255,255,0.12); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
                      </div>
                      <div class="text1">
                        <div class="team-meta" style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 9999px; font-size: 13px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #a1a1aa; margin-bottom: 14px;">
@@ -595,13 +597,14 @@
                </div>
             </div>
          </div>
-         <div class="section footer">
+         </main>
+         <div class="section footer" role="contentinfo">
             <div class="container static">
                <div class="footer-wrapper margin-xl">
                   <div id="w-node-b282fa53-c876-a363-d487-995c7a38659e-a954070d" class="wrapper footer-logo">
-                     <a href="" class="home w-inline-block">
+                     <a href="index.html" class="home w-inline-block" aria-label="Curai home">
                         <div class="relume-logo-primary-white w-embed">
-                           <object type="image/svg+xml" data="images/logo_inv.svg" width="114" height="34"></object>
+                           <img src="images/logo_inv.svg" alt="" width="114" height="34">
                         </div>
                      </a>
                      <a href="mailto:support@curai.in" class="contact-button-footer">support@curai.in</a>
