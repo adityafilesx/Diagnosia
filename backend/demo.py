@@ -50,7 +50,7 @@ def _labs(doctor, patient_id: str, name: str = "Mr. Ravi Kumar") -> None:
                 files={"file": ("demo-report.pdf", _lab_pdf(collected, haemoglobin, hba1c, name), "application/pdf")},
             )
         )
-        _check(doctor.post(f"/api/addons/lablens/reports/{report['id']}/confirm", json={}))
+        _check(doctor.post(f"/api/addons/lablens/reports/{report['id']}/confirm", json={"compared_with_original": True}))
 
 
 def _scribe(doctor, patient_id: str, encounter_id: str) -> str:

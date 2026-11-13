@@ -94,6 +94,17 @@ def test_checklist_shows_approved_content_and_marks_pending_results(doctor, acti
     assert "problems" not in checklist
 
 
+def test_the_patient_list_leaves_out_the_teams_own_fields(doctor, active):
+    account, record, episode = active
+    doctor.patch(f"{BASE}/episodes/{episode['id']}", json={"flagged": True})
+    [mine] = account.get(f"{BASE}/patients/{record['id']}/episodes").json()
+    assert mine["id"] == episode["id"]
+    for internal in ("flagged", "close_exception", "problems", "procedures", "responsible_clinician_id", "tasks"):
+        assert internal not in mine
+    [staff] = doctor.get(f"{BASE}/patients/{record['id']}/episodes").json()
+    assert staff["flagged"] == 1 and "close_exception" in staff  # the team's view is unchanged
+
+
 def test_a_patient_can_mark_their_task_done(active):
     account, record, _ = active
     item = account.get(f"/api/patients/{record['id']}/tasks").json()[0]

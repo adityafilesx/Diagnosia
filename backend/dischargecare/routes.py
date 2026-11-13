@@ -118,6 +118,9 @@ def _payload(db: sqlite3.Connection, episode: sqlite3.Row) -> dict:
     }
 
 
+PATIENT_FIELDS = ("id", "patient_id", "discharge_date", "destination", "status", "emergency_contact")
+
+
 def close_blockers(db: sqlite3.Connection, episode: sqlite3.Row) -> List[str]:
     """What must be finished, or excused on record, before a discharge can close."""
     blockers = []
@@ -202,7 +205,9 @@ def list_episodes(
     ).fetchall()
     if access.is_clinician:
         return [_payload(db, episode) for episode in found]
-    return [dict(episode) for episode in found]
+    # A patient or caregiver sees only what their checklist needs, never the team's flags or
+    # the reason a discharge was closed with work outstanding.
+    return [{key: episode[key] for key in PATIENT_FIELDS} for episode in found]
 
 
 @router.get("/episodes/{episode_id}")

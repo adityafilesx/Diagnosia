@@ -75,6 +75,7 @@ async function renderReport(area, reportId, context) {
     }
     const collected = h('input', { type: 'date', value: report.collected_at || '', 'aria-label': 'Date collected' });
     const identity = h('input', { type: 'checkbox' });
+    const compared = h('input', { type: 'checkbox' });
     const manual = form(
         [
             { name: 'test_name', label: 'Test', required: true },
@@ -123,16 +124,19 @@ async function renderReport(area, reportId, context) {
             },
         }, 'Try reading again') : null,
         report.status === 'needs_review' ? h('div', { class: 'sheet' },
-            h('p', {}, report.to_review ? `Still to check: ${plural(report.to_review, 'highlighted result')}.` : 'Results not removed or fixed will be saved as read.'),
+            h('p', {}, report.to_review ? `Still to check: ${plural(report.to_review, 'highlighted result')}.` : 'Accept, fix or remove each result, or tick below once you have compared them all with the original report.'),
             h('label', {}, 'Date the sample was collected', collected),
             report.identity_check === 'mismatch' ? h('label', { class: 'tick' }, identity, 'I confirm this report belongs to this patient') : null,
+            report.results.some((row) => row.review_status === 'pending')
+                ? h('label', { class: 'tick consent-row' }, compared, 'I compared every result I have not accepted, fixed or removed with the original report')
+                : null,
             h('button', {
                 type: 'button',
                 style: 'margin-top:8px',
                 onclick: async () => {
                     const done = await act(() => api(`${BASE}/reports/${reportId}/confirm`, {
                         method: 'POST',
-                        body: { collected_at: collected.value || null, acknowledge_identity: identity.checked },
+                        body: { collected_at: collected.value || null, acknowledge_identity: identity.checked, compared_with_original: compared.checked },
                     }), context, 'Report confirmed');
                     if (done) context.refresh();
                 },

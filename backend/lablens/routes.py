@@ -41,6 +41,9 @@ class ManualResult(BaseModel):
 class Confirmation(BaseModel):
     collected_at: Optional[str] = Field(default=None, max_length=10, pattern=r"^\d{4}-\d{2}-\d{2}$")
     acknowledge_identity: bool = False
+    # The person ticked "I compared every result with the original report". Without it, results nobody
+    # accepted, fixed or removed block the confirmation instead of being saved as if checked.
+    compared_with_original: bool = False
 
 
 def _report(db: sqlite3.Connection, report_id: str) -> sqlite3.Row:
@@ -178,18 +181,35 @@ def review_result(
     else:
         value_text = request.value_text if request.value_text is not None else result["value_text"]
         reference_text = request.reference_text if request.reference_text is not None else result["reference_text"]
-        number, _ = parser.parse_number(value_text)
+        number, number_issues = parser.parse_number(value_text)
+        unit = request.unit if request.unit is not None else result["unit"]
+        reference = parser.parse_reference(reference_text)
+        # A typed fix gets the same unit and plausibility checks as a read value: 112 typed for 11.2
+        # must not pass because a person typed it. Anything found goes back for one more look.
+        issues = parser.check(
+            {
+                "value_number": number,
+                "number_issues": number_issues,
+                "unit": unit,
+                "reference_text": reference_text,
+                "reported_flag": "",
+                **reference,
+            },
+            parser.analyte_named(result["standard_name"] or result["original_name"]),
+        )
         update(
             db,
             "lab_results",
             result_id,
             value_text=value_text,
             value_number=number,
-            unit=request.unit if request.unit is not None else result["unit"],
-            **parser.parse_reference(reference_text),
-            review_status="corrected",
-            reviewed_by=user["id"],
-            reviewed_at=timestamp,
+            unit=unit,
+            **reference,
+            issues=dumps(issues),
+            confidence="review" if issues else "high",
+            review_status="pending" if issues else "corrected",
+            reviewed_by=None if issues else user["id"],
+            reviewed_at=None if issues else timestamp,
             original_value=result["original_value"]
             or dumps({key: result[key] for key in ("value_text", "unit", "reference_text")}),
         )
@@ -257,6 +277,15 @@ def confirm_report(
             status.HTTP_409_CONFLICT,
             {"code": "results_pending", "message": f"Highlighted results to check first: {len(waiting)}."},
         )
+    untouched = [row for row in results if row["review_status"] == "pending"]
+    if untouched and not request.compared_with_original:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            {
+                "code": "comparison_needed",
+                "message": f"Accept, fix or remove each result, or tick that you compared all {len(untouched)} with the original report.",
+            },
+        )
 
     timestamp = now_iso()
     saved = 0
@@ -264,7 +293,7 @@ def confirm_report(
     for result in results:
         if result["review_status"] == "rejected":
             continue
-        if result["review_status"] == "pending":
+        if result["review_status"] == "pending":  # covered by the person's comparison tick, checked above
             update(db, "lab_results", result["id"], review_status="accepted", reviewed_by=user["id"], reviewed_at=timestamp)
             result["review_status"] = "accepted"
         flag = parser.range_status(result["value_number"], result["reference_low"], result["reference_high"])
