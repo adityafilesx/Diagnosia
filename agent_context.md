@@ -156,6 +156,8 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
   the interview without calling the AI, so it works even when the AI is down. If the rules find
   nothing, the AI's `urgent_symptoms` still can. The rules deliberately skip words that usually
   describe history (stroke, heart attack, epilepsy, food poisoning) and leave those to the AI.
+  They score 100% on the frozen v1 set (`docs/BASELINES.md`), which only proves v1's own phrasings
+  are handled. Tune on the dev split only, and never edit v1.
 - Voice: Edge neural voices read questions in Indian English (Neerja) and Hindi (Swara).
   `CURAI_NEURAL_TTS=0` disables this service. After an 8-second neural timeout, English
   can use Groq WAV and Hindi uses the browser. Browser voice and typing remain fallbacks.

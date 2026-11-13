@@ -59,3 +59,28 @@ Not re-measured (needs keys). The last recorded comparison is in `backend/tests/
 - AI cost per tool and per completed intake (no token accounting yet, WI-105).
 - Write contention under load (WI-261).
 - Alert latency for an urgent stop (no alert yet, WI-203).
+
+## 13 November 2026, after the urgent-symptom rule changes (WI-201, rules part)
+
+`python -m backend.synthetic.diagnofast_eval`, same frozen v1 files. The rules were tuned on the dev split only;
+the test split was run once, after the change.
+
+| Check | Dev before | Dev after | Test before | Test after |
+|---|---|---|---|---|
+| Single answers with an urgent symptom, exact flags | 140/180 (77.8%) | 180/180 | 36/42 (85.7%) | 42/42 |
+| Negation then symptom, exact flags | 52/65 (80.0%) | 65/65 | 7/11 (63.6%) | 11/11 |
+| Negated mention, no flag | 85/93 (91.4%) | 93/93 | 14/15 (93.3%) | 15/15 |
+| History mention, no flag | 17/17 | 17/17 | 6/6 | 6/6 |
+| Ordinary complaint, no flag | 39/39 | 39/39 | 6/6 | 6/6 |
+| Urgent interviews stopped at the right turn | 205/244 (84.0%) | 244/244 | 59/68 (86.8%) | 68/68 |
+| Calm interviews wrongly stopped | 5 of 713 | 0 of 713 | 2 of 175 | 0 of 175 |
+
+Recall by category, dev before to after: chest pain 81.1% to 100%, trouble breathing 93.8% to 100%, heavy
+bleeding 80.8% to 100%, severe allergy 77.8% to 100%, stroke signs 69.0% to 100%, seizure 64.3% to 100%,
+poisoning 53.8% to 100%; fainting and self-harm stayed at 100%. On the test split before: stroke signs 7/11,
+seizure 2/5, severe allergy 5/7, the rest complete. After: every category complete.
+
+**Read this with care.** v1's test split is built from the same pool of phrasings as its dev split, so 100% means
+"every phrasing v1 knows is now handled", not "every way a patient might say it". Real recall on unseen wording
+is unknown until the v2 set exists, written with a native Hindi speaker and a clinician (WI-201, still open).
+The ten "needs a clinician" answers are unchanged: the rules flag the same four as before.
