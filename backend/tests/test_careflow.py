@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from backend import llm
+from backend.records import consent
 from backend.careflow import contract, delivery, demo as careflow_demo, events, live, stores
 from backend.careflow.contract import CareEvent, ContractError
 from backend.config import settings
@@ -372,7 +373,7 @@ def test_the_prescription_analyzer_reports_without_any_content(doctor, monkeypat
     from backend.tests.test_prescription import photo_bytes, read_result
 
     monkeypatch.setattr(llm, "ask", lambda *args, **options: read_result())
-    response = doctor.post("/api/prescription/read", files=[("images", ("rx.jpg", photo_bytes(), "image/jpeg"))], data={"consent": "true"})
+    response = doctor.post("/api/prescription/read", files=[("images", ("rx.jpg", photo_bytes(), "image/jpeg"))], data={"consent": "true", "consent_version": consent.VERSION})
     assert response.status_code == 200
     assert {"prescription.processing.started", "prescription.extraction.completed", "prescription.confirmation_required"} <= set(event_types())
     assert "Amoxicillin" not in stored_text()
@@ -385,7 +386,7 @@ def test_a_failed_prescription_read_says_so(doctor, monkeypatch):
         raise llm.AIRateLimited("synthetic")
 
     monkeypatch.setattr(llm, "ask", down)
-    assert doctor.post("/api/prescription/read", files=[("images", ("rx.jpg", photo_bytes(), "image/jpeg"))], data={"consent": "true"}).status_code == 503
+    assert doctor.post("/api/prescription/read", files=[("images", ("rx.jpg", photo_bytes(), "image/jpeg"))], data={"consent": "true", "consent_version": consent.VERSION}).status_code == 503
     found = event_types()
     assert "prescription.processing.failed" in found and "prescription.extraction.completed" not in found
 

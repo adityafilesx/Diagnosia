@@ -13,7 +13,7 @@ from backend.diagnofast import agent, recordings
 from backend.diagnofast.abha import SimulatedAbha
 from backend.diagnofast.agent import FieldUpdate, Report, Turn, apply_turn, load_form
 from backend.private_files import is_private
-from backend.records import vault
+from backend.records import consent, vault
 from backend.tests.conftest import verify_email
 
 
@@ -85,7 +85,7 @@ def create_intake(client, **extra):
 def start(client, token, **extra):
     return client.post(
         f"/api/diagnofast/patient/{token}/start",
-        json={"language": "hi-IN", "consent": True, **extra},
+        json={"language": "hi-IN", "consent": True, "consent_version": consent.VERSION, **extra},
     )
 
 

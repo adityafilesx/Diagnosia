@@ -17,6 +17,7 @@ from backend.prescription.analyzer import (
     prepare_photo,
 )
 from backend.prescription.shorthand import daily_slots, decode
+from backend.records.consent import VERSION as CONSENT_VERSION
 
 
 def field(value="", legibility="clear"):
@@ -232,11 +233,11 @@ def read_result():
     )
 
 
-def post_photo(client, consent="true", photos=1):
+def post_photo(client, consent="true", photos=1, version=CONSENT_VERSION):
     return client.post(
         "/api/prescription/read",
         files=[("images", (f"rx{n}.jpg", photo_bytes(), "image/jpeg")) for n in range(photos)],
-        data={"consent": consent},
+        data={"consent": consent, "consent_version": version},
     )
 
 

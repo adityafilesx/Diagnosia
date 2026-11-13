@@ -37,6 +37,7 @@ from backend.config import settings
 from backend.db import connect, get_db
 from backend.diagnofast import abha, agent, recordings
 from backend.patient_pack import sync as pack
+from backend.records import consent
 from backend.records.access import READ, WRITE, open_patient
 
 MAX_AUDIO_BYTES = 5 * 1024 * 1024
@@ -62,6 +63,8 @@ class NewIntake(BaseModel):
 class StartRequest(BaseModel):
     language: speech.Language
     consent: bool
+    # The version of the words the patient agreed to, from GET /patient/{token}.
+    consent_version: Optional[str] = Field(default=None, max_length=32)
     abha_consent: bool = False
 
 
@@ -165,7 +168,7 @@ def forms(_doctor=Depends(require_doctor)) -> List[dict]:
 @router.get("/kiosk")
 def kiosk_config(db: sqlite3.Connection = Depends(get_db)) -> dict:
     _kiosk_doctor(db)
-    return {"forms": agent.list_forms()}
+    return {"forms": agent.list_forms(), "consent": consent.words(consent.INTERVIEW)}
 
 
 @router.post(
@@ -301,7 +304,10 @@ def patient_page(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
         "has_abha_id": bool(row["abha_id"]),
         "status": row["status"],
         "language": row["language"],
+        "consent": consent.words(consent.INTERVIEW),
     }
+    if row["abha_id"]:
+        page["abha_consent"] = consent.words(consent.ABHA)
     if row["status"] == "in_progress":
         # A patient who reloads the page, or whose phone slept, carries on at the same question.
         page["question"] = row["current_question"]
@@ -317,6 +323,9 @@ def start_interview(
     row = _open_intake(token, db)
     if not request.consent:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Consent is needed to continue.")
+    if request.consent_version != consent.VERSION:
+        # The words changed since the page loaded, so the patient hasn't agreed to these ones.
+        raise HTTPException(status.HTTP_409_CONFLICT, "Please reload the page and read the consent again.")
     if row["status"] != "waiting":
         raise HTTPException(status.HTTP_409_CONFLICT, "This interview has already started.")
 
@@ -340,6 +349,9 @@ def start_interview(
     ).rowcount
     if not started:  # another tab started it a moment ago
         raise HTTPException(status.HTTP_409_CONFLICT, "This interview has already started.")
+    consent.record(db, consent.INTERVIEW, request.language, True, intake_id=row["id"])
+    if row["abha_id"]:  # a no is kept too, so the doctor can see why no records came
+        consent.record(db, consent.ABHA, request.language, request.abha_consent, intake_id=row["id"])
     events.emit(db, MODULE, "intake.started", _workflow(db, row), "started", actor="patient", key=str(row["id"]), metadata={"language": request.language})
     return {"question": question, "suggested_chips": [chip.model_dump() for chip in agent.field_chips(form["fields"][0], request.language)], "audio": _spoken(question, request.language)}
 

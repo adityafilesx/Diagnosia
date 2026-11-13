@@ -274,6 +274,10 @@ function resultsView(data, language, reading, confirmedMeds) {
     ];
 }
 
+// The same words and version as backend/records/consent.py (a test checks they match).
+const CONSENT_VERSION = '2026-11-13';
+const CONSENT_TEXT = "I agree to my photo being sent to outside AI services to read it. Curai doesn't keep the photo.";
+
 export function renderPrescription(container) {
     const stepOne = h('div', {});
     const stepTwo = h('div', {});
@@ -325,6 +329,7 @@ export function renderPrescription(container) {
             const body = new FormData();
             [...photos.files].forEach((photo) => body.append('images', photo));
             body.append('consent', consent.checked);
+            body.append('consent_version', CONSENT_VERSION);
             try {
                 const reading = await api('/api/prescription/read', { method: 'POST', form: body });
                 if (!reading.is_prescription) {
@@ -342,7 +347,7 @@ export function renderPrescription(container) {
         },
     },
     h('label', {}, 'Photos of your prescription (JPG or PNG). Add the front and back if both have writing, up to 4 photos.', photos),
-    h('label', { class: 'tick' }, consent, "I agree to my photo being sent to outside AI services to read it. Curai doesn't keep the photo."),
+    h('label', { class: 'tick consent-row' }, consent, CONSENT_TEXT),
     readButton);
 
     show(container,

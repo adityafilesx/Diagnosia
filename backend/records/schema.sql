@@ -316,3 +316,18 @@ CREATE TABLE IF NOT EXISTS rate_limit_hits (
     hit_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS rate_limit_hits_lookup ON rate_limit_hits (bucket, key_hash, hit_at);
+
+-- What a person agreed to, in which words and language, and when (audit plan WI-101).
+-- The words themselves live in records/consent.py under their version, so the version says what was shown.
+CREATE TABLE IF NOT EXISTS consent_records (
+    id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    text_version TEXT NOT NULL,
+    language TEXT NOT NULL,
+    agreed INTEGER NOT NULL CHECK (agreed IN (0, 1)),
+    intake_id INTEGER REFERENCES intakes (id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS consent_records_intake ON consent_records (intake_id);
+CREATE INDEX IF NOT EXISTS consent_records_user ON consent_records (user_id);

@@ -127,7 +127,8 @@ Handwriting reading is the risky part, so **nothing is explained until the patie
 5. `/api/prescription/explain` explains only the confirmed medicines, in the patient's language.
    It never changes a dose or suggests a substitute.
 
-The photo isn't stored. A consent box says it goes to outside AI services.
+The photo isn't stored. A consent box says it goes to outside AI services, and each agreement is stored in
+`consent_records` with the version of the words (`backend/records/consent.py`).
 
 ### DiagnoFast (`backend/diagnofast/`)
 - Six specialty forms live in `forms/*.json`: general medicine, dermatology, cardiology, orthopedics, ENT and pediatrics (no form builder).
@@ -142,6 +143,9 @@ The photo isn't stored. A consent box says it goes to outside AI services.
   unavailable when unconfigured or when that doctor loses verification, except in demo mode,
   where it falls back to the first verified doctor. The kiosk and the patient routes are
   rate-limited (`ratelimit.py`).
+- The patient chooses a language first, then reads three consent lines and taps "I agree". ABHA records
+  are a separate yes or no. `/start` needs the current wording's version and stores the consent. The
+  words live in `backend/records/consent.py`: change the words, change the version.
 - The interview is a **controlled loop**, not a free-running agent. `agent.advance` runs each
   answer. The AI picks the next question and extracts fields. `agent.apply_turn` keeps the rules in
   code: only fields on the form are kept, required fields must be filled, and there's a maximum of

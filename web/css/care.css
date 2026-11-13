@@ -192,6 +192,9 @@ form.stack { display: grid; gap: 10px; max-width: 560px; }
 form.inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 label { display: grid; gap: 2px; font-size: .85rem; color: var(--ink-soft); }
 label.tick { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: .95rem; }
+/* A consent a person can tap anywhere on, at least 44 px tall. */
+label.tick.consent-row { min-height: 44px; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 6px; cursor: pointer; gap: 12px; }
+label.tick.consent-row input { width: 22px; height: 22px; flex: none; margin: 0; }
 input, select, textarea {
   font: inherit;
   color: var(--ink);

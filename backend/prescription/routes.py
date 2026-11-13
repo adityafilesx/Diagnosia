@@ -11,12 +11,13 @@ from pydantic import BaseModel, Field
 from backend import llm, ratelimit
 from backend.auth import require_user
 from backend.careflow import events
-from backend.db import get_db
+from backend.db import connect, get_db
 from backend.images import MAX_IMAGE_BYTES, read_image
 from backend.patient_pack import sync as pack
 from backend.prescription import analyzer
 from backend.prescription.analyzer import ConfirmedMedicine
 from backend.records import care
+from backend.records import consent as consent_words
 from backend.records.access import WRITE, open_patient
 from backend.records.store import dumps, insert, now_iso
 from backend.speech import MAX_SPEECH_CHARS, Language, speak
@@ -59,6 +60,7 @@ def _workflow(user):
 def read(
     images: List[UploadFile] = File(...),
     consent: bool = Form(...),
+    consent_version: Optional[str] = Form(default=None, max_length=32),
     user=Depends(require_user),
 ) -> dict:
     if not consent:
@@ -66,6 +68,15 @@ def read(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "Please agree to sending your photo to our AI services first.",
         )
+    if consent_version != consent_words.VERSION:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Please reload the page and read the consent again.")
+    # Stored before the photo leaves, in its own short transaction, so the record exists even if reading fails.
+    db = connect()
+    try:
+        consent_words.record(db, consent_words.PRESCRIPTION, "en-IN", True, user_id=user["id"])
+        db.commit()
+    finally:
+        db.close()
     if len(images) > MAX_PHOTOS:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, f"Please upload at most {MAX_PHOTOS} photos."
