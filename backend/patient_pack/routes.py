@@ -8,6 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from backend import ratelimit
 from backend.auth import require_doctor, require_user
 from backend.careflow import events
 from backend.db import get_db
@@ -66,14 +67,14 @@ def pack_item(patient_id: str, item_id: str, user=Depends(require_doctor), db: s
     return {key: source[key] for key in ("label", "date", "text", "source_type", "source_id")}
 
 
-@router.post("/brief")
+@router.post("/brief", dependencies=[Depends(ratelimit.per_user_ai(ratelimit.PACK_QUESTIONS))])
 def pack_brief(patient_id: str, user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
     open_pack(db, user, patient_id, "pack.brief")
     _ready(db, patient_id)
     return brief.build_brief(db, patient_id)
 
 
-@router.post("/ask")
+@router.post("/ask", dependencies=[Depends(ratelimit.per_user_ai(ratelimit.PACK_QUESTIONS))])
 def pack_ask(
     patient_id: str, request: brief.Question, user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)
 ) -> dict:

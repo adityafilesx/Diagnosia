@@ -556,6 +556,29 @@ def readiness(_args) -> int:
     return 0 if result["ready_for_real_patients"] else 1
 
 
+def ai_usage(args) -> int:
+    """Tokens and, where CURAI_AI_PRICES has a price, approximate cost per tool over the last few days."""
+    from datetime import datetime, timedelta, timezone
+
+    from backend import llm
+    from backend.integrations import execution
+
+    since = (datetime.now(timezone.utc) - timedelta(days=args.days)).isoformat()
+    rows = execution.usage_since(since)
+    print(f"AI use in the last {args.days} days (UTC). Cost is an estimate from the price table.")
+    total = 0.0
+    for row in rows:
+        spent = llm.cost(row["model"], row["prompt_tokens"], row["completion_tokens"])
+        total += spent or 0
+        shown = f"{spent:.4f} USD" if spent is not None else "no price"
+        print(f"{row['tool']:<22} {row['provider']:<7} {row['model']:<36} {row['calls']:>6} calls "
+              f"{row['prompt_tokens']:>10} in {row['completion_tokens']:>9} out  {shown}")
+    if not rows:
+        print("No AI calls recorded.")
+    print(f"Priced total: {total:.4f} USD")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="python -m backend.operator_cli", description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
@@ -601,6 +624,7 @@ def parser() -> argparse.ArgumentParser:
     )
     command("revoke-signoff", revoke_signoff, (("--item",), required), (("--operator",), required))
     command("readiness", readiness)
+    command("ai-usage", ai_usage, (("--days",), {"type": int, "default": 7}))
     command("careflow-deliver", careflow_deliver)
     command("careflow-replay", careflow_replay, (("--channel",), {"choices": ["mongodb", "yugabyte", "meko"]}))
     command("careflow-demo", careflow_demo, (("--real-ai",), {"action": "store_true"}))

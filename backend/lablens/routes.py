@@ -10,6 +10,7 @@ from typing import Dict, List, Literal, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
+from backend import ratelimit
 from backend.auth import require_user
 from backend.db import get_db
 from backend.lablens import extract, parser
@@ -72,7 +73,7 @@ def _payload(db: sqlite3.Connection, report: sqlite3.Row) -> dict:
     }
 
 
-@router.post("/reports", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/reports", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(ratelimit.per_user_ai(ratelimit.LAB_READS))])
 def upload_report(
     background: BackgroundTasks,
     patient_id: str = Form(...),
@@ -138,7 +139,7 @@ def get_extraction(report_id: str, user=Depends(require_user), db: sqlite3.Conne
     return _payload(db, report)
 
 
-@router.post("/reports/{report_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/reports/{report_id}/retry", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(ratelimit.per_user_ai(ratelimit.LAB_READS))])
 def retry(
     report_id: str,
     background: BackgroundTasks,

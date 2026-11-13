@@ -1,4 +1,5 @@
 """Settings for the Curai backend, read from the environment or a .env file."""
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,18 @@ load_dotenv(ROOT_DIR / ".env")
 
 def _flag(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _prices(text: str) -> dict:
+    try:
+        table = json.loads(text) if text.strip() else {}
+    except ValueError:
+        return {}
+    return {
+        str(model): (float(price[0]), float(price[1]))
+        for model, price in table.items()
+        if isinstance(price, (list, tuple)) and len(price) == 2
+    } if isinstance(table, dict) else {}
 
 
 def _real_key(value: str) -> str:
@@ -46,6 +59,11 @@ class Settings:
     # second window to finish. Both are hours.
     diagnofast_link_hours: int = field(default_factory=lambda: int(os.environ.get("CURAI_DIAGNOFAST_LINK_HOURS", "24")))
     diagnofast_interview_hours: int = field(default_factory=lambda: int(os.environ.get("CURAI_DIAGNOFAST_INTERVIEW_HOURS", "2")))
+    # The deployment's daily AI breaker (UTC days). 0 turns a cap off. Spend needs CURAI_AI_PRICES:
+    # a JSON object of model -> [US dollars per million input tokens, per million output tokens].
+    ai_daily_tokens: int = field(default_factory=lambda: int(os.environ.get("CURAI_AI_DAILY_TOKENS", "5000000")))
+    ai_daily_spend_usd: float = field(default_factory=lambda: float(os.environ.get("CURAI_AI_DAILY_SPEND_USD", "0")))
+    ai_prices: dict = field(default_factory=lambda: _prices(os.environ.get("CURAI_AI_PRICES", "")))
     neural_tts_enabled: bool = field(default_factory=lambda: os.environ.get("CURAI_NEURAL_TTS", "1") != "0")
     # A real key, or leave empty and add one in Settings. Placeholders count as empty.
     groq_api_key: str = field(default_factory=lambda: _real_key(os.environ.get("GROQ_API_KEY", "")))

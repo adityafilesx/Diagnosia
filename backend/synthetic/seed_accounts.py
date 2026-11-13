@@ -20,6 +20,7 @@ from typing import Dict, List
 
 from fastapi.testclient import TestClient
 
+from backend import ratelimit
 from backend.app import app
 from backend.config import settings
 from backend.db import connect, init_db
@@ -129,6 +130,12 @@ def _patient_rows(rng: random.Random, count: int, with_login: int) -> List[dict]
 
 
 def run(patients: int, with_login: int, seed: int) -> int:
+    # Dozens of sign-ups from this one process would trip the per-address limit meant for the public.
+    with ratelimit.suspended():
+        return _run(patients, with_login, seed)
+
+
+def _run(patients: int, with_login: int, seed: int) -> int:
     if settings.environment != "development" or settings.allow_real_patient_data:
         print("Synthetic accounts only run in development, without real patient data.", file=sys.stderr)
         return 1

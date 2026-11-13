@@ -56,7 +56,7 @@ def _workflow(user):
     return lambda db: events.for_person(db, user, MODULE)
 
 
-@router.post("/read")
+@router.post("/read", dependencies=[Depends(ratelimit.per_user_ai(ratelimit.PRESCRIPTION_READS))])
 def read(
     images: List[UploadFile] = File(...),
     consent: bool = Form(...),
@@ -92,7 +92,7 @@ def read(
     return reading
 
 
-@router.post("/explain")
+@router.post("/explain", dependencies=[Depends(ratelimit.per_user_ai(ratelimit.PRESCRIPTION_EXPLAINS))])
 def explain(request: ExplainRequest, user=Depends(require_user)) -> dict:
     locate = _workflow(user)
     try:

@@ -266,9 +266,13 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
 
 - **Not hosted.** Netlify can't run this backend. It needs a Python host. Set `CURAI_HTTPS=1`
   in production.
-- **Rate limiting covers only the public routes.** The kiosk, the patient interview routes and
-  prescription read-aloud are limited (`ratelimit.py`, counted in SQLite). The other signed-in AI
-  routes still have no limit, so anyone with an account can run up AI costs. Behind a reverse proxy,
+- **Rate limits and the AI budget.** The kiosk, the patient interview routes, sign-up and login (per
+  address), and every signed-in AI route (per account, plus a shared daily quota) are limited
+  (`ratelimit.py`, counted in SQLite). `llm.ask` refuses once the deployment's daily tokens
+  (`CURAI_AI_DAILY_TOKENS`) or spend (`CURAI_AI_DAILY_SPEND_USD`, priced from `CURAI_AI_PRICES`) are
+  used up. Each AI attempt records its token counts; `operator_cli ai-usage --days 7` prints use and
+  cost per tool. Speech transcription isn't counted in the token budget yet. Seeding scripts lift the
+  limits for themselves with `ratelimit.suspended()`. Behind a reverse proxy,
   run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>`, or every visitor shares the
   proxy's limit. Patient links can be guessed at only by luck (they're long random tokens).
 - **Demo mode opens the kiosk.** With `DIAGNOFAST_KIOSK_DOCTOR_ID` unset, demo mode sends kiosk

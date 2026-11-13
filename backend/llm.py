@@ -15,6 +15,7 @@ import logging
 import re
 import threading
 import time
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple, Type, TypeVar, Union
 
 import httpx
@@ -46,6 +47,10 @@ class AINotConfigured(AIUnavailable):
 
 class AIRateLimited(AIUnavailable):
     """The free plan's limit was reached."""
+
+
+class AIBudgetReached(AIUnavailable):
+    """Today's AI budget for the whole deployment is used up, so no call is made."""
 
 
 class AIDeclined(Exception):
@@ -189,7 +194,33 @@ def _ask_model(
         raise AIDeclined("unexpected reply") from error
     if choice.get("finish_reason") not in ("stop", None) or message.get("refusal"):
         raise AIDeclined(f"finished with {choice.get('finish_reason')}")
-    return _parse(message.get("content"), schema)
+    usage = response.json().get("usage")
+    return _parse(message.get("content"), schema), usage if isinstance(usage, dict) else None
+
+
+def cost(model: str, prompt_tokens: int, completion_tokens: int) -> Optional[float]:
+    """US dollars, from the operator's price table (CURAI_AI_PRICES). None when the model has no price."""
+    price = settings.ai_prices.get(model)
+    if not price:
+        return None
+    return (prompt_tokens * price[0] + completion_tokens * price[1]) / 1_000_000
+
+
+def _today_utc() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def check_budget() -> None:
+    """The deployment's daily breaker: refuses before calling once today's tokens or spend reach the cap."""
+    tokens_cap, spend_cap = settings.ai_daily_tokens, settings.ai_daily_spend_usd
+    if not tokens_cap and not spend_cap:
+        return
+    used = execution.usage_since(_today_utc())
+    tokens = sum(row["prompt_tokens"] + row["completion_tokens"] for row in used)
+    spend = sum(cost(row["model"], row["prompt_tokens"], row["completion_tokens"]) or 0 for row in used)
+    if (tokens_cap and tokens >= tokens_cap) or (spend_cap and spend >= spend_cap):
+        logger.warning("Daily AI budget reached: %s tokens, about %.2f USD", tokens, spend)
+        raise AIBudgetReached("daily budget reached")
 
 
 def ask(
@@ -204,14 +235,15 @@ def ask(
     attempts = _attempts(tool)
     if not attempts:
         raise AINotConfigured("no API key")
+    check_budget()
     # With another choice waiting, a slow first one costs more than it's worth retrying.
     tries = MAX_ATTEMPTS if len(attempts) == 1 else 1
     failure: Exception = AIUnavailable("no attempt made")
     run = execution.AgentRun(tool)
     for provider, model in attempts:
         try:
-            answer = _ask_model(provider, model, system, content, schema, max_tokens, timeout, tries)
-            run.tried(provider, model, "succeeded")
+            answer, usage = _ask_model(provider, model, system, content, schema, max_tokens, timeout, tries)
+            run.tried(provider, model, "succeeded", usage)
             run.finish("succeeded")
             return answer
         except (AIUnavailable, AIDeclined) as error:

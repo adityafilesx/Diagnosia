@@ -20,8 +20,9 @@ import hashlib
 import math
 import sqlite3
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Callable, Dict
+from typing import Callable, Dict, Iterator
 
 from fastapi import Depends, HTTPException, Request, status
 
@@ -46,6 +47,15 @@ INTERVIEW_ANSWERS = "interview_answers"
 INTERVIEW_PREVIEWS = "interview_previews"
 INTERVIEW_STARTS_PER_DEVICE = "interview_starts_per_device"
 SPEECH_PER_USER = "speech_per_user"
+REGISTER_PER_ADDRESS = "register_per_address"
+LOGIN_PER_ADDRESS = "login_per_address"
+# Each signed-in AI route has its own hourly limit, and all of them share one daily quota per account.
+PRESCRIPTION_READS = "prescription_reads"
+PRESCRIPTION_EXPLAINS = "prescription_explains"
+SCRIBE_CALLS = "scribe_calls"
+LAB_READS = "lab_reads"
+PACK_QUESTIONS = "pack_questions"
+AI_DAILY_PER_USER = "ai_daily_per_user"
 
 _BUSY = "Too many requests. Please ask the reception staff for help."
 
@@ -61,7 +71,19 @@ RULES: Dict[str, Rule] = {
     INTERVIEW_STARTS_PER_DEVICE: Rule(INTERVIEW_STARTS_PER_DEVICE, 60, HOUR, _BUSY),
     # Reading a prescription aloud, a section at a time, with replays.
     SPEECH_PER_USER: Rule(SPEECH_PER_USER, 120, HOUR, "You have played a lot of audio. Please try again later."),
+    # A clinic's staff and patients may share one address, so these leave room for a busy morning.
+    REGISTER_PER_ADDRESS: Rule(REGISTER_PER_ADDRESS, 20, HOUR, "Too many new accounts from here. Please try again later."),
+    LOGIN_PER_ADDRESS: Rule(LOGIN_PER_ADDRESS, 100, HOUR, "Too many sign-in attempts from here. Please try again later."),
+    PRESCRIPTION_READS: Rule(PRESCRIPTION_READS, 20, HOUR, "You have read a lot of prescriptions this hour. Please try again later."),
+    PRESCRIPTION_EXPLAINS: Rule(PRESCRIPTION_EXPLAINS, 30, HOUR, "You have asked for a lot of explanations this hour. Please try again later."),
+    # A consultation sends a transcript chunk every few seconds while recording.
+    SCRIBE_CALLS: Rule(SCRIBE_CALLS, 600, HOUR, "The scribe has had a lot of requests this hour. Please try again later."),
+    LAB_READS: Rule(LAB_READS, 30, HOUR, "You have uploaded a lot of lab reports this hour. Please try again later."),
+    PACK_QUESTIONS: Rule(PACK_QUESTIONS, 60, HOUR, "You have asked a lot of questions this hour. Please try again later."),
+    AI_DAILY_PER_USER: Rule(AI_DAILY_PER_USER, 2000, DAY, "You have reached today's limit for AI help. Please try again tomorrow."),
 }
+
+_suspended = False
 
 _clock: Callable[[], float] = time.time  # tests move time forward by replacing this
 
@@ -77,6 +99,8 @@ def hit(rule_name: str, key: str) -> None:
     It uses its own connection and commits at once, so the hit counts even when
     the request fails afterwards: a failing call costs as much as a good one.
     """
+    if _suspended:
+        return
     rule = RULES[rule_name]
     now = _clock()
     key_hash = _key_hash(rule.name, key)
@@ -105,6 +129,17 @@ def hit(rule_name: str, key: str) -> None:
         connection.execute("COMMIT")
     finally:
         connection.close()
+
+
+@contextmanager
+def suspended() -> Iterator[None]:
+    """Lifts every limit for a trusted command-line job, such as seeding test accounts in this process."""
+    global _suspended
+    _suspended = True
+    try:
+        yield
+    finally:
+        _suspended = False
 
 
 def forget_expired(db: sqlite3.Connection) -> None:
@@ -150,6 +185,17 @@ def per_user(rule_name: str) -> Callable:
 
     def check(user: sqlite3.Row = Depends(require_user)) -> sqlite3.Row:
         hit(rule_name, f"user:{user['id']}")
+        return user
+
+    return check
+
+
+def per_user_ai(rule_name: str) -> Callable:
+    """An AI route: its own hourly limit, and the account's shared daily quota."""
+
+    def check(user: sqlite3.Row = Depends(require_user)) -> sqlite3.Row:
+        hit(rule_name, f"user:{user['id']}")
+        hit(AI_DAILY_PER_USER, f"user:{user['id']}")
         return user
 
     return check

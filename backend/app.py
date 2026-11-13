@@ -198,6 +198,10 @@ app.add_exception_handler(
     llm.AIUnavailable, _friendly_failure(503, "The AI service isn't available right now. Please try again.")
 )
 app.add_exception_handler(
+    llm.AIBudgetReached,
+    _friendly_failure(503, "AI help has reached its limit for today. Please tell the clinic staff. Everything else still works."),
+)
+app.add_exception_handler(
     llm.AINotConfigured, _friendly_failure(503, "AI isn't set up yet. An administrator can add a free Groq or Gemini key in Settings.")
 )
 app.add_exception_handler(

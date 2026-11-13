@@ -141,12 +141,11 @@ def _open_intake(token: str, db: sqlite3.Connection) -> sqlite3.Row:
 def expire_stale(db: sqlite3.Connection) -> int:
     """Closes links past their time, so the queue shows them as expired. Run by the app's sweep."""
     return db.execute(
-        f"""
+        """
         UPDATE intakes SET status = 'expired'
-        WHERE status IN ({",".join("?" * len(OPEN_STATUSES))})
+        WHERE status IN ('waiting', 'in_progress')
           AND expires_at IS NOT NULL AND expires_at <= datetime('now')
-        """,
-        OPEN_STATUSES,
+        """
     ).rowcount
 
 

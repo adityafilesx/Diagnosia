@@ -10,7 +10,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
-from backend import settings_store, speech
+from backend import ratelimit, settings_store, speech
 from backend.auth import require_doctor, require_user
 from backend.careflow import events
 from backend.clinscribe import drafting, verifier
@@ -199,7 +199,7 @@ def set_state(
     return {"state": request.state}
 
 
-@router.post("/sessions/{session_id}/transcribe", status_code=status.HTTP_201_CREATED)
+@router.post("/sessions/{session_id}/transcribe", status_code=status.HTTP_201_CREATED, dependencies=[Depends(ratelimit.per_user_ai(ratelimit.SCRIBE_CALLS))])
 def transcribe_chunk(
     session_id: str,
     audio: UploadFile = File(...),
@@ -258,7 +258,7 @@ def correct_segment(
     return one(db.execute("SELECT * FROM transcript_segments WHERE id = ?", (segment_id,)).fetchone())
 
 
-@router.post("/sessions/{session_id}/draft-note", status_code=status.HTTP_201_CREATED)
+@router.post("/sessions/{session_id}/draft-note", status_code=status.HTTP_201_CREATED, dependencies=[Depends(ratelimit.per_user_ai(ratelimit.SCRIBE_CALLS))])
 def draft_note(
     session_id: str,
     request: DraftRequest,

@@ -12,7 +12,7 @@ from typing import Literal, Optional
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
 from backend.config import settings
@@ -149,7 +149,18 @@ def _remember_failure(email: str) -> None:
         connection.close()
 
 
-@router.post("/auth/register", status_code=status.HTTP_201_CREATED)
+def _per_address(rule_name: str):
+    """ratelimit imports this module, so it is imported here, when a request arrives."""
+
+    def check(request: Request) -> None:
+        from backend import ratelimit
+
+        ratelimit.per_client(rule_name)(request)
+
+    return check
+
+
+@router.post("/auth/register", status_code=status.HTTP_201_CREATED, dependencies=[Depends(_per_address("register_per_address"))])
 def register(
     details: Registration, response: Response, db: sqlite3.Connection = Depends(get_db)
 ) -> dict:
@@ -178,7 +189,7 @@ def register(
     return _public_user(row)
 
 
-@router.post("/auth/login")
+@router.post("/auth/login", dependencies=[Depends(_per_address("login_per_address"))])
 def login(
     credentials: Credentials, response: Response, db: sqlite3.Connection = Depends(get_db)
 ) -> dict:
