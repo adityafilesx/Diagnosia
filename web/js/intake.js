@@ -46,6 +46,9 @@ const DEPARTMENTS = {
     pediatrics: ['Pediatrics', 'बाल चिकित्सा', '☆'],
 };
 const MAX_RECORDING_MS = 28000;
+// After an urgent stop the message stays on the screen for a minute: the "Finish" control is held
+// back, so the next person at a shared tablet can't clear it before the patient has read it.
+const URGENT_HOLD_MS = 60000;
 const $ = (id) => document.getElementById(`intake-${id}`);
 let token = new URLSearchParams(location.search).get('token');
 const kiosk = !token;
@@ -223,6 +226,10 @@ function showNext(reply) {
         $('finish').hidden = false;
         $('finish-message').textContent = reply.message;
         $('finish-message').className = reply.urgent ? 'urgent-banner' : 'intake-question';
+        if (reply.urgent) {
+            $('reset').hidden = true;
+            setTimeout(() => { $('reset').hidden = false; }, URGENT_HOLD_MS);
+        }
         // Remove the spent bearer token and identifying details from the shared screen.
         history.replaceState(null, '', 'intake.html');
         $('patient-name').value = '';

@@ -84,3 +84,13 @@ seizure 2/5, severe allergy 5/7, the rest complete. After: every category comple
 "every phrasing v1 knows is now handled", not "every way a patient might say it". Real recall on unseen wording
 is unknown until the v2 set exists, written with a native Hindi speaker and a clinician (WI-201, still open).
 The ten "needs a clinician" answers are unchanged: the rules flag the same four as before.
+
+## 13 November 2026, urgent-stop alert latency (WI-203)
+
+Time from the patient page receiving the urgent stop to the alert banner showing on a signed-in doctor's
+screen that was open on another tool. Chromium, same machine as the server, three runs at 390, 820 and 1280 px:
+**2.3 s, 2.8 s, 2.3 s.** Staff screens ask for alerts every 5 seconds, so the expected worst case is about 5 s
+plus the network. Not yet measured on a real kiosk tablet and clinic network.
+
+No longer open from the first table: token accounting exists (WI-105), and this alert latency.
+

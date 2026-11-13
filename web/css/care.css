@@ -165,6 +165,13 @@ mark, .unreviewed {
 .sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; margin: 12px 0; }
 .alert-card { border-color: var(--alert); }
 .alert-card.moderate { border-color: var(--rule); }
+/* An urgent stop or a request for help in the waiting room. It stays until someone marks it seen. */
+.staff-alerts:empty { display: none; }
+.staff-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 20px; background: var(--alert); color: var(--sheet); font-weight: 500; border-bottom: 1px solid var(--sheet); }
+.staff-alert.help { background: var(--highlighter); color: var(--highlighter-ink); }
+.staff-alert a { color: inherit; }
+.staff-alert .spacer { flex: 1; }
+.staff-alert button.quiet { color: inherit; border-color: currentColor; min-height: 36px; }
 .banner { background: var(--band); border-radius: 4px; padding: 8px 12px; font-size: .9rem; margin: 8px 0 12px; max-width: 80ch; }
 .banner.danger { background: var(--alert-tint); color: var(--alert); font-weight: 500; }
 .error { color: var(--alert); font-weight: 500; }

@@ -195,6 +195,37 @@ async function openPatient(patientId) {
     await render();
 }
 
+// Urgent stops and requests for help from the waiting room. Every staff screen asks every few seconds,
+// so an alert shows whatever page is open. The banner stays until someone marks it seen.
+const ALERT_POLL_MS = 5000;
+const shownAlerts = new Map();
+
+async function refreshAlerts() {
+    const found = await api('/api/diagnofast/alerts').catch(() => null);
+    if (!found) return;
+    const area = document.getElementById('alerts');
+    const current = new Set(found.map((item) => item.id));
+    for (const [id, node] of shownAlerts) {
+        if (!current.has(id)) { node.remove(); shownAlerts.delete(id); }
+    }
+    for (const item of found) {
+        if (shownAlerts.has(item.id)) continue;
+        const seen = h('button', { type: 'button', class: 'quiet' }, 'Mark as seen');
+        const node = h('div', { class: `staff-alert ${item.kind}` },
+            h('span', {}, item.body ? `${item.title}: ${item.body}` : item.title),
+            h('span', { class: 'spacer' }),
+            h('a', { href: `#/diagnofast/${item.intake_id}` }, 'Open'),
+            seen);
+        seen.addEventListener('click', async () => {
+            await api(`/api/notifications/${item.id}/read`, { method: 'POST' }).catch(() => {});
+            refreshAlerts();
+            refreshInbox();
+        });
+        shownAlerts.set(item.id, node);
+        area.append(node);
+    }
+}
+
 async function refreshInbox() {
     const items = await api('/api/notifications').catch(() => []);
     const unread = items.filter((item) => !item.read_at).length;
@@ -271,6 +302,10 @@ async function start() {
     const first = state.me.role === 'patient' ? state.patients.find((item) => item.relationship === 'self') : null;
     await openPatient(state.patients.some((item) => item.id === remembered) ? remembered : first?.id ?? '');
     refreshInbox();
+    if (state.me.role === 'doctor') {
+        refreshAlerts();
+        setInterval(refreshAlerts, ALERT_POLL_MS);
+    }
 }
 
 start().catch((error) => {

@@ -122,6 +122,11 @@ def _intake_help_requested_at(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE intakes ADD COLUMN help_requested_at TEXT")
 
 
+def _notification_link(db: sqlite3.Connection) -> None:
+    """Where a notification points in the workspace, such as the interview an alert is about."""
+    db.execute("ALTER TABLE notifications ADD COLUMN link TEXT")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -134,6 +139,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (9, "intake_expiry_and_answer_key", _intake_expiry_and_answer_key),
     (10, "intake_report_requested_at", _intake_report_requested_at),
     (11, "intake_help_requested_at", _intake_help_requested_at),
+    (12, "notification_link", _notification_link),
 ]
 
 

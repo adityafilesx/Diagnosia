@@ -104,6 +104,7 @@ def notify(
     body: str = "",
     patient_id: Optional[str] = None,
     module: str = "general",
+    link: Optional[str] = None,
 ) -> None:
     if recipient_user_id is None:
         return
@@ -115,6 +116,7 @@ def notify(
         title=title,
         body=body,
         module=module,
+        link=link,
         created_at=now_iso(),
     )
 

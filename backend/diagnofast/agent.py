@@ -27,8 +27,9 @@ MAX_KEPT_ANSWER = 500
 PATIENT_WAIT_SECONDS = 45  # someone in a waiting room is looking at the screen
 
 URGENT_MESSAGE = {
-    "en-IN": "Please tell the reception staff about this right now.",
-    "hi-IN": "कृपया यह बात अभी रिसेप्शन पर बताइए।",
+    # Where to go and what to do, and nothing about how serious anything is.
+    "en-IN": "Please go to the reception desk now and tell the staff what you told us.",
+    "hi-IN": "कृपया अभी रिसेप्शन डेस्क पर जाइए और स्टाफ़ को यह बात बताइए।",
 }
 THANK_YOU = {
     "en-IN": "Thank you. The doctor will read this before seeing you.",

@@ -37,8 +37,8 @@ from backend.config import neural_tts_allowed, settings
 from backend.db import connect, get_db
 from backend.diagnofast import abha, agent, recordings
 from backend.patient_pack import sync as pack
-from backend.records import consent
-from backend.records.access import READ, WRITE, open_patient
+from backend.records import care, consent
+from backend.records.access import READ, WRITE, lookup, open_patient
 
 MAX_AUDIO_BYTES = 5 * 1024 * 1024
 MAX_TYPED_ANSWER = 2000
@@ -46,6 +46,9 @@ MAX_ANSWER_KEY = 64
 OPEN_STATUSES = ("waiting", "in_progress")
 
 MODULE = "DiagnoFast"
+# Notification kinds the workspace shows as an alert banner, not only in the inbox.
+ALERT_URGENT = "diagnofast_urgent"
+ALERT_HELP = "diagnofast_help"
 
 logger = logging.getLogger("curai.diagnofast")
 router = APIRouter(prefix="/api/diagnofast")
@@ -163,6 +166,61 @@ def expire_stale(db: sqlite3.Connection) -> int:
           AND expires_at IS NOT NULL AND expires_at <= datetime('now')
         """
     ).rowcount
+
+
+def _alert_staff(db: sqlite3.Connection, row: sqlite3.Row, kind: str, title: str, body: str = "") -> None:
+    """Tells the doctor who owns the interview, and the patient's clinicians if it belongs to a chart.
+
+    Written in the same transaction as what caused it, so an alert exists exactly when the stop does.
+    One unread alert of a kind per person per interview: a button pressed twice is one alert.
+    """
+    link = f"diagnofast/{row['id']}"
+    people = {row["doctor_id"]}
+    if row["patient_id"]:
+        people.update(care.care_team_clinicians(db, row["patient_id"]))
+    for user_id in people:
+        waiting = db.execute(
+            "SELECT 1 FROM notifications WHERE recipient_user_id = ? AND module = ? AND link = ? AND read_at IS NULL",
+            (user_id, kind, link),
+        ).fetchone()
+        if not waiting:
+            care.notify(db, user_id, title, body, row["patient_id"], kind, link)
+
+
+@router.get("/alerts")
+def alerts(doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> List[dict]:
+    """Unseen urgent stops and requests for help, for the banner every staff screen polls. Read only."""
+    found = db.execute(
+        """
+        SELECT notifications.id, notifications.module, notifications.title, notifications.body, notifications.created_at,
+            intakes.id AS intake_id, intakes.doctor_id, intakes.patient_id AS chart_id
+        FROM notifications JOIN intakes ON notifications.link = 'diagnofast/' || intakes.id
+        WHERE notifications.recipient_user_id = ? AND notifications.module IN (?, ?) AND notifications.read_at IS NULL
+        ORDER BY notifications.created_at
+        """,
+        (doctor["id"], ALERT_URGENT, ALERT_HELP),
+    ).fetchall()
+    shown = []
+    for row in found:
+        # An alert names a patient, so it is shown only while this person may still open that interview:
+        # the chart's care team, or for an interview with no chart, the doctor who sent the link. This
+        # looks the access up without writing to the audit log, because the screen asks every few seconds.
+        if row["chart_id"]:
+            allowed = lookup(db, doctor, row["chart_id"]) is not None
+        else:
+            allowed = row["doctor_id"] == doctor["id"]
+        if allowed:
+            shown.append(
+                {
+                    "id": row["id"],
+                    "kind": "urgent" if row["module"] == ALERT_URGENT else "help",
+                    "title": row["title"],
+                    "body": row["body"],
+                    "intake_id": row["intake_id"],
+                    "created_at": row["created_at"],
+                }
+            )
+    return shown
 
 
 def _readable_intake(intake_id: int, doctor: sqlite3.Row, db: sqlite3.Connection, action: str, level=READ) -> sqlite3.Row:
@@ -376,6 +434,7 @@ def ask_for_help(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
     """The patient's "Tell reception" button. It marks the visit in the queue and decides nothing."""
     row = _open_intake(token, db)
     db.execute("UPDATE intakes SET help_requested_at = datetime('now') WHERE id = ?", (row["id"],))
+    _alert_staff(db, row, ALERT_HELP, f"{row['patient_name']} asked for help at the interview screen")
     return {"told": True}
 
 
@@ -565,6 +624,8 @@ def answer(
     if audio_name:
         events.emit(db, MODULE, "intake.transcription.completed", flow, actor="patient", metadata={"language": language})
     if finished:
+        if step.urgent:
+            _alert_staff(db, row, ALERT_URGENT, f"Urgent: {row['patient_name']} was sent to reception", ", ".join(step.urgent))
         db.execute("UPDATE intakes SET report_requested_at = datetime('now') WHERE id = ?", (row["id"],))
         events.emit(db, MODULE, "intake.completed", flow, actor="patient", key=str(row["id"]), metadata={"question_count": row["questions_asked"], "urgent_stop": bool(step.urgent)}, used_ai=True)
         # Commit first: the report task reads this row on its own connection.
