@@ -1,6 +1,10 @@
 """Compares vision models on the synthetic set, using real keys from .env. Costs a few free-tier calls.
 
 Run from the project folder:  PYTHONPATH=. python backend/tests/ai_eval/run_eval.py /some/folder [model ...]
+
+Read twice (WI-210): PYTHONPATH=. python backend/tests/ai_eval/run_eval.py /some/folder --twice FIRST_MODEL SECOND_MODEL
+reads each synthetic prescription with both models and reports how often they disagree, how often the first
+is wrong, and the precision and recall of "they disagree" as a flag for "the first is wrong".
 """
 import base64, io, json, re, sys, time
 from pathlib import Path
@@ -14,7 +18,7 @@ from backend.prescription import analyzer
 from backend.lablens import extract
 D = Path(sys.argv[1]); truth = json.load(open(D / "truth.json"))
 MODELS = [("groq", "qwen/qwen3.8-27b"), ("gemini", "gemini-3.5-flash-lite"), ("gemini", "gemini-3.5-flash"), ("gemini", "gemini-2.5-flash"), ("gemini", "gemini-3.1-pro-preview")]
-only = sys.argv[2:] 
+only = sys.argv[2:]
 
 def image_content(path, side, text):
     im = Image.open(path); im = im.convert("RGB"); im.thumbnail((side, side)); b = io.BytesIO(); im.save(b, "JPEG", quality=90)
@@ -55,6 +59,30 @@ def score_lab(read, rows):
         if not hit: continue
         found += 1; ok_v += norm(hit.value) == norm(row["value"]); ok_u += norm(hit.unit) == norm(row["unit"]); ok_r += norm(hit.reference_range).replace("to", "") == norm(row["ref"])
     return found, ok_v, ok_u, ok_r, len(rows), len(read.results)
+
+if only[:1] == ["--twice"]:
+    from backend.prescription import compare
+    pick = {model: provider for provider, model in MODELS}
+    first_model, second_model = only[1], only[2]
+    totals = {}
+    for key, items in truth["rx"].items():
+        content = image_content(D / f"{key}.jpg", 1568, "Read this prescription.")
+        first = call(pick[first_model], first_model, analyzer.READ_SYSTEM, content, analyzer.ReadPrescription).model_dump()
+        second = call(pick[second_model], second_model, analyzer.READ_SYSTEM, content, analyzer.ReadPrescription).model_dump()
+        quality = compare.flag_quality(items, first, second)
+        merged = compare.compare(first, second)
+        clear_but_differs = sum(
+            1 for m in merged["medicines"] for f, v in m.get("differs", {}).items() if m[f]["legibility"] == "clear"
+        )
+        assert clear_but_differs == 0, "a differing field was left clear"
+        for name in ("fields", "errors", "flagged", "caught", "missed", "false_flags"):
+            totals[name] = totals.get(name, 0) + quality[name]
+        print(f"{key}: {quality}", flush=True)
+    flagged, errors, fields = totals["flagged"], totals["errors"], totals["fields"]
+    print(f"READ TWICE {first_model} + {second_model}: fields {fields}, first reading wrong {errors} ({errors / fields:.0%}), "
+          f"disagreements {flagged} ({flagged / fields:.0%}), precision {totals['caught'] / flagged if flagged else 0:.2f}, "
+          f"recall {totals['caught'] / errors if errors else 0:.2f}, false flags {totals['false_flags']}")
+    sys.exit(0)
 
 for provider, model in MODELS:
     if only and model not in only: continue

@@ -74,6 +74,7 @@ SETTINGS: Dict[str, dict] = {
     "ai.model.gemini": {"section": "AI providers", "label": "Gemini model, for every tool", "type": "model", "choices": GEMINI_MODELS, "default": "gemini-3.5-flash-lite"},
     "clinscribe.default_language": {"section": "ClinScribe", "label": "Language spoken in consultations", "type": "choice", "choices": ["en-IN", "hi-IN"], "default": "en-IN"},
     "clinscribe.custom_headings": {"section": "ClinScribe", "label": "Your clinic's note headings", "type": "list", "default": [], "max_items": 12},
+    "prescription.read_twice": {"section": "Prescription Analyzer", "label": "Experiment: read each photo twice and mark differences as unsure (doubles the AI cost)", "type": "bool", "default": False},
     "lablens.use_ai_reading": {"section": "LabLens", "label": "Use AI for reports we can't read locally", "type": "bool", "default": True},
     "referrals.routine_days": {"section": "ReferralLoop", "label": "Suggested reply time, routine (days)", "type": "int", "min": 1, "max": 90, "default": 10},
     "referrals.urgent_days": {"section": "ReferralLoop", "label": "Suggested reply time, urgent (days)", "type": "int", "min": 1, "max": 30, "default": 3},

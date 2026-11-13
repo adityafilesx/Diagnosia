@@ -169,10 +169,16 @@ def _providers_in_order(tool: str) -> List[str]:
     return names
 
 
-def _attempts(tool: str) -> List[Tuple[str, str]]:
-    """Each (provider, model) to try, in order. Gemini may appear twice, with a backup model."""
+def _attempts(tool: str, prefer_other: bool = False) -> List[Tuple[str, str]]:
+    """Each (provider, model) to try, in order. Gemini may appear twice, with a backup model.
+
+    `prefer_other` starts with the provider that would normally be second, for an independent second opinion.
+    """
     attempts = []
-    for provider in _providers_in_order(tool):
+    providers = _providers_in_order(tool)
+    if prefer_other and len(providers) > 1:
+        providers = providers[1:] + providers[:1]
+    for provider in providers:
         if provider == "gemini":
             attempts += [("gemini", model) for model in settings_store.gemini_models(tool)]
         else:
@@ -234,9 +240,10 @@ def ask(
     tool: str,
     max_tokens: int = 6000,
     timeout: int = REQUEST_TIMEOUT_SECONDS,
+    prefer_other: bool = False,
 ) -> Schema:
     """Calls the model chosen for this tool, and the next choice if that one fails."""
-    attempts = _attempts(tool)
+    attempts = _attempts(tool, prefer_other)
     if not attempts:
         raise AINotConfigured("no API key")
     check_budget()

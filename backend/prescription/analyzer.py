@@ -16,7 +16,8 @@ from urllib.parse import quote, urlencode
 from PIL import Image, ImageOps
 from pydantic import BaseModel
 
-from backend import llm
+from backend import llm, settings_store
+from backend.prescription.compare import compare
 from backend.prescription.medicines import check_name
 from backend.prescription.shorthand import (
     SLOTS,
@@ -153,14 +154,29 @@ def directions(frequency: str, day_pattern: str, duration: str) -> Optional[str]
     return ". ".join(filter(None, parts)) or None
 
 
-def _read_group(images: List[Image.Image], total: int) -> dict:
+def _read_group(images: List[Image.Image], total: int, second: bool = False) -> dict:
     content = []
     for image in images:
         data, media_type = prepare_photo(image)
         content.append({"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}})
     photos = "this prescription" if total == 1 else f"these {len(images)} photos of one prescription"
     content.append({"type": "text", "text": f"Read {photos}."})
+    if second:  # an independent second reading, from the other provider when there is one
+        return llm.ask(READ_SYSTEM, content, ReadPrescription, tool="prescription_read", prefer_other=True).model_dump()
     return llm.ask(READ_SYSTEM, content, ReadPrescription, tool="prescription_read").model_dump()
+
+
+def _read_once(images: List[Image.Image], second: bool = False) -> dict:
+    groups = [images[start : start + MAX_IMAGES_PER_READ] for start in range(0, len(images), MAX_IMAGES_PER_READ)]
+    readings = [_read_group(group, len(images), second) for group in groups]
+    result = readings[0]
+    for reading in readings[1:]:
+        result["is_prescription"] = result["is_prescription"] or reading["is_prescription"]
+        result["medicines"].extend(reading["medicines"])
+        for field in ("follow_up_date", "doctor_notes"):
+            if not result[field]["value"].strip():
+                result[field] = reading[field]
+    return result
 
 
 def read_prescription(images: List[Image.Image]) -> dict:
@@ -169,15 +185,13 @@ def read_prescription(images: List[Image.Image]) -> dict:
     The vision models take a few images per request, so a longer set is read in groups.
     Nothing is merged or dropped: the patient confirms every medicine that comes back.
     """
-    groups = [images[start : start + MAX_IMAGES_PER_READ] for start in range(0, len(images), MAX_IMAGES_PER_READ)]
-    readings = [_read_group(group, len(images)) for group in groups]
-    result = readings[0]
-    for reading in readings[1:]:
-        result["is_prescription"] = result["is_prescription"] or reading["is_prescription"]
-        result["medicines"].extend(reading["medicines"])
-        for field in ("follow_up_date", "doctor_notes"):
-            if not result[field]["value"].strip():
-                result[field] = reading[field]
+    result = _read_once(images)
+    if settings_store.get("prescription.read_twice"):
+        # Where two readings disagree, the field is shown as unsure. Nothing is merged and no winner is picked.
+        try:
+            result = compare(result, _read_once(images, second=True))
+        except (llm.AIUnavailable, llm.AIDeclined):
+            result["read_twice"] = False  # one reading only, exactly as when the setting is off
     for medicine in result["medicines"]:
         medicine["plain"] = directions(
             medicine["frequency"]["value"], medicine["day_pattern"]["value"], medicine["duration"]["value"]

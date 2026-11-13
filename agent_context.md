@@ -301,7 +301,10 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
   visits to the first verified doctor. Set it, or turn demo mode off, before real use.
 - **Prescription reading varies between runs.** The same photo can read `Azu` one time and `Azee`
   the next, and a confident "clear" can still be wrong. The patient confirmation step is the safety
-  net. An idea not built: read each prescription twice and flag fields where the readings differ.
+  net. **Read twice** is built as an experiment, off by default (Settings, `prescription.read_twice`):
+  a second reading from the other provider, and `prescription/compare.py` marks every field the two
+  disagree on as unsure, shows the other reading beside it, and never picks a winner. It doubles the
+  reading cost. Measure it with `ai_eval/run_eval.py --twice` before switching it on.
 - **Live on both, lightly.** A Hindi interview and a synthetic prescription work on Groq and Gemini.
   Reading quality on real handwriting and real Hindi speech is untested. Run `backend/tests/live/`
   with `CURAI_LIVE_TESTS=1` after changing a model.

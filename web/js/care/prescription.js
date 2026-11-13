@@ -23,6 +23,20 @@ function medicineCheckText(match) {
     return null;
 }
 
+const FIELD_WORDS = { name: 'name', dose: 'dose', frequency: 'how often', day_pattern: 'daily pattern', duration: 'how long', notes: 'notes' };
+
+// When the photo was read twice and the readings disagree, both are shown. Neither is chosen:
+// the patient checks the paper.
+function otherReading(medicine) {
+    if (medicine.only_in_one_reading) {
+        return h('p', {}, h('mark', {}, 'We read your photo twice and only one reading found this medicine. Check it against your prescription.'));
+    }
+    const different = Object.entries(medicine.differs || {});
+    if (!different.length) return null;
+    return h('p', {}, h('mark', {}, 'We read your photo twice and the readings differ. Check your prescription.'),
+        h('ul', {}, different.map(([key, value]) => h('li', {}, `${FIELD_WORDS[key] || key}: the other reading said "${value || 'nothing'}"`))));
+}
+
 function medicineCard(medicine, index) {
     const worst = [medicine.name, medicine.frequency, medicine.dose, medicine.duration]
         .some((field) => field.legibility === 'unsure') ? 'unsure' : 'clear';
@@ -36,6 +50,7 @@ function medicineCard(medicine, index) {
         medicine.plain && h('p', {}, medicine.plain),
         medicineCheckText(medicine.match) && h('p', {}, medicineCheckText(medicine.match)),
         LEGIBILITY_NOTE[state] && h('p', {}, h('mark', {}, LEGIBILITY_NOTE[state])),
+        otherReading(medicine),
         readable && h('label', { class: 'tick' },
             h('input', { type: 'checkbox', 'data-index': index }),
             'This matches my prescription'));
@@ -44,7 +59,8 @@ function medicineCard(medicine, index) {
 function confirmedMedicines(reading, list) {
     const ticked = new Set([...list.querySelectorAll('input:checked')].map((tick) => Number(tick.dataset.index)));
     return reading.medicines.map((medicine, index) => {
-        const { plain, match, ...fields } = medicine;
+        // What the page added for display stays on the page: only the fields the patient confirmed go on.
+        const { plain, match, differs, only_in_one_reading, ...fields } = medicine;
         // Ingredients are only trusted when the name was an exact match.
         const contains = match && match.status === 'found' ? match.contains || '' : '';
         if (ticked.has(index)) return { ...fields, contains };
