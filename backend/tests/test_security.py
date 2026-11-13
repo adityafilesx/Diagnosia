@@ -25,6 +25,7 @@ LINK_ROUTES = {
     ("POST", "/api/diagnofast/patient/{token}/start"),
     ("POST", "/api/diagnofast/patient/{token}/answer"),
     ("POST", "/api/diagnofast/patient/{token}/transcribe"),
+    ("POST", "/api/diagnofast/patient/{token}/help"),
 }
 FAKE_ID = "00000000-0000-0000-0000-000000000000"
 

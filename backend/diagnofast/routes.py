@@ -251,12 +251,20 @@ def queue(
         where, value = "doctor_id = ?", doctor["id"]
     rows = db.execute(
         f"""
-        SELECT id, patient_name, patient_id, status, urgent, created_at FROM intakes
+        SELECT id, patient_name, patient_id, status, urgent, created_at, help_requested_at FROM intakes
         WHERE {where} ORDER BY urgent = '[]', id DESC
         """,
         (value,),
     ).fetchall()
-    return [{**dict(row), "urgent": json.loads(row["urgent"])} for row in rows]
+    return [
+        {
+            **{key: row[key] for key in ("id", "patient_name", "patient_id", "status", "created_at")},
+            "urgent": json.loads(row["urgent"]),
+            # Only while the interview is open: afterwards the patient is with reception or the doctor.
+            "needs_help": bool(row["help_requested_at"]) and row["status"] in OPEN_STATUSES,
+        }
+        for row in rows
+    ]
 
 
 def _report_view(stored: Optional[str], db: sqlite3.Connection) -> Optional[dict]:
@@ -361,6 +369,14 @@ def patient_page(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
         page["questions_asked"] = row["questions_asked"]
         page["audio"] = _spoken(row["current_question"], row["language"])
     return page
+
+
+@router.post("/patient/{token}/help", dependencies=[Depends(ratelimit.per_path_value(ratelimit.INTERVIEW_HELP, "token"))])
+def ask_for_help(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """The patient's "Tell reception" button. It marks the visit in the queue and decides nothing."""
+    row = _open_intake(token, db)
+    db.execute("UPDATE intakes SET help_requested_at = datetime('now') WHERE id = ?", (row["id"],))
+    return {"told": True}
 
 
 @router.post("/patient/{token}/start", dependencies=[Depends(ratelimit.per_client(ratelimit.INTERVIEW_STARTS_PER_DEVICE))])

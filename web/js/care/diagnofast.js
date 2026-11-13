@@ -250,7 +250,8 @@ export async function renderDiagnoFast(container, context) {
         const intakes = await api(url);
         show(queue, intakes.length
             ? intakes.map((intake) => h('a', { class: `queue-item${intake.urgent.length ? ' urgent' : ''}`, href: `#/diagnofast/${intake.id}` },
-                h('span', {}, `${intake.urgent.length ? 'Urgent: ' : ''}${intake.patient_name}`),
+                h('span', {}, `${intake.urgent.length ? 'Urgent: ' : ''}${intake.patient_name}`,
+                    intake.needs_help && h('mark', { style: 'margin-left:8px' }, 'Asked for help')),
                 h('span', { class: 'muted' }, `${STATUS_TEXT[intake.status] || intake.status}, ${when(intake.created_at)}`)))
             : h('p', { class: 'muted' }, patient ? 'No interviews for this patient yet.' : 'No patients yet. Send a link to start.'));
     };

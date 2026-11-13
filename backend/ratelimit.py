@@ -46,6 +46,7 @@ KIOSK_OVERALL = "kiosk_overall"
 INTERVIEW_ANSWERS = "interview_answers"
 INTERVIEW_PREVIEWS = "interview_previews"
 INTERVIEW_STARTS_PER_DEVICE = "interview_starts_per_device"
+INTERVIEW_HELP = "interview_help"
 SPEECH_PER_USER = "speech_per_user"
 REGISTER_PER_ADDRESS = "register_per_address"
 LOGIN_PER_ADDRESS = "login_per_address"
@@ -69,6 +70,7 @@ RULES: Dict[str, Rule] = {
     INTERVIEW_ANSWERS: Rule(INTERVIEW_ANSWERS, 40, 6 * HOUR, _BUSY),
     INTERVIEW_PREVIEWS: Rule(INTERVIEW_PREVIEWS, 60, 6 * HOUR, _BUSY),
     INTERVIEW_STARTS_PER_DEVICE: Rule(INTERVIEW_STARTS_PER_DEVICE, 60, HOUR, _BUSY),
+    INTERVIEW_HELP: Rule(INTERVIEW_HELP, 10, HOUR, _BUSY),
     # Reading a prescription aloud, a section at a time, with replays.
     SPEECH_PER_USER: Rule(SPEECH_PER_USER, 120, HOUR, "You have played a lot of audio. Please try again later."),
     # A clinic's staff and patients may share one address, so these leave room for a busy morning.

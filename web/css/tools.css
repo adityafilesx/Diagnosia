@@ -313,6 +313,8 @@ body.body {
 .abha-choice { border: 0; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 12px; }
 .abha-choice legend { font-size: 17px; margin-bottom: 10px; }
 .abha-choice button { min-width: 120px; font-size: 18px; }
+.help-box { margin: 16px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.help-box button { min-height: 48px; font-size: 17px; }
 .demographics { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 18px; }
 .intake-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
 .intake-columns .tool-panel { min-width: 0; margin-bottom: 0; }

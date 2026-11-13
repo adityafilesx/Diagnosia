@@ -150,6 +150,12 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
   answer. The AI picks the next question and extracts fields. `agent.apply_turn` keeps the rules in
   code: only fields on the form are kept, required fields must be filled, and there's a maximum of
   12 questions. The AI never diagnoses.
+- **Medicines and allergies are always asked.** The code keeps the last questions for them
+  (`agent.HIGH_RISK_FIELDS`) and stores the patient's own words if the AI records nothing.
+- **With the AI down the form finishes the interview**: `agent.advance` falls back to the form's own
+  required questions in order and keeps each answer as said. The report then fails and the doctor reads
+  the answers. A failure the patient can't fix shows a plain message and a "Tell reception" button,
+  which marks the visit "Asked for help" in the queue (`POST /patient/{token}/help`).
 - Urgent symptoms (chest pain, trouble breathing and similar) end the interview at once and send
   the patient to reception. Two layers check for them. First `red_flags.screen` runs plain rules on
   the answer in English, Hindi and romanised Hindi, skipping clearly negated symptoms; a match stops

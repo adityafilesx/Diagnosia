@@ -263,6 +263,7 @@ AUDIT_EVENTS: Dict[str, Mapping] = {
 # neither mapped nor listed here, so nothing can be missed quietly.
 UNTRACKED_ROUTES: Dict[str, str] = {
     "kiosk_intake": "Delegates to create_intake, which emits intake.link_created",
+    "ask_for_help": "A patient asking for a person. Shown in the doctor's queue; not a step in the visit",
     "retry_report": "Restarts the report job, which records intake.review_required or intake.failed itself",
     "preview_transcript": "Transient preview only; confirmed answers are recorded by answer",
     "add_typed_segment": "A line of transcript. Too small a step to show, and its content can't be recorded",

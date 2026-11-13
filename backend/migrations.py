@@ -117,6 +117,11 @@ def _intake_report_requested_at(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE intakes ADD COLUMN report_requested_at TEXT")
 
 
+def _intake_help_requested_at(db: sqlite3.Connection) -> None:
+    """When a patient pressed "Tell reception", so the queue can show that someone needs a person."""
+    db.execute("ALTER TABLE intakes ADD COLUMN help_requested_at TEXT")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -128,6 +133,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (8, "document_description", _document_description),
     (9, "intake_expiry_and_answer_key", _intake_expiry_and_answer_key),
     (10, "intake_report_requested_at", _intake_report_requested_at),
+    (11, "intake_help_requested_at", _intake_help_requested_at),
 ]
 
 

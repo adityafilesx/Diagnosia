@@ -14,6 +14,9 @@ const TEXT = {
         name: 'Please enter your name and check your age.', placeholder: 'Your words will appear here. You can also type.',
         agree: 'I agree, start my interview', consentTitle: 'Before we begin', decline: 'If you do not agree, please tell reception.',
         yes: 'Yes', no: 'No', abhaNeeded: 'Please choose yes or no for your past records.',
+        failed: 'Something went wrong on our side. Please try again, or tell reception.',
+        helpSent: 'Reception has been told. If nobody comes, please go to the desk.',
+        helpFailed: 'We could not reach reception from here. Please go to the desk.',
     },
     'hi-IN': {
         start: 'बातचीत शुरू करें', record: 'दबाएँ और बोलें', stop: 'रिकॉर्डिंग रोकें', thinking: 'कृपया रुकिए…',
@@ -29,6 +32,9 @@ const TEXT = {
         name: 'कृपया नाम भरें और उम्र जाँचें।', placeholder: 'आपके शब्द यहाँ दिखेंगे। आप लिख भी सकते हैं।',
         agree: 'मैं सहमत हूँ, बातचीत शुरू करें', consentTitle: 'शुरू करने से पहले', decline: 'सहमत नहीं हैं तो रिसेप्शन को बताएँ।',
         yes: 'हाँ', no: 'नहीं', abhaNeeded: 'पुराने रिकॉर्ड के लिए हाँ या नहीं चुनें।',
+        failed: 'हमारी तरफ़ से कुछ गड़बड़ हुई। दोबारा कोशिश करें, या रिसेप्शन को बताएँ।',
+        helpSent: 'रिसेप्शन को बता दिया गया है। कोई न आए तो कृपया डेस्क पर जाएँ।',
+        helpFailed: 'यहाँ से रिसेप्शन तक बात नहीं पहुँची। कृपया डेस्क पर जाएँ।',
     },
 };
 const DEPARTMENTS = {
@@ -82,6 +88,27 @@ function renderConsent() {
     $('consent-decline').textContent = words().decline;
     $('consent').hidden = false;
     consentShown = true;
+}
+
+// A failure the patient can do nothing about (the server, the network, a limit) is said in their own
+// language with a next step, and a button that marks the visit in the staff queue. Messages about their
+// own answer ("Please answer the question") are shown as they are.
+function showFailure(node, failure) {
+    const theirs = failure.status >= 400 && failure.status < 500 && failure.status !== 429;
+    showError(node, theirs ? failure.message : words().failed);
+    $('help-status').textContent = '';
+    $('help-box').hidden = !token;
+}
+
+async function tellReception() {
+    $('help-button').disabled = true;
+    try {
+        await apiFetch(`/api/diagnofast/patient/${encodeURIComponent(token)}/help`, { method: 'POST' });
+        $('help-status').textContent = words().helpSent;
+    } catch (_) {
+        $('help-status').textContent = words().helpFailed;
+    }
+    $('help-button').disabled = false;
 }
 
 function chooseLanguage(language) {
@@ -190,6 +217,7 @@ function showNext(reply) {
     $('confidence').textContent = words().confidence;
     $('record-status').textContent = words().ready;
     renderChips(reply.suggested_chips);
+    $('help-box').hidden = true;
     if (reply.finished) {
         $('interview').hidden = true;
         $('finish').hidden = false;
@@ -223,7 +251,7 @@ async function sendAnswer() {
         const response = await apiFetch(`/api/diagnofast/patient/${encodeURIComponent(token)}/answer`, { method: 'POST', body: data });
         if (!disposed) showNext(await response.json());
     } catch (failure) {
-        if (!disposed) showError($('answer-error'), failure.message);
+        if (!disposed) showFailure($('answer-error'), failure);
     } finally {
         busy = false;
         syncControls();
@@ -398,6 +426,7 @@ $('replay').addEventListener('click', () => currentReply && play(currentReply));
 document.querySelectorAll('.language-choice button').forEach((button) => {
     button.addEventListener('click', () => chooseLanguage(button.dataset.language));
 });
+$('help-button').addEventListener('click', tellReception);
 $('abha-yes').addEventListener('click', () => chooseAbha(true));
 $('abha-no').addEventListener('click', () => chooseAbha(false));
 $('change-specialty').addEventListener('click', () => { $('welcome').hidden = true; $('specialties').hidden = false; });
@@ -434,7 +463,7 @@ $('start').addEventListener('click', async () => {
         $('interview').hidden = false;
         showNext({ finished: false, ...reply });
     } catch (failure) {
-        showError($('start-error'), failure.message);
+        showFailure($('start-error'), failure);
     } finally {
         $('start').disabled = false;
         $('change-specialty').disabled = false;
