@@ -44,6 +44,8 @@ class Settings:
     db_path: Path = field(
         default_factory=lambda: Path(os.environ.get("CURAI_DB", STORAGE_DIR / "curai.db"))
     )
+    # How long a write waits for another writer before giving up with "the system is busy" (a 503).
+    db_busy_seconds: float = field(default_factory=lambda: float(os.environ.get("CURAI_DB_BUSY_SECONDS", "5")))
     documents_dir: Path = field(
         default_factory=lambda: Path(os.environ.get("CURAI_DOCUMENTS", STORAGE_DIR / "documents"))
     )

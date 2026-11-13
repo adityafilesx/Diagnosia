@@ -57,7 +57,6 @@ Not re-measured (needs keys). The last recorded comparison is in `backend/tests/
 ### Not yet measured
 
 - AI cost per tool and per completed intake (no token accounting yet, WI-105).
-- Write contention under load (WI-261).
 - Alert latency for an urgent stop (no alert yet, WI-203).
 
 ## 13 November 2026, after the urgent-symptom rule changes (WI-201, rules part)
@@ -93,4 +92,21 @@ screen that was open on another tool. Chromium, same machine as the server, thre
 plus the network. Not yet measured on a real kiosk tablet and clinic network.
 
 No longer open from the first table: token accounting exists (WI-105), and this alert latency.
+
+## 13 November 2026, SQLite write contention (WI-261)
+
+`python -m backend.synthetic.load_test`: a throwaway database, 20 staff each saving every second (new patients
+and tasks), 5 ClinScribe drafts in flight through a fake AI that takes 3 seconds, 30 seconds, one process,
+4 CPUs. Busy wait 5 s (`CURAI_DB_BUSY_SECONDS`).
+
+| | Writes | Refused as busy | p50 | p95 | Max | Notes drafted |
+|---|---|---|---|---|---|---|
+| Before (the lock held through each AI call) | 123 | 73 (59%) | 5015 ms | 5033 ms | 5170 ms | 9 |
+| After (transaction ended before the AI call) | 547 | 0 | 12 ms | 125 ms | 465 ms | 45 |
+| After, stress: every writer saving non-stop | 2936 | 0 | 35 ms | 965 ms | 5067 ms | 36 |
+
+**Threshold for moving to PostgreSQL:** at the pilot load above, a p95 write above 250 ms or any write refused as
+busy. The pilot load now passes (125 ms, none refused), so SQLite stays for a single-host demo. The stress row
+fails the threshold and shows where the limit is: one writer at a time, with Python's own lock between threads.
+Re-run before adding a second worker process or a second clinic, and on the real host.
 

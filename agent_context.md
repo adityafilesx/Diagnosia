@@ -286,6 +286,11 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
 
 ## Known gaps and open work
 
+- **SQLite contention.** One writer at a time. A request that has written anything (an audit row
+  counts) holds the lock until it commits, so routes call `db.release(db)` before a slow outside call
+  (AI, speech, Meko). A lock not had within `CURAI_DB_BUSY_SECONDS` is a plain 503.
+  `python -m backend.synthetic.load_test` measures it; the PostgreSQL threshold and numbers are in
+  `docs/BASELINES.md`. Do the same in any new route that calls the AI after writing.
 - **Not hosted.** Netlify can't run this backend. It needs a Python host. Set `CURAI_HTTPS=1`
   in production.
 - **Rate limits and the AI budget.** The kiosk, the patient interview routes, sign-up and login (per

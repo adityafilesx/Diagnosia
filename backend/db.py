@@ -49,10 +49,20 @@ CREATE TABLE IF NOT EXISTS intakes (
 def connect() -> sqlite3.Connection:
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     # FastAPI may run a dependency and its route on different worker threads.
-    connection = sqlite3.connect(settings.db_path, check_same_thread=False)
+    connection = sqlite3.connect(settings.db_path, check_same_thread=False, timeout=settings.db_busy_seconds)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
+
+
+def release(connection: sqlite3.Connection) -> None:
+    """Ends the request's transaction before a slow outside call (the AI, speech, Meko).
+
+    SQLite lets one writer at a time hold the lock, and a request that has written anything (an audit
+    row counts) holds it until it commits. Without this, every other writer in the clinic waits for the
+    AI to answer. What was written so far is kept: the access it records did happen.
+    """
+    connection.commit()
 
 
 def init_db() -> None:

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from backend import llm, settings_store
 from backend.careflow import events
-from backend.db import connect
+from backend.db import connect, release
 from backend.lablens import parser
 from backend.prescription.analyzer import prepare_photo
 from backend.records import care, documents
@@ -197,6 +197,7 @@ def process(report_id: str) -> None:
         data = documents.read(document)
         events.emit_separately(MODULE, "lab.extraction.started", lambda connection: events.for_patient(connection, report["patient_id"]), "started", operation="lablens.extract")
         db.execute("DELETE FROM lab_results WHERE report_id = ?", (report_id,))
+        release(db)  # the old rows go now, so the AI call below holds no write lock
         fields = _extract(db, report, document, data)
         patient = db.execute("SELECT first_name, last_name FROM patients WHERE id = ?", (report["patient_id"],)).fetchone()
         name = fields.get("name_on_report", "")

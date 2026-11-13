@@ -253,6 +253,15 @@ app.add_exception_handler(
 app.add_exception_handler(
     speech.SpeechRejected, _friendly_failure(422, "The speech service couldn't process that audio. Please try again."),
 )
+async def _busy(request: Request, error: sqlite3.OperationalError) -> JSONResponse:
+    # Another writer held the lock for longer than CURAI_DB_BUSY_SECONDS. Anything else is a real fault.
+    if "locked" not in str(error) and "busy" not in str(error):
+        raise error
+    logger.warning("Database busy on request %s", audit.request_id.get())
+    return JSONResponse({"detail": "The system is busy. Please try again in a moment."}, status_code=503)
+
+
+app.add_exception_handler(sqlite3.OperationalError, _busy)
 app.add_exception_handler(
     sqlite3.IntegrityError, _friendly_failure(409, "That refers to something that doesn't exist or already does.")
 )
