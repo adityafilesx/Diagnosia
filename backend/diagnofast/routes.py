@@ -1,7 +1,9 @@
 """The API for DiagnoFast.
 
 Reception creates a single-use link for each patient. The patient needs no
-account, and the link stops working when the interview ends. Everything the
+account, and the link stops working when the interview ends or when it expires:
+a link nobody opens lasts CURAI_DIAGNOFAST_LINK_HOURS, and a started interview
+has CURAI_DIAGNOFAST_INTERVIEW_HOURS to finish. Everything the
 patient says is visible to the doctor who created the link and, once the link
 belongs to a patient record, to that patient's care team.
 """
@@ -39,6 +41,7 @@ from backend.records.access import READ, WRITE, open_patient
 
 MAX_AUDIO_BYTES = 5 * 1024 * 1024
 MAX_TYPED_ANSWER = 2000
+MAX_ANSWER_KEY = 64
 OPEN_STATUSES = ("waiting", "in_progress")
 
 MODULE = "DiagnoFast"
@@ -113,11 +116,35 @@ def _spoken(text: str, language: speech.Language) -> Optional[str]:
         return None
 
 
+def _intake_by_token(token: str, db: sqlite3.Connection) -> Optional[sqlite3.Row]:
+    return db.execute(
+        """
+        SELECT *, (expires_at IS NOT NULL AND expires_at <= datetime('now')) AS expired
+        FROM intakes WHERE token_hash = ?
+        """,
+        (_hash(token),),
+    ).fetchone()
+
+
 def _open_intake(token: str, db: sqlite3.Connection) -> sqlite3.Row:
-    row = db.execute("SELECT * FROM intakes WHERE token_hash = ?", (_hash(token),)).fetchone()
+    row = _intake_by_token(token, db)
     if row is None or row["status"] not in OPEN_STATUSES:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "This link isn't active. Please ask reception.")
+    if row["expired"]:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This link has expired. Please ask reception for a new one.")
     return row
+
+
+def expire_stale(db: sqlite3.Connection) -> int:
+    """Closes links past their time, so the queue shows them as expired. Run by the app's sweep."""
+    return db.execute(
+        f"""
+        UPDATE intakes SET status = 'expired'
+        WHERE status IN ({",".join("?" * len(OPEN_STATUSES))})
+          AND expires_at IS NOT NULL AND expires_at <= datetime('now')
+        """,
+        OPEN_STATUSES,
+    ).rowcount
 
 
 def _readable_intake(intake_id: int, doctor: sqlite3.Row, db: sqlite3.Connection, action: str) -> sqlite3.Row:
@@ -172,8 +199,8 @@ def create_intake(
     cursor = db.execute(
         """
         INSERT INTO intakes
-            (token_hash, doctor_id, form_id, patient_name, patient_age, patient_sex, abha_id, patient_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (token_hash, doctor_id, form_id, patient_name, patient_age, patient_sex, abha_id, patient_id, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', ?))
         """,
         (
             _hash(token),
@@ -184,6 +211,7 @@ def create_intake(
             details.patient_sex,
             details.abha_id,
             details.patient_id,
+            f"+{settings.diagnofast_link_hours} hours",
         ),
     )
     if not details.patient_id:  # with a patient, the audit entry above has already recorded this
@@ -268,7 +296,18 @@ def intake_audio(
 @router.get("/patient/{token}")
 def patient_page(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
     row = _open_intake(token, db)
-    return {"patient_name": row["patient_name"], "has_abha_id": bool(row["abha_id"])}
+    page = {
+        "patient_name": row["patient_name"],
+        "has_abha_id": bool(row["abha_id"]),
+        "status": row["status"],
+        "language": row["language"],
+    }
+    if row["status"] == "in_progress":
+        # A patient who reloads the page, or whose phone slept, carries on at the same question.
+        page["question"] = row["current_question"]
+        page["questions_asked"] = row["questions_asked"]
+        page["audio"] = _spoken(row["current_question"], row["language"])
+    return page
 
 
 @router.post("/patient/{token}/start", dependencies=[Depends(ratelimit.per_client(ratelimit.INTERVIEW_STARTS_PER_DEVICE))])
@@ -286,13 +325,21 @@ def start_interview(
         records = asdict(abha.get_abha_client().fetch(row["abha_id"]))
     form = agent.load_form(row["form_id"])
     question = agent.first_question(form, request.language)
-    db.execute(
+    started = db.execute(
         """
         UPDATE intakes SET status = 'in_progress', language = ?, records = ?, current_question = ?,
-            questions_asked = 1 WHERE id = ?
+            questions_asked = 1, expires_at = datetime('now', ?) WHERE id = ? AND status = 'waiting'
         """,
-        (request.language, json.dumps(records) if records else None, question, row["id"]),
-    )
+        (
+            request.language,
+            json.dumps(records) if records else None,
+            question,
+            f"+{settings.diagnofast_interview_hours} hours",
+            row["id"],
+        ),
+    ).rowcount
+    if not started:  # another tab started it a moment ago
+        raise HTTPException(status.HTTP_409_CONFLICT, "This interview has already started.")
     events.emit(db, MODULE, "intake.started", _workflow(db, row), "started", actor="patient", key=str(row["id"]), metadata={"language": request.language})
     return {"question": question, "suggested_chips": [chip.model_dump() for chip in agent.field_chips(form["fields"][0], request.language)], "audio": _spoken(question, request.language)}
 
@@ -362,8 +409,17 @@ def answer(
     background: BackgroundTasks,
     audio: Optional[UploadFile] = File(default=None),
     text: Optional[str] = Form(default=None, max_length=MAX_TYPED_ANSWER),
+    # The page sends one key per question, and the same key again if it retries after a lost reply.
+    answer_key: Optional[str] = Form(default=None, max_length=MAX_ANSWER_KEY),
     db: sqlite3.Connection = Depends(get_db),
 ) -> dict:
+    if answer_key:
+        seen = _intake_by_token(token, db)
+        if seen is not None and seen["last_answer_key"] == answer_key and seen["last_answer_reply"]:
+            # Already saved: give the same reply again rather than record the answer twice.
+            reply = json.loads(seen["last_answer_reply"])
+            spoken = reply.get("message") if reply.get("finished") else reply.get("question")
+            return {**reply, "audio": _spoken(spoken, seen["language"])}
     row = _open_intake(token, db)
     if row["status"] != "in_progress":
         raise HTTPException(status.HTTP_409_CONFLICT, "Please start the interview first.")
@@ -398,13 +454,18 @@ def answer(
         transcript[-1]["audio"] = audio_name
 
     finished = step.question is None
-    flow = _workflow(db, row)
-    if audio_name:
-        events.emit(db, MODULE, "intake.transcription.completed", flow, actor="patient", metadata={"language": language})
-    db.execute(
+    if finished:
+        message = agent.URGENT_MESSAGE[language] if step.urgent else agent.THANK_YOU[language]
+        reply = {"finished": True, "urgent": bool(step.urgent), "message": message}
+    else:
+        reply = {"finished": False, "question": step.question, "suggested_chips": [chip.model_dump() for chip in step.suggested_chips]}
+    # Only saved if nothing else answered this question while the AI was thinking: two tabs, or a
+    # retry after a timeout, must not both be recorded.
+    saved = db.execute(
         """
         UPDATE intakes SET answers = ?, transcript = ?, urgent = ?, current_question = ?,
-            questions_asked = ?, status = ? WHERE id = ?
+            questions_asked = ?, status = ?, last_answer_key = ?, last_answer_reply = ?
+        WHERE id = ? AND status = 'in_progress' AND questions_asked = ?
         """,
         (
             json.dumps(step.answers, ensure_ascii=False),
@@ -413,14 +474,22 @@ def answer(
             step.question,
             row["questions_asked"] + (0 if finished else 1),
             "preparing_report" if finished else "in_progress",
+            answer_key,
+            json.dumps(reply, ensure_ascii=False),
             row["id"],
+            row["questions_asked"],
         ),
-    )
+    ).rowcount
+    if not saved:
+        recordings.discard(row["id"], audio_name)
+        raise HTTPException(status.HTTP_409_CONFLICT, "This question was already answered. Please reload the page to carry on.")
+    flow = _workflow(db, row)
+    if audio_name:
+        events.emit(db, MODULE, "intake.transcription.completed", flow, actor="patient", metadata={"language": language})
     if finished:
         events.emit(db, MODULE, "intake.completed", flow, actor="patient", key=str(row["id"]), metadata={"question_count": row["questions_asked"], "urgent_stop": bool(step.urgent)}, used_ai=True)
         # Commit first: the report task reads this row on its own connection.
         db.commit()
         background.add_task(_build_report, row["id"])
-        message = agent.URGENT_MESSAGE[language] if step.urgent else agent.THANK_YOU[language]
-        return {"finished": True, "urgent": bool(step.urgent), "message": message, "audio": _spoken(message, language)}
-    return {"finished": False, "question": step.question, "suggested_chips": [chip.model_dump() for chip in step.suggested_chips], "audio": _spoken(step.question, language)}
+        return {**reply, "audio": _spoken(reply["message"], language)}
+    return {**reply, "audio": _spoken(step.question, language)}

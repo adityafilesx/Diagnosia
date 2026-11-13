@@ -8,6 +8,7 @@ const STATUS_TEXT = {
     preparing_report: 'Preparing report',
     done: 'Report ready',
     report_failed: 'Answers ready',
+    expired: 'Link expired',
 };
 const POLL_MS = 10000;
 let poll = null;
@@ -263,7 +264,7 @@ export async function renderDiagnoFast(container, context) {
             if (!made) return;
             const url = new URL(made.link, window.location.href).href;
             show(created, h('div', { class: 'banner' },
-                h('p', {}, 'Open this link on the waiting-room tablet. It works for this patient only, and stops when the interview ends.'),
+                h('p', {}, 'Open this link on the waiting-room tablet. It works for this patient only, stops when the interview ends, and expires if it is not used within a day.'),
                 h('a', { class: 'link-box', href: url, target: '_blank', rel: 'noopener' }, url)));
             if (!patient) element.reset();
             await loadQueue();

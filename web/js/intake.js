@@ -136,8 +136,13 @@ function renderChips(chips = []) {
     });
 }
 
+// One key per question. A retry after a lost reply sends the same key, so the answer is saved once.
+const newAnswerKey = () => (window.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+let answerKey = newAnswerKey();
+
 function showNext(reply) {
     currentReply = reply;
+    answerKey = newAnswerKey();
     pendingBlob = null;
     $('answer').value = '';
     $('confidence').textContent = words().confidence;
@@ -166,6 +171,7 @@ async function sendAnswer() {
     if (busy || recorder || acquiring || stopping || !$('answer').value.trim()) return;
     const data = new FormData();
     data.append('text', $('answer').value.trim());
+    data.append('answer_key', answerKey);
     if (pendingBlob) data.append('audio', pendingBlob, 'answer');
     $('answer-error').hidden = true;
     busy = true;
@@ -407,7 +413,15 @@ async function initialize() {
             const response = await apiFetch(`/api/diagnofast/patient/${encodeURIComponent(token)}`);
             const patient = await response.json();
             $('name').textContent = `, ${patient.patient_name}`;
-            $('welcome').hidden = false;
+            if (patient.status === 'in_progress' && patient.question) {
+                // Reloaded mid-interview: carry on at the same question.
+                $('language').value = patient.language;
+                applyLanguage();
+                $('interview').hidden = false;
+                showNext({ finished: false, question: patient.question, audio: patient.audio });
+            } else {
+                $('welcome').hidden = false;
+            }
         } else {
             const response = await apiFetch('/api/diagnofast/kiosk');
             const { forms } = await response.json();

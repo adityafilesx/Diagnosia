@@ -42,6 +42,10 @@ class Settings:
     cookie_secure: bool = field(default_factory=lambda: os.environ.get("CURAI_HTTPS") == "1")
     # A self-service kiosk sends new visits only to this verified doctor's queue.
     diagnofast_kiosk_doctor_id: str = field(default_factory=lambda: os.environ.get("DIAGNOFAST_KIOSK_DOCTOR_ID", ""))
+    # An interview link that is never opened stops working after this. Once started, the patient has the
+    # second window to finish. Both are hours.
+    diagnofast_link_hours: int = field(default_factory=lambda: int(os.environ.get("CURAI_DIAGNOFAST_LINK_HOURS", "24")))
+    diagnofast_interview_hours: int = field(default_factory=lambda: int(os.environ.get("CURAI_DIAGNOFAST_INTERVIEW_HOURS", "2")))
     neural_tts_enabled: bool = field(default_factory=lambda: os.environ.get("CURAI_NEURAL_TTS", "1") != "0")
     # A real key, or leave empty and add one in Settings. Placeholders count as empty.
     groq_api_key: str = field(default_factory=lambda: _real_key(os.environ.get("GROQ_API_KEY", "")))

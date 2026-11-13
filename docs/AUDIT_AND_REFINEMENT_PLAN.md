@@ -327,7 +327,8 @@ Copy a row into the pull request when work starts. States: Open, In progress, Do
 | Item | Owner | State | Pull request | Date done |
 |---|---|---|---|---|
 | WI-001 to WI-003 (Phase 0) | Claude | Done (13 Nov): CI, lockfile, audit (Starlette and pytest upgraded to clear 16 advisories), baselines, PR template | branch `claude/eager-tesla-g24rmm` | 13 Nov 2026 |
-| WI-101 to WI-115 (Phase 1) | | Open | | |
+| WI-102, WI-103 | Claude | Done (13 Nov): links expire (24 h unopened, 2 h once started, migration 9, sweep marks them `expired`); `GET /patient/{token}` returns the current question so a reload resumes (no separate `/state` route); answers saved only if the question is still open (409 otherwise), retried with an answer key that returns the stored reply; unique recording names, the losing recording removed. On an AI failure nothing is stored and the page keeps the typed answer for a retry. | branch `claude/eager-tesla-g24rmm` | 13 Nov 2026 |
+| Other WI-101 to WI-115 (Phase 1) | | Open | | |
 | WI-201 to WI-272 (Phase 2) | | Open | | |
 | WI-280 to WI-289 (Phase 3) | | Open | | |
 | D1 to D5 (owner decisions) | | Open | | |

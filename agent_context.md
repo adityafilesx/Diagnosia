@@ -132,7 +132,10 @@ The photo isn't stored. A consent box says it goes to outside AI services.
 ### DiagnoFast (`backend/diagnofast/`)
 - Six specialty forms live in `forms/*.json`: general medicine, dermatology, cardiology, orthopedics, ENT and pediatrics (no form builder).
 - Reception creates a **single-use link** for each patient. The patient needs no account. The
-  link stops working when the interview ends. Only a hash of each link is stored.
+  link stops working when the interview ends, after 24 hours unopened, or 2 hours after it starts
+  (`CURAI_DIAGNOFAST_LINK_HOURS`, `CURAI_DIAGNOFAST_INTERVIEW_HOURS`). Only a hash of each link is stored.
+  A reload carries on at the current question. An answer is saved only if its question is still
+  open, and the page's `answer_key` makes a retry return the stored reply instead of saving twice.
 - `intake.html` without a token opens the self-service specialty grid when
   `DIAGNOFAST_KIOSK_DOCTOR_ID` names a verified doctor. New visits go only to that doctor;
   public callers cannot attach a chart, choose a doctor or fetch ABHA records. The kiosk is

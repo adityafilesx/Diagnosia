@@ -364,13 +364,20 @@ def finished_voice_intake(client, monkeypatch, **extra):
     return intake_id
 
 
+def only_recording(intake_id):
+    """The one stored recording. Its name is the turn plus a random part, so answers can't overwrite each other."""
+    stored = list((settings.documents_dir / recordings.FOLDER / str(intake_id)).iterdir())
+    assert len(stored) == 1
+    return stored[0], stored[0].name.removesuffix(".enc")
+
+
 def test_recordings_are_encrypted_on_disk(client, details, services, monkeypatch):
     doctor_session(client, details)
     intake_id = finished_voice_intake(client, monkeypatch)
-    stored = list((settings.documents_dir / recordings.FOLDER / str(intake_id)).iterdir())
-    assert [path.name for path in stored] == ["0.webm.enc"]
-    assert b"SYNTHETIC-OPUS-BYTES" not in stored[0].read_bytes()
-    assert is_private(stored[0])
+    path, name = only_recording(intake_id)
+    assert name.startswith("0-") and name.endswith(".webm")
+    assert b"SYNTHETIC-OPUS-BYTES" not in path.read_bytes()
+    assert is_private(path)
     assert client.get(f"/api/diagnofast/intakes/{intake_id}/audio/0").content == b"SYNTHETIC-OPUS-BYTES"
 
 
@@ -379,9 +386,10 @@ def test_a_recording_moved_to_another_interview_will_not_open(client, details, s
     intake_id = finished_voice_intake(client, monkeypatch)
     folder = settings.documents_dir / recordings.FOLDER
     (folder / "999").mkdir()
-    (folder / str(intake_id) / "0.webm.enc").rename(folder / "999" / "0.webm.enc")
+    path, name = only_recording(intake_id)
+    path.rename(folder / "999" / path.name)
     with pytest.raises(vault.IntegrityFailure):
-        recordings.load(999, "0.webm")
+        recordings.load(999, name)
 
 
 def test_without_a_key_ring_the_answer_counts_but_no_recording_is_kept(client, details, services, monkeypatch):
@@ -463,7 +471,7 @@ def test_english_questions_come_with_audio(client, details, services):
 def test_operator_commands_cover_recordings(client, details, services, monkeypatch, capsys):
     doctor_session(client, details)
     intake_id = finished_voice_intake(client, monkeypatch)
-    path = settings.documents_dir / recordings.FOLDER / str(intake_id) / "0.webm.enc"
+    path, name = only_recording(intake_id)
     ring_path = Path(settings.document_key_file)
     original_ring = ring_path.read_text(encoding="utf-8")
     old_key = vault.key_id_of(path.read_bytes())
@@ -474,7 +482,7 @@ def test_operator_commands_cover_recordings(client, details, services, monkeypat
         assert vault.key_id_of(path.read_bytes()) == "newer"
         assert operator_cli.verify_documents(None) == 0
         assert operator_cli.retire_key(SimpleNamespace(key_id=old_key)) == 0
-        assert recordings.load(intake_id, "0.webm")[0] == b"SYNTHETIC-OPUS-BYTES"
+        assert recordings.load(intake_id, name)[0] == b"SYNTHETIC-OPUS-BYTES"
     finally:
         ring_path.write_text(original_ring)
 
@@ -482,7 +490,7 @@ def test_operator_commands_cover_recordings(client, details, services, monkeypat
 def test_a_damaged_recording_fails_verification(client, details, services, monkeypatch, capsys):
     doctor_session(client, details)
     intake_id = finished_voice_intake(client, monkeypatch)
-    path = settings.documents_dir / recordings.FOLDER / str(intake_id) / "0.webm.enc"
+    path, name = only_recording(intake_id)
     data = bytearray(path.read_bytes())
     data[-1] ^= 1
     path.write_bytes(bytes(data))

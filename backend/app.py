@@ -67,6 +67,7 @@ def _sweep_once() -> None:
         care.escalate_overdue(connection)
         reminder_service.process_due(connection)
         ratelimit.forget_expired(connection)
+        diagnofast.expire_stale(connection)
         connection.commit()
     finally:
         connection.close()

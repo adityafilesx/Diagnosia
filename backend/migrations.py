@@ -99,6 +99,19 @@ def _document_description(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE clinical_documents ADD COLUMN description TEXT NOT NULL DEFAULT ''")
 
 
+def _intake_expiry_and_answer_key(db: sqlite3.Connection) -> None:
+    """Interview links expire, and a retried answer is recognised instead of saved twice.
+
+    Links still open when this runs get a day from now, so nobody's link dies mid-visit.
+    """
+    db.execute("ALTER TABLE intakes ADD COLUMN expires_at TEXT")
+    db.execute("ALTER TABLE intakes ADD COLUMN last_answer_key TEXT")
+    db.execute("ALTER TABLE intakes ADD COLUMN last_answer_reply TEXT")
+    db.execute(
+        "UPDATE intakes SET expires_at = datetime('now', '+24 hours') WHERE status IN ('waiting', 'in_progress')"
+    )
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -108,6 +121,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (6, "intake_patient_link", _intake_patient_link),
     (7, "delivery_detail", _delivery_detail),
     (8, "document_description", _document_description),
+    (9, "intake_expiry_and_answer_key", _intake_expiry_and_answer_key),
 ]
 
 
