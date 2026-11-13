@@ -97,6 +97,8 @@ Open <http://127.0.0.1:8000>. `python -m backend.operator_cli setup-local` creat
 `python -m backend.synthetic.serve` seeds 14 staff and 60 patient records (30 with logins) if they
 aren't there yet, then starts the server (`seed_accounts` alone only seeds).
 Data sources and the plan for a labelled test set: `docs/DATA_SOURCES_AND_EVAL_PLAN.md`.
+The audit register and the ordered fix plan (issues I-xx, work items WI-xxx): `docs/AUDIT_AND_REFINEMENT_PLAN.md`.
+Pick work from it, write the failing test first, and update its status table.
 Staff accounts are **not** self-declared: a doctor stays pending until an organization administrator
 verifies them, and the first administrator is only created from the command line.
 

@@ -523,6 +523,7 @@ The repository's `docs/` directory contains the detailed implementation and gove
 |---|---|
 | [`docs/CLINICAL_GOVERNANCE.md`](docs/CLINICAL_GOVERNANCE.md) | Clinical safety boundaries, review requirements and governance decisions |
 | [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) | Security findings and remaining technical work |
+| [`docs/AUDIT_AND_REFINEMENT_PLAN.md`](docs/AUDIT_AND_REFINEMENT_PLAN.md) | The audit register, work items, order of work and owner decisions from the November 2026 review |
 | [`docs/DATA_PROTECTION_AND_RETENTION.md`](docs/DATA_PROTECTION_AND_RETENTION.md) | Document protection, privacy and retention considerations |
 | [`docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md`](docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md) | Deployment prerequisites and readiness controls |
 | [`docs/integrations/TESTING.md`](docs/integrations/TESTING.md) | How each kind of test is run, and what it proves |
