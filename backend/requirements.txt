@@ -1,4 +1,6 @@
-fastapi==0.115.*
+fastapi==0.135.*
+# Starlette below 1.3.1 has published security advisories (pip-audit, November 2026).
+starlette>=1.3.1,<2
 uvicorn[standard]==0.32.*
 python-multipart==0.0.*
 python-dotenv==1.*
@@ -14,5 +16,5 @@ cryptography>=46
 rapidfuzz==3.*
 
 # Tests
-pytest==8.*
+pytest==9.*
 reportlab==5.*

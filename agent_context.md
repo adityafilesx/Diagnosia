@@ -211,7 +211,10 @@ The photo isn't stored. A consent box says it goes to outside AI services.
   `tools.css`. The public pages use the Webflow template in `index.css`.
 - Only the microphone browser check is in the repo (`backend/tests/browser/`). After a UI change,
   test it in a real browser at desktop, tablet and phone widths.
-- Don't add dependencies without a reason. `backend/requirements.txt` is the app.
+- Don't add dependencies without a reason. `backend/requirements.txt` is the app. `backend/requirements.lock`
+  pins every package for Linux and Windows and is what CI installs; after changing requirements, regenerate it with
+  `uv pip compile backend/requirements.txt --universal --python-version 3.11 -o backend/requirements.lock` and run
+  `pip-audit -r backend/requirements.lock`. CI (`.github/workflows/ci.yml`) runs the suite on both systems and the audit.
 - A new tool's routes join the sweep in `test_security.py`. Add a real gate, not a list entry.
 - Code and tests must work on both Windows and Linux. Protect sensitive files with
   `private_files.py`, because `chmod` does nothing on Windows. Pass `encoding="utf-8"` when reading

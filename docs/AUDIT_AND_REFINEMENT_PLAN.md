@@ -326,7 +326,7 @@ Copy a row into the pull request when work starts. States: Open, In progress, Do
 
 | Item | Owner | State | Pull request | Date done |
 |---|---|---|---|---|
-| WI-001 to WI-003 (Phase 0) | | Open | | |
+| WI-001 to WI-003 (Phase 0) | Claude | Done (13 Nov): CI, lockfile, audit (Starlette and pytest upgraded to clear 16 advisories), baselines, PR template | branch `claude/eager-tesla-g24rmm` | 13 Nov 2026 |
 | WI-101 to WI-115 (Phase 1) | | Open | | |
 | WI-201 to WI-272 (Phase 2) | | Open | | |
 | WI-280 to WI-289 (Phase 3) | | Open | | |

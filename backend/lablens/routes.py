@@ -103,6 +103,9 @@ def upload_report(
         uploaded_by=user["id"],
         created_at=now_iso(),
     )
+    # Commit first: the extraction job reads this row on its own connection, and newer FastAPI
+    # versions may start background work before the request's own commit.
+    db.commit()
     background.add_task(extract.process, report_id)
     return {**_payload(db, _report(db, report_id)), "duplicate": False}
 
@@ -144,6 +147,7 @@ def retry(
     if report["status"] not in ("failed", "needs_manual_entry"):
         raise HTTPException(status.HTTP_409_CONFLICT, "This report doesn't need a retry.")
     update(db, "lab_reports", report_id, status="processing", failure_reason="")
+    db.commit()  # the job reads this row on its own connection
     background.add_task(extract.process, report_id)
     return {"status": "processing"}
 
