@@ -35,9 +35,9 @@ from backend.auth import require_doctor
 from backend.careflow import events
 from backend.config import neural_tts_allowed, settings
 from backend.db import connect, get_db
-from backend.diagnofast import abha, agent, recordings
+from backend.diagnofast import abha, agent, recordings, validate
 from backend.patient_pack import sync as pack
-from backend.records import care, consent
+from backend.records import audit, care, consent
 from backend.records.access import READ, WRITE, lookup, open_patient
 
 MAX_AUDIO_BYTES = 5 * 1024 * 1024
@@ -309,7 +309,7 @@ def queue(
         where, value = "doctor_id = ?", doctor["id"]
     rows = db.execute(
         f"""
-        SELECT id, patient_name, patient_id, status, urgent, created_at, help_requested_at FROM intakes
+        SELECT id, patient_name, patient_id, status, urgent, created_at, help_requested_at, reviewed_at FROM intakes
         WHERE {where} ORDER BY urgent = '[]', id DESC
         """,
         (value,),
@@ -320,6 +320,7 @@ def queue(
             "urgent": json.loads(row["urgent"]),
             # Only while the interview is open: afterwards the patient is with reception or the doctor.
             "needs_help": bool(row["help_requested_at"]) and row["status"] in OPEN_STATUSES,
+            "reviewed": bool(row["reviewed_at"]),
         }
         for row in rows
     ]
@@ -344,7 +345,13 @@ def intake_detail(
     form = agent.load_form(row["form_id"])
     answers = json.loads(row["answers"])
     transcript = json.loads(row["transcript"])
+    report = _report_view(row["report"], db)
+    reviewer = db.execute("SELECT first_name, last_name FROM users WHERE id = ?", (row["reviewed_by"],)).fetchone() if row["reviewed_by"] else None
     return {
+        # Until a doctor stamps it, the report is an AI draft, and the screen says so.
+        "reviewed": {"by": f"{reviewer['first_name']} {reviewer['last_name']}" if reviewer else "", "at": row["reviewed_at"]} if row["reviewed_at"] else None,
+        # Checked fresh on every view, so a report written before a check existed is checked too.
+        "report_problems": validate.check_report(report, [{"answer": turn["answer"]} for turn in transcript]) if report else [],
         "id": row["id"],
         "status": row["status"],
         "created_at": row["created_at"],
@@ -363,7 +370,7 @@ def intake_detail(
         ],
         "urgent": json.loads(row["urgent"]),
         "records": json.loads(row["records"]) if row["records"] else None,
-        "report": _report_view(row["report"], db),
+        "report": report,
         "transcript": [
             {"question": turn["question"], "answer": turn["answer"], "has_audio": bool(turn.get("audio"))}
             for turn in transcript
@@ -384,6 +391,28 @@ def intake_audio(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No recording for this answer.")
     data, content_type = recordings.load(intake_id, transcript[turn]["audio"])
     return Response(data, media_type=content_type)
+
+
+@router.post("/intakes/{intake_id}/review")
+def review_report(
+    intake_id: int,
+    doctor: sqlite3.Row = Depends(require_doctor),
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    """The doctor's stamp. It records that a person read the report and the patient's answers; it changes nothing in them."""
+    row = _readable_intake(intake_id, doctor, db, "diagnofast.report.reviewed", WRITE)
+    stamped = db.execute(
+        """
+        UPDATE intakes SET reviewed_by = ?, reviewed_at = datetime('now')
+        WHERE id = ? AND status IN ('done', 'report_failed') AND reviewed_at IS NULL
+        """,
+        (doctor["id"], row["id"]),
+    ).rowcount
+    if not stamped:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only a finished interview that hasn't been reviewed can be stamped.")
+    if not row["patient_id"]:  # with a chart, the gate above has already written this to the audit log
+        audit.record(db, doctor, "diagnofast.report.reviewed", None, "intake", str(row["id"]))
+    return {"reviewed": True}
 
 
 @router.post("/intakes/{intake_id}/report/retry", status_code=status.HTTP_202_ACCEPTED)

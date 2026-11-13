@@ -73,6 +73,7 @@ and any past records. The doctor has under a minute to read it.
   never turn a subjective symptom into a lab result. NORMAL requires an explicit negative or
   supplied normal measurement. CRITICAL is reserved for urgent symptoms already identified.
   Use 'Not applicable (symptom)' for norms of subjective findings, never invented ranges.
+  evidence_turns lists the conversation turns (numbered from 1) each row comes from.
 - suggested_investigations: at most 6 initial labs/imaging to CONSIDER based on the supplied
   symptoms, for physician review only, not orders. Return [] if unsupported or history is scant.
   Do not recommend medicines, diagnoses or a blanket testing panel.
@@ -112,6 +113,8 @@ class ReviewOfSystem(BaseModel):
     finding: str
     flag: Literal["NORMAL", "L*", "H*", "CRITICAL", "NOT_ASSESSED"]
     norm: str
+    # The conversation turns (numbered from 1) the row comes from. A NORMAL row must cite one (validate.py).
+    evidence_turns: List[int] = Field(default_factory=list, max_length=12)
 
 
 class Report(BaseModel):

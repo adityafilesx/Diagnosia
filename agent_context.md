@@ -185,7 +185,12 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
   demographics, reported ROS, provenance-labeled history, investigation suggestions for physician
   review, and a blank physician workspace. H*/L* require supplied measured values and ranges;
   unasked symptoms are never normal. Original answers and recordings remain expandable. Reports print on one A4 page; if entries do not fit, the printout explicitly says it is incomplete
-  and directs the doctor to the full report, original answers and transcript on screen. AI output remains unreviewed.
+  and directs the doctor to the full report, original answers and transcript on screen. AI output remains unreviewed
+  until a doctor presses "Mark as reviewed" (`POST /intakes/{id}/review`, stored as `reviewed_by` and
+  `reviewed_at`); the queue and the chart show which reports are reviewed. `diagnofast/validate.py` checks
+  each report on view and flags, never changes: a NORMAL row must cite an answer with a negative
+  (`evidence_turns`), an H*/L* row needs a number and a printed range, and no investigation may name a
+  medicine or dose.
 
 ## Rules that must not be broken
 

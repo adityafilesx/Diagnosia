@@ -127,6 +127,12 @@ def _notification_link(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE notifications ADD COLUMN link TEXT")
 
 
+def _intake_review_stamp(db: sqlite3.Connection) -> None:
+    """Who reviewed a DiagnoFast report and when. Until then it is an unreviewed AI draft."""
+    db.execute("ALTER TABLE intakes ADD COLUMN reviewed_by INTEGER REFERENCES users (id)")
+    db.execute("ALTER TABLE intakes ADD COLUMN reviewed_at TEXT")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -140,6 +146,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (10, "intake_report_requested_at", _intake_report_requested_at),
     (11, "intake_help_requested_at", _intake_help_requested_at),
     (12, "notification_link", _notification_link),
+    (13, "intake_review_stamp", _intake_review_stamp),
 ]
 
 
