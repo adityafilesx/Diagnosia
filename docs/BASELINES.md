@@ -93,6 +93,14 @@ plus the network. Not yet measured on a real kiosk tablet and clinic network.
 
 No longer open from the first table: token accounting exists (WI-105), and this alert latency.
 
+## 15 November 2026, lab report reading after the parser change (WI-230)
+
+`python -m backend.tests.lab_validation.score`, same synthetic text-PDF layouts, parser version
+`lablens-parser-2` (unread lines counted, results in words read). Every figure is unchanged from 13 November:
+test found 37/37, value 37/37, unit 35/36, reference low 30/30, reference high 34/34, patient name 9/9,
+collection date 9/9, and each case reads exactly the number of results it expects, so the word-result
+rules add no false results on these layouts. No wrong values and no silent misses.
+
 ## 13 November 2026, SQLite write contention (WI-261)
 
 `python -m backend.synthetic.load_test`: a throwaway database, 20 staff each saving every second (new patients

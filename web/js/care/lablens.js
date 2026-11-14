@@ -101,6 +101,12 @@ async function renderReport(area, reportId, context) {
             report.laboratory, report.name_on_report && `Name on report: ${report.name_on_report}`,
             READ_BY[report.extraction_method] || READ_BY.none,
         ].filter(Boolean).join('. ')),
+        // Lines that looked like results but weren't read. A prompt to look at the original, where
+        // a missing result would otherwise go unnoticed.
+        report.lines_not_read ? h('div', { class: 'banner danger', id: 'lines-not-read', role: 'status' },
+            h('strong', {}, `${plural(report.lines_not_read, 'line')} not read. `),
+            'Find them in the original report and add each result by hand if it belongs here.',
+            report.unread_lines?.length ? h('ul', { class: 'reasons' }, report.unread_lines.map((line) => h('li', {}, line))) : null) : null,
         h('div', { class: 'split' },
             h('div', {}, originalView(report)),
             h('div', {},

@@ -165,6 +165,12 @@ def _one_draft_per_session(db: sqlite3.Connection) -> None:
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_draft_per_session ON clinical_notes (session_id) WHERE status = 'draft'")
 
 
+def _lab_lines_not_read(db: sqlite3.Connection) -> None:
+    """How many lines of a lab report could not be read, and the lines themselves, for the reviewer."""
+    db.execute("ALTER TABLE lab_reports ADD COLUMN lines_not_read INTEGER NOT NULL DEFAULT 0")
+    db.execute("ALTER TABLE lab_reports ADD COLUMN unread_lines TEXT NOT NULL DEFAULT '[]'")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -183,6 +189,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (15, "barrier_target_date", _barrier_target_date),
     (16, "scribe_chunks_lost", _scribe_chunks_lost),
     (17, "one_draft_per_session", _one_draft_per_session),
+    (18, "lab_lines_not_read", _lab_lines_not_read),
 ]
 
 
