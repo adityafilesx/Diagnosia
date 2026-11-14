@@ -141,3 +141,16 @@ def test_the_public_policy_is_built_from_the_pages(client):
 def test_no_page_embeds_an_object_the_policy_would_block(page):
     text = (WEB_DIR / page).read_text(encoding="utf-8")
     assert "<object" not in text and "<embed" not in text
+
+
+def test_a_route_that_sets_its_own_policy_keeps_it(doctor, patient):
+    # The original of a lab report or document is shown in a frame inside the workspace. Its route
+    # says the workspace may frame it; the general API policy ("frame-ancestors 'none'") must not replace that.
+    image = b"\x89PNG\r\n\x1a\n" + b"PIXELDATA" * 8
+    stored = doctor.post(
+        f"/api/patients/{patient['id']}/documents", files={"file": ("xray.png", image, "image/png")},
+        data={"document_type": "x_ray", "description": "Chest X-ray"},
+    ).json()
+    headers = doctor.get(f"/api/documents/{stored['id']}/file?inline=1").headers
+    assert headers["content-security-policy"] == "frame-ancestors 'self'"
+    assert headers["x-content-type-options"] == "nosniff"
