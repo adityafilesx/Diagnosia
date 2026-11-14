@@ -17,6 +17,12 @@ Moves are checked by side. The receiver moves most stages, the referrer resends 
 a request for information, reviews the outcome and closes. For phone, fax or paper
 referrals, the referrer records the receiver's steps, marked `manual`.
 
+A referral is `booked` only with an appointment: moving to `booked` marks the newest open
+appointment (offered, booked or rescheduled) as the booking, and is refused with a 409 when there is
+none, as after a missed visit. An appointment time must be a real date, or a date and time, within a
+year back and three years ahead; anything else is refused with a 422. It is stored as `YYYY-MM-DD` or
+`YYYY-MM-DDTHH:MM`.
+
 ## Scenario coverage
 
 Toolkit scenarios TS-01 and TS-03 to TS-08 are automated. TS-02 (prior authorization)

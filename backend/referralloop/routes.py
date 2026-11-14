@@ -7,11 +7,11 @@ read from free text. A referral can't quietly disappear: it stays open until a
 reviewed outcome or a recorded reason closes it.
 """
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.auth import require_doctor, require_user
 from backend.db import get_db
@@ -26,6 +26,11 @@ router = APIRouter(prefix="/api/addons/referrals")
 DUPLICATE_WINDOW_DAYS = 30
 MAX_CONTACT_ATTEMPTS = 3
 TERMINAL = ("closed", "cancelled")
+# An appointment someone could still attend. "booked" needs one of these.
+OPEN_APPOINTMENT = ("offered", "booked", "rescheduled")
+# A typed year like 0206 or 2206 is a slip, not an appointment.
+APPOINTMENT_PAST_DAYS = 365
+APPOINTMENT_AHEAD_DAYS = 3 * 365
 
 # Who may move a referral from one stage to the next.
 RECEIVER_MOVES = {
@@ -74,6 +79,24 @@ class AppointmentRequest(BaseModel):
     scheduled_at: str = Field(min_length=10, max_length=25)
     location: str = Field(default="", max_length=200)
     booked: bool = False
+
+    @field_validator("scheduled_at")
+    @classmethod
+    def a_real_date(cls, value: str) -> str:
+        """A date, or a date and time. Stored in one form, so the screens and the overdue check agree."""
+        text = value.strip()
+        try:
+            if len(text) == 10:
+                day, stored = date.fromisoformat(text), text
+            else:
+                moment = datetime.fromisoformat(text)
+                day, stored = moment.date(), moment.strftime("%Y-%m-%dT%H:%M")
+        except ValueError:
+            raise ValueError("Please give the appointment as a date, or a date and time.")
+        today = date.today()
+        if not today - timedelta(days=APPOINTMENT_PAST_DAYS) <= day <= today + timedelta(days=APPOINTMENT_AHEAD_DAYS):
+            raise ValueError("Please check the appointment's year.")
+        return stored
 
 
 class ContactAttempt(BaseModel):
@@ -437,6 +460,19 @@ def change_status(
 ) -> dict:
     referral = _referral(db, referral_id)
     fresh = _change(db, user, referral, request.status, request.note)
+    if request.status == "booked":
+        # A booking is a time and place, not only a word. The newest open appointment becomes the booking.
+        latest = db.execute(
+            f"""
+            SELECT id FROM referral_appointments WHERE referral_id = ?
+              AND status IN ({", ".join("?" * len(OPEN_APPOINTMENT))})
+            ORDER BY created_at DESC, rowid DESC LIMIT 1
+            """,
+            (referral_id, *OPEN_APPOINTMENT),
+        ).fetchone()
+        if latest is None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Add the appointment date and time first, then mark it booked.")
+        update(db, "referral_appointments", latest["id"], status="booked")
     if request.status in ("attended", "no_show", "rescheduled"):
         db.execute(
             """
