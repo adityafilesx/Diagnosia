@@ -73,7 +73,7 @@ The same for every tool. The event stays in the SQLite outbox, which committed w
 - **Stage:** `after_visit`
 - **Trigger:** Audit hook
 - **Human review:** Yes: a clinician approves the plan.
-- **Events:** `discharge.approved`, `discharge.checklist.updated`, `discharge.completed`, `discharge.episode_created`, `discharge.episode_updated`
+- **Events:** `discharge.approved`, `discharge.checklist.updated`, `discharge.completed`, `discharge.episode_created`, `discharge.episode_updated`, `discharge.reopened`
 
 
 

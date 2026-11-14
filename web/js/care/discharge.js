@@ -10,7 +10,7 @@ function board(rows, open) {
             { label: 'Patient', cell: (row) => [row.flagged ? '⚑ ' : '', `${row.first_name} ${row.last_name}`] },
             { label: 'Discharge', cell: (row) => when(row.discharge_date) },
             { label: 'To', cell: (row) => row.destination },
-            { label: 'Barriers', number: true, cell: (row) => row.barriers_open },
+            { label: 'Barriers', number: true, cell: (row) => (row.barriers_overdue ? badge(`${row.barriers_open}, ${row.barriers_overdue} past target`, 'bad') : row.barriers_open) },
             { label: 'Open tasks', number: true, cell: (row) => row.tasks_open },
             { label: 'Overdue', number: true, cell: (row) => (row.tasks_overdue ? badge(String(row.tasks_overdue), 'bad') : 0) },
             { label: 'Results due', number: true, cell: (row) => row.results_pending },
@@ -27,6 +27,7 @@ function episodeEditor(area, episode, context, open) {
     const reload = () => open(episode.id);
     const post = (path, body, message) => act(() => api(`${url}/${path}`, { method: 'POST', body }), context, message);
     const draft = episode.status === 'draft';
+    const responsible = episode.responsible_clinician_id === context.me.id;
     const live = episode.status !== 'closed';
 
     const summary = draft ? form(
@@ -55,6 +56,7 @@ function episodeEditor(area, episode, context, open) {
         [
             { name: 'description', label: 'What is in the way', required: true },
             { name: 'owner', label: 'Who is on it' },
+            { name: 'target_date', label: 'Sorted by', type: 'date' },
         ],
         'Add barrier',
         async (values) => { await post('barriers', values, 'Added'); reload(); },
@@ -110,6 +112,7 @@ function episodeEditor(area, episode, context, open) {
             [
                 { label: 'Barrier', cell: (row) => row.description },
                 { label: 'Owner', cell: (row) => row.owner },
+                { label: 'Sorted by', cell: (row) => (row.target_date ? when(row.target_date) : 'No date') },
                 {
                     label: '',
                     cell: (row) => (row.status === 'open' ? h('button', {
@@ -158,7 +161,8 @@ function episodeEditor(area, episode, context, open) {
         }, 'Approve discharge plan') : null,
         episode.status === 'active' ? h('div', { class: 'sheet', style: 'margin-top:16px' },
             (episode.close_blockers || []).map((item) => h('div', { class: 'banner' }, item)),
-            h('button', {
+            // The server refuses anyone else too. Saying so here saves a click that can only fail.
+            responsible ? h('button', {
                 type: 'button',
                 onclick: async () => {
                     const needsReason = episode.close_blockers?.length;
@@ -167,7 +171,19 @@ function episodeEditor(area, episode, context, open) {
                     const done = await post('close', { exception_reason: reason || '' }, 'Discharge closed');
                     if (done) context.refresh();
                 },
-            }, 'Close discharge')) : null));
+            }, 'Close discharge') : h('p', { class: 'muted' }, 'Only the responsible clinician can close this discharge.')) : null,
+        episode.status === 'closed' ? h('div', { class: 'sheet', style: 'margin-top:16px' },
+            h('p', {}, `Closed ${when(episode.closed_at)}.${episode.close_exception ? ` Closed with work outstanding: ${episode.close_exception}` : ''}`),
+            h('button', {
+                type: 'button',
+                class: 'quiet',
+                onclick: async () => {
+                    const reason = await ask('Why does this discharge need reopening?');
+                    if (!reason) return;
+                    const done = await post('reopen', { reason }, 'Discharge reopened');
+                    if (done) reload();
+                },
+            }, 'Reopen this discharge')) : null));
 }
 
 function checklist(data, context, onChange) {
@@ -210,6 +226,9 @@ export async function renderDischarge(container, context) {
     }
 
     const rows = await api(`${BASE}/board`);
+    // The board holds open discharges only. Closed ones for the open patient are listed below it,
+    // so a colleague can look one over and reopen it.
+    const closed = isClinician ? (await api(`${BASE}/patients/${patient.id}/episodes`)).filter((item) => item.status === 'closed') : [];
     const start = isClinician ? form(
         [
             { name: 'discharge_date', label: 'Discharge date', type: 'date', required: true },
@@ -228,6 +247,15 @@ export async function renderDischarge(container, context) {
         start,
         area,
         ...section('Discharge board', board(rows, open)),
+        ...(closed.length ? section(`Closed discharges for ${patient.first_name}`, table(
+            [
+                { label: 'Discharge', cell: (row) => when(row.discharge_date) },
+                { label: 'To', cell: (row) => row.destination },
+                { label: 'Closed', cell: (row) => when(row.closed_at) },
+                { label: '', cell: (row) => h('button', { type: 'button', class: 'quiet', onclick: () => open(row.id) }, 'Open') },
+            ],
+            closed,
+        )) : []),
     );
     return undefined;
 }

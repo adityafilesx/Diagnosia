@@ -49,6 +49,8 @@ class InstructionRequest(BaseModel):
 class BarrierRequest(BaseModel):
     description: str = Field(min_length=1, max_length=300)
     owner: str = Field(default="", max_length=120)
+    # When the team means to have it sorted. Shown in the close warning and on the board.
+    target_date: Optional[date] = None
 
 
 class PendingRequest(BaseModel):
@@ -72,6 +74,10 @@ class TaskPlan(BaseModel):
 
 class CloseRequest(BaseModel):
     exception_reason: str = Field(default="", max_length=500)
+
+
+class ReopenRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
 
 
 def _episode(db: sqlite3.Connection, episode_id: str) -> sqlite3.Row:
@@ -136,6 +142,15 @@ def close_blockers(db: sqlite3.Connection, episode: sqlite3.Row) -> List[str]:
     ).fetchone()[0]
     if pending:
         blockers.append(f"Test results still pending: {pending}")
+    # Something the team said was in the way and nobody has marked sorted. It doesn't lock the
+    # discharge, but closing over it needs a reason on record, like the rest.
+    barriers = db.execute(
+        "SELECT description, target_date FROM discharge_barriers WHERE episode_id = ? AND status = 'open' ORDER BY created_at, rowid",
+        (episode_id,),
+    ).fetchall()
+    for barrier in barriers:
+        target = f"target {barrier['target_date']}" if barrier["target_date"] else "no target date"
+        blockers.append(f"Barrier still open: {barrier['description']} ({target})")
     return blockers
 
 
@@ -187,6 +202,10 @@ def board(user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)
         episode["tasks_escalated"] = sum(task["escalated_at"] is not None for task in tasks)
         episode["barriers_open"] = db.execute(
             "SELECT COUNT(*) FROM discharge_barriers WHERE episode_id = ? AND status = 'open'", (episode["id"],)
+        ).fetchone()[0]
+        episode["barriers_overdue"] = db.execute(
+            "SELECT COUNT(*) FROM discharge_barriers WHERE episode_id = ? AND status = 'open' AND target_date < ?",
+            (episode["id"], date.today().isoformat()),
         ).fetchone()[0]
         episode["results_pending"] = db.execute(
             "SELECT COUNT(*) FROM discharge_pending_results WHERE episode_id = ? AND status = 'pending'", (episode["id"],)
@@ -257,7 +276,15 @@ def add_barrier(
     db: sqlite3.Connection = Depends(get_db),
 ) -> dict:
     episode = _editable(db, user, episode_id, "dischargecare.barrier.add")
-    insert(db, "discharge_barriers", episode_id=episode_id, **request.model_dump(), created_at=now_iso())
+    insert(
+        db,
+        "discharge_barriers",
+        episode_id=episode_id,
+        description=request.description,
+        owner=request.owner,
+        target_date=request.target_date.isoformat() if request.target_date else None,
+        created_at=now_iso(),
+    )
     return _payload(db, episode)
 
 
@@ -398,6 +425,10 @@ def close(
     episode = _clinical(db, user, episode_id, "dischargecare.episode.close")
     if episode["status"] != "active":
         raise HTTPException(status.HTTP_409_CONFLICT, "Only an approved, open discharge can be closed.")
+    # One named person answers for the discharge being finished. Anyone else on the team could
+    # otherwise close it over outstanding work with a one-line reason.
+    if episode["responsible_clinician_id"] != user["id"]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the responsible clinician can close this discharge.")
     blockers = close_blockers(db, episode)
     if blockers and not request.exception_reason.strip():
         raise HTTPException(
@@ -415,3 +446,22 @@ def close(
     )
     care.add_timeline(db, episode["patient_id"], "dischargecare", "Discharge follow-up closed", request.exception_reason.strip(), "discharge_episode", episode_id)
     return _payload(db, _episode(db, episode_id))
+
+
+@router.post("/episodes/{episode_id}/reopen")
+def reopen(
+    episode_id: str,
+    request: ReopenRequest,
+    user=Depends(require_doctor),
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    """Any clinician on the care team can reopen a closed discharge, with a reason. This is the second
+    pair of eyes on a close: the responsible clinician is told, and still the only one who closes it."""
+    episode = _clinical(db, user, episode_id, "dischargecare.episode.reopen")
+    if episode["status"] != "closed":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only a closed discharge can be reopened.")
+    update(db, "discharge_episodes", episode_id, status="active", closed_by=None, closed_at=None, close_exception="")
+    care.add_timeline(db, episode["patient_id"], "dischargecare", "Discharge follow-up reopened", request.reason.strip(), "discharge_episode", episode_id)
+    if episode["responsible_clinician_id"] != user["id"]:
+        care.notify(db, episode["responsible_clinician_id"], "A discharge you closed was reopened", request.reason.strip(), episode["patient_id"], "dischargecare")
+    return {**_payload(db, _episode(db, episode_id)), "close_blockers": close_blockers(db, _episode(db, episode_id))}

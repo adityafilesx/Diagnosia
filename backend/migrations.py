@@ -138,6 +138,11 @@ def _session_last_seen(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE sessions ADD COLUMN last_seen_at TEXT")
 
 
+def _barrier_target_date(db: sqlite3.Connection) -> None:
+    """When the team means to have a discharge barrier sorted. Empty for barriers recorded before this."""
+    db.execute("ALTER TABLE discharge_barriers ADD COLUMN target_date TEXT")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -153,6 +158,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (12, "notification_link", _notification_link),
     (13, "intake_review_stamp", _intake_review_stamp),
     (14, "session_last_seen", _session_last_seen),
+    (15, "barrier_target_date", _barrier_target_date),
 ]
 
 
