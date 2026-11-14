@@ -18,6 +18,49 @@ function daysFromNow(days) {
     return date.toISOString().slice(0, 10);
 }
 
+const destinationName = (link) => link.organization || link.manual_destination || 'a named clinician';
+
+// A declined or redirected referral: the referrer sends the same request somewhere else. The new
+// referral replaces this one, which then closes with a link to it.
+function replacement(referral, context, reload) {
+    const holder = h('div', {});
+    const { defaults } = context.config;
+    const days = referral.priority === 'urgent' ? defaults.referrals_urgent_days : defaults.referrals_routine_days;
+    api('/api/organizations').then((organizations) => {
+        const choices = organizations
+            .filter((item) => item.verification_status === 'verified' && item.id !== referral.receiving_organization_id)
+            .map((item) => [item.id, `${item.name} (${item.specialities || item.type})`]);
+        show(holder,
+            h('h3', {}, 'Send this referral somewhere else'),
+            h('p', { class: 'muted' }, 'The reason, question, priority and shared documents are copied. This referral then closes and links to the new one.'),
+            form(
+                [
+                    { name: 'organization', label: 'Send to', type: 'select', options: [['', 'Phone, fax or paper'], ...choices] },
+                    { name: 'manual_destination', label: 'If by phone, fax or paper: who' },
+                    { name: 'respond_by', label: 'Reply needed by', type: 'date', required: true, value: daysFromNow(days) },
+                ],
+                'Send the replacement referral',
+                async (values) => {
+                    const body = {
+                        patient_id: referral.patient_id,
+                        specialty: referral.specialty,
+                        priority: referral.priority,
+                        respond_by: values.respond_by,
+                        reason: referral.reason,
+                        clinical_question: referral.clinical_question || '',
+                        document_ids: (referral.documents || []).map((item) => item.id),
+                        receiving_organization_id: values.organization || null,
+                        manual_destination: values.organization ? '' : values.manual_destination || '',
+                        replaces_referral_id: referral.id,
+                    };
+                    const made = await act(() => api(BASE, { method: 'POST', body }), context, 'Replacement referral sent');
+                    if (made) reload(made.id);
+                },
+            ));
+    }).catch(() => show(holder, h('p', { class: 'muted' }, "The list of services isn't available. Use New referral below.")));
+    return holder;
+}
+
 function referralDetail(area, referral, context, reload) {
     const manual = !referral.receiving_organization_id && !referral.receiving_user_id;
     const canAct = referral.side === 'receiver' || (referral.side === 'referrer' && manual);
@@ -72,6 +115,10 @@ function referralDetail(area, referral, context, reload) {
                 referral.priority === 'urgent' ? badge('urgent', 'bad') : badge('routine'),
                 badge(referral.status)),
             (referral.exceptions || []).map((item) => h('div', { class: 'banner danger' }, item)),
+            referral.replaced_by ? h('p', {}, `Replaced by a referral to ${destinationName(referral.replaced_by)} (${referral.replaced_by.status.replaceAll('_', ' ')}). `,
+                h('button', { type: 'button', class: 'link-button', onclick: () => reload(referral.replaced_by.id) }, 'Open the new referral')) : null,
+            referral.replaces ? h('p', {}, `Follows an earlier referral to ${destinationName(referral.replaces)}. `,
+                h('button', { type: 'button', class: 'link-button', onclick: () => reload(referral.replaces.id) }, 'Open the earlier referral')) : null,
             h('p', {}, referral.reason),
             referral.clinical_question ? h('p', {}, h('strong', {}, 'Question: '), referral.clinical_question) : null,
             h('p', { class: 'muted' }, `From ${referral.referring_clinician}. Reply needed by ${when(referral.respond_by)}.${referral.manual_destination ? ` Sent to: ${referral.manual_destination}.` : ''}`),
@@ -100,6 +147,7 @@ function referralDetail(area, referral, context, reload) {
                     reload(referral.id);
                 },
             }, `Record a contact attempt (${referral.contact_attempts} so far)`) : null,
+            referral.side === 'referrer' && ['redirected', 'declined'].includes(referral.status) ? replacement(referral, context, reload) : null,
             referral.side === 'referrer' && referral.status === 'needs_information' ? h('button', { type: 'button', onclick: move('sent') }, 'Send again with the information') : null,
             referral.side === 'referrer' && referral.status === 'outcome_returned' ? h('button', {
                 type: 'button',
@@ -121,7 +169,8 @@ function referralDetail(area, referral, context, reload) {
                     reload(referral.id);
                 },
             }, 'Change priority') : null,
-            referral.side === 'referrer' && open ? h('button', {
+            // A returned outcome is closed by reviewing it, never by cancelling: the server refuses that too.
+            referral.side === 'referrer' && open && referral.status !== 'outcome_returned' ? h('button', {
                 type: 'button',
                 class: 'link-button',
                 style: 'margin-left:12px',

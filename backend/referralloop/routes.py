@@ -26,6 +26,10 @@ router = APIRouter(prefix="/api/addons/referrals")
 DUPLICATE_WINDOW_DAYS = 30
 MAX_CONTACT_ATTEMPTS = 3
 TERMINAL = ("closed", "cancelled")
+# The receiving service said no, or pointed elsewhere. A new referral that names one of these as the
+# one it replaces takes over from it, and the old one closes with a link to the new one.
+REPLACEABLE = ("redirected", "declined")
+REPLACED_REASON = "Replaced by a new referral"
 # An appointment someone could still attend. "booked" needs one of these.
 OPEN_APPOINTMENT = ("offered", "booked", "rescheduled")
 # A typed year like 0206 or 2206 is a slip, not an appointment.
@@ -192,6 +196,22 @@ def _notify_receivers(db: sqlite3.Connection, referral: sqlite3.Row, title: str,
                 care.notify(db, member["user_id"], title, body, None, "referralloop")
 
 
+def _link(db: sqlite3.Connection, referral_id: Optional[str]) -> Optional[dict]:
+    """Enough of another referral to show a link to it."""
+    if referral_id is None:
+        return None
+    other = db.execute(
+        """
+        SELECT referrals.id, referrals.status, referrals.specialty, referrals.manual_destination,
+               organizations.name AS organization
+        FROM referrals LEFT JOIN organizations ON organizations.id = referrals.receiving_organization_id
+        WHERE referrals.id = ?
+        """,
+        (referral_id,),
+    ).fetchone()
+    return one(other)
+
+
 def _payload(db: sqlite3.Connection, referral: sqlite3.Row, side: str) -> dict:
     referral_id = referral["id"]
     payload = dict(referral)
@@ -207,6 +227,15 @@ def _payload(db: sqlite3.Connection, referral: sqlite3.Row, side: str) -> dict:
         db.execute("SELECT * FROM referral_appointments WHERE referral_id = ? ORDER BY created_at", (referral_id,))
     )
     outcome = one(db.execute("SELECT * FROM referral_outcomes WHERE referral_id = ?", (referral_id,)).fetchone())
+    if side == "referrer":
+        # Only the referrer sees where a referral went next: the other service is none of the old one's business.
+        payload["replaces"] = _link(db, referral["replaces_referral_id"])
+        payload["replaced_by"] = None
+        if referral["closed_reason"] == REPLACED_REASON:
+            successor = db.execute(
+                "SELECT id FROM referrals WHERE replaces_referral_id = ? ORDER BY created_at, rowid LIMIT 1", (referral_id,)
+            ).fetchone()
+            payload["replaced_by"] = _link(db, successor["id"] if successor else None)
     if side == "patient":
         for field in ("clinical_question", "duplicate_reason"):
             payload.pop(field)
@@ -281,10 +310,31 @@ def _open_duplicate(db: sqlite3.Connection, request: ReferralRequest) -> Optiona
         """
         SELECT * FROM referrals
         WHERE patient_id = ? AND lower(specialty) = lower(?) AND status NOT IN ('closed', 'cancelled')
-          AND created_at >= ? ORDER BY created_at DESC LIMIT 1
+          AND created_at >= ? AND id IS NOT ?
+        ORDER BY created_at DESC LIMIT 1
         """,
-        (request.patient_id, request.specialty.strip(), since),
+        (request.patient_id, request.specialty.strip(), since, _being_replaced(db, request)),
     ).fetchone()
+
+
+def _being_replaced(db: sqlite3.Connection, request: ReferralRequest) -> Optional[str]:
+    """The referral this one takes over from, if the receiving service declined or redirected it."""
+    if request.replaces_referral_id is None:
+        return None
+    old = db.execute("SELECT status FROM referrals WHERE id = ?", (request.replaces_referral_id,)).fetchone()
+    return request.replaces_referral_id if old is not None and old["status"] in REPLACEABLE else None
+
+
+def _close(db: sqlite3.Connection, referral: sqlite3.Row, user_id: int, reason: str) -> None:
+    """Closes a referral with no outcome: its open tasks go, and the receiving service is told."""
+    db.execute(
+        "UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE link_type = 'referral' AND link_id = ? AND status = 'open'",
+        (now_iso(), referral["id"]),
+    )
+    _move(db, referral, "cancelled", user_id, "referrer", reason)
+    update(db, "referrals", referral["id"], closed_reason=reason)
+    _notify_receivers(db, referral, f"Referral closed: {referral['specialty']}", reason)
+    care.add_timeline(db, referral["patient_id"], "referralloop", f"{referral['specialty']} referral closed", reason, "referral", referral["id"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -329,6 +379,10 @@ def create_referral(
         if found is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "A chosen document isn't in this patient's record.")
 
+    replaced = _being_replaced(db, request)
+    if replaced is not None:
+        # The new referral takes over, so the old one stops asking to be chased.
+        _close(db, _referral(db, replaced), user["id"], REPLACED_REASON)
     timestamp = now_iso()
     referral_id = insert(
         db,
@@ -668,12 +722,8 @@ def close_referral(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "The referring clinician closes a referral.")
     if referral["status"] in TERMINAL:
         raise HTTPException(status.HTTP_409_CONFLICT, "This referral is already closed.")
-    db.execute(
-        "UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE link_type = 'referral' AND link_id = ? AND status = 'open'",
-        (now_iso(), referral_id),
-    )
-    _move(db, referral, "cancelled", user["id"], side, request.reason)
-    update(db, "referrals", referral_id, closed_reason=request.reason)
-    _notify_receivers(db, referral, f"Referral closed: {referral['specialty']}", request.reason)
-    care.add_timeline(db, referral["patient_id"], "referralloop", f"{referral['specialty']} referral closed", request.reason, "referral", referral_id)
+    if referral["status"] == "outcome_returned":
+        # The specialist's answer is waiting. Closing here would drop it unread, with its review task.
+        raise HTTPException(status.HTTP_409_CONFLICT, "The outcome is back. Review it, which closes the referral.")
+    _close(db, referral, user["id"], request.reason)
     return _payload(db, _referral(db, referral_id), side)
