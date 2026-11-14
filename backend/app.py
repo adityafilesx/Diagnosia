@@ -268,7 +268,8 @@ async def request_guard(request: Request, call_next):
         response.headers.setdefault(name, value)
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
-    response.headers["Content-Security-Policy"] = _policy_for(request.url.path)
+    # A route that sets its own policy keeps it: the document viewer allows the workspace to frame it.
+    response.headers.setdefault("Content-Security-Policy", _policy_for(request.url.path))
     if settings.cookie_secure:
         response.headers["Strict-Transport-Security"] = HSTS
     return response
