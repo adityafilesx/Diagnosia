@@ -491,7 +491,8 @@ def test_each_medicine_stops_being_listed_when_its_own_course_ends():
 def test_the_plan_says_when_the_course_length_was_not_written():
     reminders = analyzer.build_calendar_reminders([timed("T. Open", day_pattern="1-0-0")], "en-IN")
     item = reminders["slots"]["morning"]["medicines"][0]
-    assert item["duration_assumed"] is True and item["duration_days"] == analyzer.UNKNOWN_DURATION_DAYS
+    # No length is filled in (WI-213): the reminder has no end and says to ask the doctor.
+    assert item["no_end_date"] is True and item["duration_days"] is None
 
 
 def test_reminder_lines_read_naturally_and_never_repeat_the_dose():

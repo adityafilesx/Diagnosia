@@ -17,6 +17,7 @@ from PIL import Image, ImageOps
 from pydantic import BaseModel
 
 from backend import llm, settings_store
+from backend.prescription import crosscheck
 from backend.prescription.compare import compare
 from backend.prescription.medicines import check_name
 from backend.prescription.shorthand import (
@@ -273,7 +274,11 @@ FOOD_HINDI = {
     "on an empty stomach": "खाली पेट",
 }
 # Length of a course when the prescription doesn't say. It's shown to the patient as a guess.
-UNKNOWN_DURATION_DAYS = 7
+# A course length nobody wrote is never filled in. The reminder then has no end, and says so.
+NO_END_DATE = {
+    "en-IN": "No end date written, ask your doctor how long to take it",
+    "hi-IN": "समाप्ति की तारीख नहीं लिखी है, अपने डॉक्टर से पूछें कि कब तक लेनी है",
+}
 AMOUNT_NUMBERS = {"one": "1", "half": "½", "two": "2", "three": "3"}
 FORMS = (
     (re.compile(r"^\s*(?:t|tab|tabs|tablet)\b\.?", re.IGNORECASE), "tablet"),
@@ -298,6 +303,11 @@ def _dose_text(name: str, dose: str) -> str:
     return "" if not dose.strip() or squeeze(dose) in squeeze(name) else dose.strip()
 
 
+def _recur(days: Optional[int]) -> str:
+    """Daily for the written number of days, or daily with no end when no length was written."""
+    return f"FREQ=DAILY;COUNT={days}" if days else "FREQ=DAILY"
+
+
 def generate_ics_calendar(slots: List[dict]) -> str:
     """Creates a standard RFC 5545 iCalendar payload for multi-slot reminders."""
     now_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -320,7 +330,7 @@ def generate_ics_calendar(slots: List[dict]) -> str:
             f"DTSTAMP:{now_stamp}\r\n"
             f"DTSTART:{item['dtstart']}\r\n"
             f"DTEND:{item['dtend']}\r\n"
-            f"RRULE:FREQ=DAILY;COUNT={item['duration_days']}\r\n"
+            f"RRULE:{_recur(item['duration_days'])}\r\n"
             f"SUMMARY:{clean_summary}\r\n"
             f"DESCRIPTION:{clean_desc}\r\n"
             "BEGIN:VALARM\r\n"
@@ -437,11 +447,15 @@ def _segments(meds: List[dict]) -> List[Tuple[int, int, List[dict]]]:
     Medicines for 5 and 15 days at the same time give days 1 to 5 with both, then days 6 to 15
     with only the longer one.
     """
-    ends = sorted({m["duration_days"] for m in meds})
+    ends = sorted({m["duration_days"] for m in meds if m["duration_days"]})
     result, first = [], 1
     for end in ends:
-        result.append((first, end, [m for m in meds if m["duration_days"] >= end]))
+        result.append((first, end, [m for m in meds if not m["duration_days"] or m["duration_days"] >= end]))
         first = end + 1
+    # Medicines with no written length carry on in a last stretch that has no end.
+    open_ended = [m for m in meds if not m["duration_days"]]
+    if open_ended:
+        result.append((first, None, open_ended))
     return result
 
 
@@ -453,6 +467,8 @@ def _line(item: dict, language: Language) -> str:
         text += f", {FOOD_HINDI.get(item['food'], item['food']) if language == 'hi-IN' else item['food']}"
     if item["purpose"]:
         text += f" ({'उद्देश्य' if language == 'hi-IN' else 'for'}: {item['purpose']})"
+    if item["no_end_date"]:
+        text += f". {NO_END_DATE.get(language, NO_END_DATE['en-IN'])}"
     return text
 
 
@@ -506,8 +522,8 @@ def build_calendar_reminders(
                     "dose": medicine.dose.value,
                     "quantity": " ".join(part for part in (_amount_text(medicine.name.value, amount), _dose_text(medicine.name.value, medicine.dose.value)) if part),
                     "food": food_timing(medicine.frequency.value, medicine.day_pattern.value, medicine.notes.value),
-                    "duration_days": written_days or UNKNOWN_DURATION_DAYS,
-                    "duration_assumed": not written_days,
+                    "duration_days": written_days,
+                    "no_end_date": not written_days,
                     "assumed": resolved["assumed"],
                     "purpose": purposes.get(medicine.name.value.lower().strip(), ""),
                     "notes": medicine.notes.value,
@@ -531,25 +547,29 @@ def build_calendar_reminders(
             dtend_str = (start_dt + timedelta(minutes=15)).strftime("%Y%m%dT%H%M%S")
             title = f"{titles[slot]} - Curai"
             if len(meds) and len({m["duration_days"] for m in meds}) > 1:
-                title += f" (days {first_day}-{last_day})" if language != "hi-IN" else f" (दिन {first_day}-{last_day})"
+                if last_day is None:
+                    title += f" (from day {first_day})" if language != "hi-IN" else f" (दिन {first_day} से)"
+                else:
+                    title += f" (days {first_day}-{last_day})" if language != "hi-IN" else f" (दिन {first_day}-{last_day})"
             lines = "\n".join(_line(item, language) for item in group)
             if language == "hi-IN":
                 details = "💊 डॉक्टर द्वारा लिखी गई दवाइयाँ:\n" + lines + "\n\n⚠️ निर्देश:\nडॉक्टर के निर्देशानुसार लें। किसी भी असुविधा पर डॉक्टर या फार्मासिस्ट से संपर्क करें।"
             else:
                 details = "💊 Prescribed Medicines:\n" + lines + "\n\n⚠️ Instructions:\nTake as directed by your doctor. Consult your doctor or pharmacist if unsure."
-            duration_days = last_day - first_day + 1
+            duration_days = last_day - first_day + 1 if last_day is not None else None
             params = {
                 "action": "TEMPLATE",
                 "text": title,
                 "details": details,
                 "dates": f"{dtstart_str}/{dtend_str}",
-                "recur": f"RRULE:FREQ=DAILY;COUNT={duration_days}",
+                "recur": f"RRULE:{_recur(duration_days)}",
             }
             segment = {
                 "title": title,
                 "first_day": first_day,
                 "last_day": last_day,
                 "duration_days": duration_days,
+                "no_end_date": last_day is None,
                 "medicines": group,
                 "google_url": f"https://calendar.google.com/calendar/render?{urlencode(params)}",
                 "description": details,
@@ -628,6 +648,9 @@ def explain_prescription(medicines: List[ConfirmedMedicine], language: Language,
         llm.forget_last_model()
         guidance = llm.ask(EXPLAIN_SYSTEM, request, Guidance, tool="prescription_explain").model_dump()
         explained_by = llm.last_model()  # before the planning call below, which may use another model
+        # Each sentence is checked against the prescription's own numbers, and shown beside the
+        # rule-decoded directions. A sentence with a number the prescription doesn't give is replaced.
+        guidance["medicines"] = crosscheck.check_guidance(guidance["medicines"], explainable, language)
     plan = plan_unresolved(explainable, doctor_notes)
     reminders = build_calendar_reminders(explainable, language, guidance, plan=plan)
     return {

@@ -132,6 +132,15 @@ Handwriting reading is the risky part, so **nothing is explained until the patie
 5. `/api/prescription/explain` explains only the confirmed medicines, in the patient's language.
    It never changes a dose or suggests a substitute.
 
+**The explanation is checked by rules** (`prescription/crosscheck.py`). Every number in the AI's "how to
+take" sentence (digits in either script, fractions, English and Hindi number words) must be one the
+prescription gives: an amount, a dose, times a day, or the course length. A sentence with any other
+number is replaced by the prescription's own words (`directions_rejected`), and the rule-decoded
+directions are shown beside every sentence. It compares numbers, not what each one counts, so it
+catches a number nobody wrote, not a right number in the wrong place. An explanation for a medicine
+nobody confirmed is dropped. **No course length is ever filled in:** with none written, the reminder
+repeats with no end and says "No end date written, ask your doctor".
+
 **The server never trusts the page for what was read.** `/read` keeps the reading for 24 hours
 (`prescription_readings`, no photo, no doctor's notes) and returns a `reading_id` and, per medicine,
 `confirmable`: the one readability rule (`analyzer.is_explainable`), which the page uses instead of a

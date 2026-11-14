@@ -137,6 +137,14 @@ function downloadIcs(icsText) {
 const SLOT_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' };
 const SLOT_ICONS = { morning: '🌅', afternoon: '☀️', night: '🌙' };
 
+// "days 1–5", "from day 6, no end date written", or "5 days". Never a length nobody wrote.
+function courseWords(part) {
+    if (part.no_end_date || !part.duration_days) {
+        return part.first_day > 1 ? `from day ${part.first_day}, no end date written` : 'no end date written';
+    }
+    return part.first_day ? `days ${part.first_day}–${part.last_day}` : plural(part.duration_days, 'day');
+}
+
 function calendarRemindersView(reminders, language) {
     const slots = reminders.slots || {};
     const hasSlots = Object.keys(slots).length > 0;
@@ -234,14 +242,14 @@ function calendarRemindersView(reminders, language) {
         m.food ? `, ${m.food}` : '',
         m.purpose ? h('em', {}, ` (${m.purpose})`) : '',
         m.assumed ? h('span', { class: 'muted' }, ' · usual time, the prescription doesn\'t say') : '',
-        m.duration_assumed ? h('span', { class: 'muted' }, ` · course length not written, set to ${plural(m.duration_days, 'day')}`) : '',
+        m.no_end_date ? h('span', { class: 'muted' }, ' · No end date written. Ask your doctor how long to take it.') : '',
     );
     const slotCards = ['morning', 'afternoon', 'night']
         .filter((slot) => slots[slot])
         .flatMap((slot) => (slots[slot].segments || [slots[slot]]).map((part) => h('div', { class: 'calendar-card' },
             h('div', { class: 'slot-header' },
                 h('strong', {}, `${SLOT_ICONS[slot]} ${part.title}`),
-                h('span', { class: 'muted' }, `${slots[slot].time} · ${part.first_day ? `days ${part.first_day}–${part.last_day}` : plural(part.duration_days, 'day')}`),
+                h('span', { class: 'muted' }, `${slots[slot].time} · ${courseWords(part)}`),
             ),
             h('ul', {}, part.medicines.map(medicineLine)),
         )));
@@ -299,6 +307,11 @@ function resultsView(data, language, reading, confirmed) {
                 h('strong', {}, medicine.name),
                 medicine.purpose && h('p', {}, medicine.purpose),
                 h('p', {}, medicine.how_to_take),
+                // The rules' own reading of the prescription, beside the sentence above, so the two can be compared.
+                (medicine.decoded || medicine.as_written) && h('p', { class: 'muted', lang: 'en' },
+                    medicine.as_written ? `As written: ${medicine.as_written}. ` : '',
+                    medicine.decoded ? `That means: ${medicine.decoded}.` : ''),
+                medicine.directions_rejected && h('p', { lang: 'en' }, h('mark', {}, "We left out the AI's wording for this one because its numbers didn't match your prescription.")),
                 listenButton(`${medicine.name}. ${medicine.purpose} ${medicine.how_to_take}`, language)))),
         hasSchedule && h('div', { class: 'sheet' },
             h('h2', {}, 'Daily schedule'),
