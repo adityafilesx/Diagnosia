@@ -40,8 +40,22 @@ Under `/api/addons/clinscribe`: `POST encounters/{id}/sessions`,
 ## Safety
 
 - Only the clinician who held the consultation can sign. Patients never see a draft.
-- The verifier flags missing numbers, changed units, lost negation, swapped side,
+- The verifier (version 2.0) flags missing numbers, changed units, lost negation, swapped side,
   and unsupported text. AI summaries always need confirming.
+- Numbers and units are checked against the lines a statement cites (and the line that matches it
+  best), not the whole transcript. A number said only in another line is flagged with that line's
+  number, so a dose that belongs to a different medicine no longer passes.
+- Medicines: a name is the word before a dose ("metformin 850 mg") or after a form ("Tab ..."). The
+  name must be in the cited lines (a misheard spelling counts as the same name), its dose must be said
+  with it in one of those lines, and how often must match, using the prescription tool's frequency
+  rules. A wrong medicine, a dose said with another medicine, or a different frequency is
+  "does not match", never "please check".
+- A line the clinician types or changes is checked again on save. It is flagged only where it
+  conflicts with the transcript: a different dose or frequency for a medicine that was discussed.
+  What the clinician adds from their own examination, or a medicine nobody mentioned, is not
+  questioned. Signing stops to show a flag the clinician has not seen yet.
+- Limits of these rules: they know a medicine only by its place beside a dose or a form, they compare
+  doses by number and unit, and they have been tested on made-up lines only.
 - Hindi transcripts can't be word-matched, so lines are marked for manual comparison,
   while numbers are still checked.
 

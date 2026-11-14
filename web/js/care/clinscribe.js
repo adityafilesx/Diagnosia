@@ -1,5 +1,5 @@
 // ClinScribe: capture a consultation, review the draft, sign the note.
-import { act, api, badge, form, h, plural, section, show, table, when } from './ui.js';
+import { act, api, badge, form, h, plural, section, show, table, toast, when } from './ui.js';
 import { needPatient } from './overview.js';
 
 const BASE = '/api/addons/clinscribe';
@@ -7,7 +7,7 @@ const CHUNK_MS = 25000; // the transcript updates about this often
 const VERDICT_WORDS = {
     supported: 'Matches the transcript',
     uncertain: 'Please check',
-    unsupported: 'Not found in the transcript',
+    unsupported: 'Does not match the transcript',
     clinician_entered: 'Written by you',
 };
 
@@ -289,7 +289,15 @@ function renderNote(area, note, context, afterChange) {
                 h('button', {
                     type: 'button',
                     onclick: async () => {
-                        if (!(await save())) return;
+                        const saved = await save();
+                        if (!saved) return;
+                        // Saving checks typed lines again. A flag the clinician has not seen yet is
+                        // shown first: ticking "I have checked" must mean these lines too.
+                        if (saved.open_flags > note.open_flags) {
+                            toast(`Your changes gave ${plural(saved.open_flags - note.open_flags, 'more line')} to check. Look at ${saved.open_flags - note.open_flags === 1 ? 'it' : 'them'}, then sign.`, true);
+                            afterChange(note.id);
+                            return;
+                        }
                         const signed = await act(() => api(`${BASE}/notes/${note.id}/approve`, { method: 'POST', body: { acknowledge_flags: acknowledge.checked } }), context, 'Note signed');
                         if (signed) afterChange(note.id);
                     },

@@ -381,11 +381,13 @@ def edit_note(
         for section in latest["content"]["sections"]
         for statement in section["statements"]
     }
+    transcript = {segment["sequence"]: segment["text"] for segment in _segments(db, note["session_id"])}
     sections = []
     for section in request.sections:
         statements = []
         for statement in section.statements:
-            # Text the clinician typed is theirs; anything left alone keeps its check.
+            # Anything left alone keeps its check. Text the clinician typed is theirs, and is checked
+            # again for a dose or frequency that conflicts with what was said.
             statements.append(
                 previous.get(statement.text)
                 or {
@@ -394,7 +396,7 @@ def edit_note(
                     "evidence_segments": [],
                     "uncertain": False,
                     "uncertainty_reason": "",
-                    "check": {"verdict": "clinician_entered", "score": 1.0, "reasons": [], "evidence": []},
+                    "check": verifier.check_clinician_text(statement.text, transcript),
                 }
             )
         sections.append({"heading": section.heading, "statements": statements})
