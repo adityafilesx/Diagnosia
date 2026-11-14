@@ -17,6 +17,14 @@ Moves are checked by side. The receiver moves most stages, the referrer resends 
 a request for information, reviews the outcome and closes. For phone, fax or paper
 referrals, the referrer records the receiver's steps, marked `manual`.
 
+**Overdue referrals are pushed, not only shown.** The five-minute sweep (`chase_overdue`) finds every
+referral still `sent`, `acknowledged` or `accepted` after its reply-by date and creates one
+high-priority task for the referrer, due in a day, with a notification and a line in the history
+marked `system`. It does this once for each referral. The task is marked done when the referral moves
+on (an appointment, a decline, an outcome) and cancelled when it closes. The tasks this tool creates
+itself are dated too, so the platform's escalation reaches them: "patient unreachable" is due in one
+day and "review the outcome" in three, both high priority.
+
 A `redirected` or `declined` referral is replaced, not edited: the referrer sends a new referral that
 names it in `replaces_referral_id` (the screen copies the reason, question, priority and documents and
 asks only where to send it). The old one then closes as `cancelled` with the reason "Replaced by a new

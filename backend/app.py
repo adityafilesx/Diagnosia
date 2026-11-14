@@ -110,6 +110,7 @@ def _policy_for(path: str) -> str:
 
 
 SWEEP_STEPS = (
+    ("overdue_referrals", referralloop.chase_overdue),
     ("escalate_overdue", care.escalate_overdue),
     ("reminders", reminder_service.process_due),
     ("rate_limits", ratelimit.forget_expired),

@@ -7,7 +7,7 @@ read from free text. A referral can't quietly disappear: it stays open until a
 reviewed outcome or a recorded reason closes it.
 """
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -26,6 +26,13 @@ router = APIRouter(prefix="/api/addons/referrals")
 DUPLICATE_WINDOW_DAYS = 30
 MAX_CONTACT_ATTEMPTS = 3
 TERMINAL = ("closed", "cancelled")
+# Stages where the referrer is waiting on the other service. Past the reply-by date these are chased.
+WAITING = ("sent", "acknowledged", "accepted")
+OVERDUE_TASK = "referral_overdue"  # the link type of the task the sweep creates
+# How long the referrer has to act on each task this tool creates, before it is escalated.
+CHASE_WITHIN_DAYS = 1
+UNREACHABLE_WITHIN_DAYS = 1
+REVIEW_OUTCOME_WITHIN_DAYS = 3
 # The receiving service said no, or pointed elsewhere. A new referral that names one of these as the
 # one it replaces takes over from it, and the old one closes with a link to the new one.
 REPLACEABLE = ("redirected", "declined")
@@ -182,6 +189,49 @@ def _log(
 def _move(db: sqlite3.Connection, referral: sqlite3.Row, new_status: str, user_id: int, side: str, note: str = "", source: str = "app") -> None:
     _log(db, referral, new_status, user_id, side, note, source)
     update(db, "referrals", referral["id"], status=new_status, updated_at=now_iso())
+    if new_status not in WAITING:
+        # It has moved on (or closed), so there is nothing left to chase.
+        db.execute(
+            "UPDATE tasks SET status = ?, updated_at = ? WHERE link_type = ? AND link_id = ? AND status = 'open'",
+            ("cancelled" if new_status in TERMINAL else "done", now_iso(), OVERDUE_TASK, referral["id"]),
+        )
+
+
+def _due_in(days: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat(timespec="seconds")
+
+
+def chase_overdue(db: sqlite3.Connection) -> int:
+    """Run by the sweep. A referral still waiting on the other service after its reply-by date becomes
+    a dated, high-priority task for the referrer, once. Before this it showed only when someone
+    opened the referrals page. The caller commits."""
+    overdue = db.execute(
+        f"""
+        SELECT * FROM referrals
+        WHERE status IN ({", ".join("?" * len(WAITING))}) AND respond_by < ?
+          AND NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.link_type = ? AND tasks.link_id = referrals.id)
+        """,
+        (*WAITING, date.today().isoformat(), OVERDUE_TASK),
+    ).fetchall()
+    for referral in overdue:
+        waiting_for = "No reply" if referral["status"] == "sent" else "No appointment"
+        title = f"Chase the {referral['specialty']} referral: {waiting_for.lower()} by {referral['respond_by']}"
+        care.create_task(
+            db,
+            referral["patient_id"],
+            title,
+            referral["referring_user_id"],
+            detail="The reply-by date has passed. Contact the receiving service, send it elsewhere, or close it with a reason.",
+            owner_user_id=referral["referring_user_id"],
+            priority="high",
+            due_at=_due_in(CHASE_WITHIN_DAYS),
+            module="referralloop",
+            link_type=OVERDUE_TASK,
+            link_id=referral["id"],
+        )
+        care.notify(db, referral["referring_user_id"], f"Referral overdue: {referral['specialty']}", f"{waiting_for} by {referral['respond_by']}.", referral["patient_id"], "referralloop")
+        _log(db, referral, referral["status"], referral["referring_user_id"], "system", f"Past the reply-by date ({referral['respond_by']}): a task was created")
+    return len(overdue)
 
 
 def _notify_receivers(db: sqlite3.Connection, referral: sqlite3.Row, title: str, body: str = "") -> None:
@@ -608,6 +658,7 @@ def record_contact_attempt(
             owner_user_id=referral["referring_user_id"],
             escalate_to_user_id=referral["referring_user_id"],
             priority="high",
+            due_at=_due_in(UNREACHABLE_WITHIN_DAYS),  # dated, so escalation reaches it
             module="referralloop",
             link_type="referral",
             link_id=referral_id,
@@ -670,6 +721,10 @@ def record_outcome(
         user["id"],
         owner_user_id=referral["referring_user_id"],
         escalate_to_user_id=referral["referring_user_id"],
+        # High and dated: escalation only looks at high-priority tasks with a due date, and an
+        # outcome nobody reads is how a referral loop stays open.
+        priority="high",
+        due_at=_due_in(REVIEW_OUTCOME_WITHIN_DAYS),
         module="referralloop",
         link_type="referral",
         link_id=referral_id,
