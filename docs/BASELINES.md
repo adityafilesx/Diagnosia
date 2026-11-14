@@ -101,6 +101,22 @@ test found 37/37, value 37/37, unit 35/36, reference low 30/30, reference high 3
 collection date 9/9, and each case reads exactly the number of results it expects, so the word-result
 rules add no false results on these layouts. No wrong values and no silent misses.
 
+## Scanned lab reports, the AI reading path (WI-231): not yet measured
+
+The set and the scorer exist (15 November 2026): 40 synthetic scans, 150 results
+(`backend/tests/lab_validation/scan_set.py`, `scan_score.py`). **No number is recorded here because no
+model has been run against it.** The tests use a stand-in reader, which checks the counting only. To
+measure, with a real key in `.env`:
+
+```bash
+python -m backend.tests.lab_validation.scan_set /tmp/lab-scans
+python -m backend.tests.lab_validation.scan_score /tmp/lab-scans --out /tmp/lab-scans/score.json
+```
+
+Then add a dated section below with the table it prints, the models it names, the commit, and the lists
+of wrong rows and wrong values. Put it beside the 37/37 text-PDF figure wherever that figure is quoted:
+the text figure says nothing about scans.
+
 ## 13 November 2026, SQLite write contention (WI-261)
 
 `python -m backend.synthetic.load_test`: a throwaway database, 20 staff each saving every second (new patients
