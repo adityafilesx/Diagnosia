@@ -141,6 +141,10 @@ catches a number nobody wrote, not a right number in the wrong place. An explana
 nobody confirmed is dropped. **No course length is ever filled in:** with none written, the reminder
 repeats with no end and says "No end date written, ask your doctor".
 
+**One schedule.** `analyzer.build_schedule` is the only schedule: the explain response's `schedule` holds
+the times of day, the as-needed and unscheduled lists and a plain `.ics` built from the same stretches.
+`/calendar` returns the same thing for other reminder times. There are no links to a calendar site.
+
 **The server never trusts the page for what was read.** `/read` keeps the reading for 24 hours
 (`prescription_readings`, no photo, no doctor's notes) and returns a `reading_id` and, per medicine,
 `confirmable`: the one readability rule (`analyzer.is_explainable`), which the page uses instead of a

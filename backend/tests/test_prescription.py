@@ -111,10 +111,10 @@ def test_daily_slots_come_only_from_an_exact_pattern():
 
 
 def test_schedule_groups_medicines_by_time_of_day():
-    schedule = build_schedule([medicine("Amoxicillin", "1-0-1"), medicine("Vitamin D", "0-0-1")])
-    assert [entry["name"] for entry in schedule["morning"]] == ["Amoxicillin"]
-    assert [entry["name"] for entry in schedule["night"]] == ["Amoxicillin", "Vitamin D"]
-    assert schedule["afternoon"] == []
+    slots = build_schedule([medicine("Amoxicillin", "1-0-1"), medicine("Vitamin D", "0-0-1")], "en-IN")["slots"]
+    assert [entry["name"] for entry in slots["morning"]["medicines"]] == ["Amoxicillin"]
+    assert [entry["name"] for entry in slots["night"]["medicines"]] == ["Amoxicillin", "Vitamin D"]
+    assert "afternoon" not in slots
 
 
 def test_unreadable_medicines_are_not_explainable():
@@ -340,7 +340,7 @@ def test_explain_endpoint_returns_a_schedule(client, details, monkeypatch):
         json={"reading_id": reading_id, "confirmed": [0], "language": "hi-IN"},
     )
     assert response.status_code == 200
-    assert response.json()["schedule"]["morning"][0]["name"] == "Amoxicillin"
+    assert response.json()["schedule"]["slots"]["morning"]["medicines"][0]["name"] == "Amoxicillin"
 
 
 def test_ai_outage_gives_a_clear_message(client, details, monkeypatch):
@@ -375,10 +375,10 @@ def test_duration_parsing_handles_various_formats():
     assert shorthand.parse_duration_days("") is None
 
 
-def test_calendar_reminders_build_google_urls_and_ics():
+def test_the_schedule_gives_start_times_and_a_calendar_file():
     med1 = medicine("Amoxicillin", frequency="1-0-1").model_copy(update={"duration": field("5 days")})
     med2 = medicine("Paracetamol", frequency="SOS").model_copy(update={"duration": field("3 days")})
-    reminders = analyzer.build_calendar_reminders([med1, med2], "en-IN", start_date="2026-11-01")
+    reminders = analyzer.build_schedule([med1, med2], "en-IN", start_date="2026-11-01")
 
     assert "morning" in reminders["slots"]
     assert "night" in reminders["slots"]
@@ -386,8 +386,8 @@ def test_calendar_reminders_build_google_urls_and_ics():
 
     morning = reminders["slots"]["morning"]
     assert morning["duration_days"] == 5
-    assert "calendar.google.com/calendar/render" in morning["google_url"]
-    assert "20261101T080000" in morning["google_url"]
+    assert morning["segments"][0]["dtstart"] == "20261101T080000"
+    assert "google" not in str(reminders)  # a plain calendar file, no links to a calendar site (WI-272)
 
     # Paracetamol is SOS so it must be in as_needed, not scheduled slots
     as_needed = reminders["as_needed"]
@@ -395,9 +395,9 @@ def test_calendar_reminders_build_google_urls_and_ics():
     assert as_needed[0]["name"] == "Paracetamol"
 
     # ICS calendar payload
-    assert "BEGIN:VCALENDAR" in reminders["ics_calendar"]
-    assert "RRULE:FREQ=DAILY;COUNT=5" in reminders["ics_calendar"]
-    assert "TRIGGER:-PT10M" in reminders["ics_calendar"]
+    assert "BEGIN:VCALENDAR" in reminders["ics"]
+    assert "RRULE:FREQ=DAILY;COUNT=5" in reminders["ics"]
+    assert "TRIGGER:-PT10M" in reminders["ics"]
 
 
 def test_calendar_endpoint_with_custom_times(client, details, monkeypatch):
@@ -417,7 +417,7 @@ def test_calendar_endpoint_with_custom_times(client, details, monkeypatch):
     data = response.json()
     assert data["times"]["morning"] == "09:15"
     assert "morning" in data["slots"]
-    assert "20261105T091500" in data["slots"]["morning"]["google_url"]
+    assert data["slots"]["morning"]["segments"][0]["dtstart"] == "20261105T091500"
     assert data["slots"]["morning"]["duration_days"] == 3
 
 
@@ -455,57 +455,57 @@ def test_usual_times_for_a_frequency_written_without_marks(frequency, notes, exp
 
 
 def test_a_medicine_written_as_bd_is_in_the_plan_marked_as_usual_times():
-    reminders = analyzer.build_calendar_reminders([timed("T. Cefix 200", "BD", duration="x 5 days")], "en-IN", start_date="2026-11-01")
+    reminders = analyzer.build_schedule([timed("T. Cefix 200", "BD", duration="x 5 days")], "en-IN", start_date="2026-11-01")
     assert set(reminders["slots"]) == {"morning", "night"}
     item = reminders["slots"]["morning"]["medicines"][0]
     assert item["assumed"] is True
     assert reminders["unscheduled"] == []
-    assert [entry["assumed"] for entry in build_schedule([timed("T. Cefix 200", "BD")])["night"]] == [True]
+    assert [entry["assumed"] for entry in build_schedule([timed("T. Cefix 200", "BD")], "en-IN")["slots"]["night"]["medicines"]] == [True]
 
 
 def test_marks_that_disagree_with_the_frequency_are_not_scheduled_or_replaced_by_usual_times():
-    reminders = analyzer.build_calendar_reminders([timed("T. Cefix 200", "OD", day_pattern="1-0-1")], "en-IN")
+    reminders = analyzer.build_schedule([timed("T. Cefix 200", "OD", day_pattern="1-0-1")], "en-IN")
     assert reminders["slots"] == {}
     assert reminders["unscheduled"][0]["name"] == "T. Cefix 200"
     assert "don't match" in reminders["unscheduled"][0]["reason"]
 
 
 def test_a_medicine_with_no_usable_timing_is_listed_and_not_dropped():
-    reminders = analyzer.build_calendar_reminders([timed("T. Feburic 40mg", "QID")], "en-IN")
-    assert reminders["slots"] == {} and reminders["ics_calendar"] == ""
+    reminders = analyzer.build_schedule([timed("T. Feburic 40mg", "QID")], "en-IN")
+    assert reminders["slots"] == {} and reminders["ics"] == ""
     assert [item["name"] for item in reminders["unscheduled"]] == ["T. Feburic 40mg"]
 
 
 def test_each_medicine_stops_being_listed_when_its_own_course_ends():
     short = timed("T. Short", day_pattern="1-0-0", duration="x 5 days")
     long = timed("T. Long", day_pattern="1-0-0", duration="x 15 days")
-    reminders = analyzer.build_calendar_reminders([short, long], "en-IN", start_date="2026-11-01")
+    reminders = analyzer.build_schedule([short, long], "en-IN", start_date="2026-11-01")
     first, second = reminders["slots"]["morning"]["segments"]
     assert [m["name"] for m in first["medicines"]] == ["T. Short", "T. Long"]
     assert [m["name"] for m in second["medicines"]] == ["T. Long"]
     assert (first["duration_days"], second["duration_days"]) == (5, 10)
     assert first["dtstart"].startswith("20261101") and second["dtstart"].startswith("20261106")
-    assert "COUNT=5" in reminders["ics_calendar"] and "COUNT=10" in reminders["ics_calendar"]
+    assert "COUNT=5" in reminders["ics"] and "COUNT=10" in reminders["ics"]
 
 
 def test_the_plan_says_when_the_course_length_was_not_written():
-    reminders = analyzer.build_calendar_reminders([timed("T. Open", day_pattern="1-0-0")], "en-IN")
+    reminders = analyzer.build_schedule([timed("T. Open", day_pattern="1-0-0")], "en-IN")
     item = reminders["slots"]["morning"]["medicines"][0]
     # No length is filled in (WI-213): the reminder has no end and says to ask the doctor.
     assert item["no_end_date"] is True and item["duration_days"] is None
 
 
 def test_reminder_lines_read_naturally_and_never_repeat_the_dose():
-    reminders = analyzer.build_calendar_reminders(
+    reminders = analyzer.build_schedule(
         [timed("T. Pregaba 75mg", day_pattern="0-0-1", dose="75mg", duration="x 5 days", frequency="HS PC")], "en-IN"
     )
-    text = reminders["slots"]["night"]["description"]
+    text = reminders["slots"]["night"]["segments"][0]["description"]
     assert "T. Pregaba 75mg - 1 tablet, after food" in text
     assert text.count("75mg") == 1
 
 
 def test_unreadable_medicines_never_get_a_reminder():
-    reminders = analyzer.build_calendar_reminders([medicine(name="", name_legibility="unreadable")], "en-IN")
+    reminders = analyzer.build_schedule([medicine(name="", name_legibility="unreadable")], "en-IN")
     assert reminders["slots"] == {} and reminders["unscheduled"] == []
 
 
@@ -554,7 +554,7 @@ def test_an_unclear_model_answer_keeps_its_reason_and_schedules_nothing(monkeypa
     monkeypatch.setattr(llm, "ask", PlanAI([slot_plan(0, [], clear=False, reason="Every other day")]))
     meds = [timed("A", "alternate days", duration="x 5 days")]
     plan = analyzer.plan_unresolved(meds)
-    reminders = analyzer.build_calendar_reminders(meds, "en-IN", plan=plan)
+    reminders = analyzer.build_schedule(meds, "en-IN", plan=plan)
     assert reminders["slots"] == {} and reminders["unscheduled"][0]["reason"] == "Every other day"
 
 
@@ -562,7 +562,7 @@ def test_a_planned_medicine_is_scheduled_and_marked_as_not_written(monkeypatch):
     monkeypatch.setattr(llm, "ask", PlanAI([slot_plan(0, ["morning", "night"])]))
     meds = [timed("A", "subah shaam", duration="x 3 days")]
     plan = analyzer.plan_unresolved(meds)
-    reminders = analyzer.build_calendar_reminders(meds, "en-IN", plan=plan)
+    reminders = analyzer.build_schedule(meds, "en-IN", plan=plan)
     assert set(reminders["slots"]) == {"morning", "night"}
     assert reminders["slots"]["morning"]["medicines"][0]["assumed"] is True
 
@@ -571,7 +571,7 @@ def test_the_plan_survives_an_ai_outage_by_leaving_medicines_for_the_pharmacist(
     monkeypatch.setattr(llm, "ask", PlanAI(error=llm.AIUnavailable("down")))
     meds = [timed("A", "every 8 hours")]
     assert analyzer.plan_unresolved(meds) == {}
-    assert analyzer.build_calendar_reminders(meds, "en-IN")["unscheduled"][0]["name"] == "A"
+    assert analyzer.build_schedule(meds, "en-IN")["unscheduled"][0]["name"] == "A"
 
 
 def test_the_calendar_endpoint_reuses_the_plan_without_calling_the_ai(client, details, monkeypatch):

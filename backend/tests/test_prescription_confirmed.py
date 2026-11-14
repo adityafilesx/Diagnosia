@@ -91,7 +91,7 @@ def test_a_legible_mark_with_unreadable_text_is_handled_the_same_on_both_sides(c
     assert result["medicines"][0]["confirmable"] is True
     explained = explain(client, result["reading_id"], [0]).json()
     assert explained["ask_pharmacist"] == []
-    assert explained["schedule"]["morning"][0]["name"] == "Amoxicillin"
+    assert explained["schedule"]["slots"]["morning"]["medicines"][0]["name"] == "Amoxicillin"
 
 
 def test_the_page_has_no_readability_rule_of_its_own():

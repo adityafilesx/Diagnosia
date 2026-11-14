@@ -11,7 +11,6 @@ import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Literal, Optional, Tuple
-from urllib.parse import quote, urlencode
 
 from PIL import Image, ImageOps
 from pydantic import BaseModel
@@ -303,13 +302,18 @@ def _dose_text(name: str, dose: str) -> str:
     return "" if not dose.strip() or squeeze(dose) in squeeze(name) else dose.strip()
 
 
+def _end(dtstart: str) -> str:
+    """A reminder is a 15-minute entry."""
+    return (datetime.strptime(dtstart, "%Y%m%dT%H%M%S") + timedelta(minutes=15)).strftime("%Y%m%dT%H%M%S")
+
+
 def _recur(days: Optional[int]) -> str:
     """Daily for the written number of days, or daily with no end when no length was written."""
     return f"FREQ=DAILY;COUNT={days}" if days else "FREQ=DAILY"
 
 
-def generate_ics_calendar(slots: List[dict]) -> str:
-    """Creates a standard RFC 5545 iCalendar payload for multi-slot reminders."""
+def _ics(slots: List[dict]) -> str:
+    """A plain RFC 5545 calendar file: one repeating event for each stretch of each time of day."""
     now_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     events_str = []
     for item in slots:
@@ -329,7 +333,7 @@ def generate_ics_calendar(slots: List[dict]) -> str:
             f"UID:{uid}\r\n"
             f"DTSTAMP:{now_stamp}\r\n"
             f"DTSTART:{item['dtstart']}\r\n"
-            f"DTEND:{item['dtend']}\r\n"
+            f"DTEND:{_end(item['dtstart'])}\r\n"
             f"RRULE:{_recur(item['duration_days'])}\r\n"
             f"SUMMARY:{clean_summary}\r\n"
             f"DESCRIPTION:{clean_desc}\r\n"
@@ -430,17 +434,6 @@ def plan_unresolved(medicines: List[ConfirmedMedicine], doctor_notes: str = "") 
     return plans
 
 
-def build_schedule(medicines: List[ConfirmedMedicine], plan: Optional[Dict[str, dict]] = None) -> Dict[str, List[dict]]:
-    schedule: Dict[str, List[dict]] = {"morning": [], "afternoon": [], "night": []}
-    for index, medicine in enumerate(medicines):
-        if _is_as_needed(medicine):
-            continue
-        resolved = resolve_slots(medicine, (plan or {}).get(str(index)))
-        for slot, amount in resolved["slots"].items():
-            schedule[slot].append({"name": medicine.name.value, "amount": amount, "assumed": resolved["assumed"]})
-    return schedule
-
-
 def _segments(meds: List[dict]) -> List[Tuple[int, int, List[dict]]]:
     """Splits a slot's course into stretches, so a medicine stops being listed once its course ends.
 
@@ -472,7 +465,7 @@ def _line(item: dict, language: Language) -> str:
     return text
 
 
-def build_calendar_reminders(
+def build_schedule(
     medicines: List[ConfirmedMedicine],
     language: Language,
     guidance: Optional[dict] = None,
@@ -480,7 +473,10 @@ def build_calendar_reminders(
     custom_times: Optional[Dict[str, str]] = None,
     plan: Optional[Dict[str, dict]] = None,
 ) -> dict:
-    """Builds the daily reminders, with one calendar event for each stretch of each time of day.
+    """The one daily schedule: what to take at each time of day, and the same thing as a calendar file.
+
+    The page draws its table from this, and the .ics is built from the same stretches, so the two
+    can't disagree.
 
     Every readable medicine ends up somewhere: on a timed reminder, in the as-needed list, or in
     `unscheduled` with the reason, so none drops out of the plan without the patient seeing it.
@@ -544,7 +540,6 @@ def build_calendar_reminders(
             first_date = start + timedelta(days=first_day - 1)
             start_dt = datetime(first_date.year, first_date.month, first_date.day, hour, minute)
             dtstart_str = start_dt.strftime("%Y%m%dT%H%M%S")
-            dtend_str = (start_dt + timedelta(minutes=15)).strftime("%Y%m%dT%H%M%S")
             title = f"{titles[slot]} - Curai"
             if len(meds) and len({m["duration_days"] for m in meds}) > 1:
                 if last_day is None:
@@ -557,13 +552,6 @@ def build_calendar_reminders(
             else:
                 details = "💊 Prescribed Medicines:\n" + lines + "\n\n⚠️ Instructions:\nTake as directed by your doctor. Consult your doctor or pharmacist if unsure."
             duration_days = last_day - first_day + 1 if last_day is not None else None
-            params = {
-                "action": "TEMPLATE",
-                "text": title,
-                "details": details,
-                "dates": f"{dtstart_str}/{dtend_str}",
-                "recur": f"RRULE:{_recur(duration_days)}",
-            }
             segment = {
                 "title": title,
                 "first_day": first_day,
@@ -571,10 +559,8 @@ def build_calendar_reminders(
                 "duration_days": duration_days,
                 "no_end_date": last_day is None,
                 "medicines": group,
-                "google_url": f"https://calendar.google.com/calendar/render?{urlencode(params)}",
                 "description": details,
                 "dtstart": dtstart_str,
-                "dtend": dtend_str,
             }
             segments.append(segment)
             events.append(segment)
@@ -584,10 +570,6 @@ def build_calendar_reminders(
             "time": times[slot],
             "duration_days": segments[-1]["last_day"],
             "medicines": meds,
-            "google_url": segments[0]["google_url"],
-            "description": segments[0]["description"],
-            "dtstart": segments[0]["dtstart"],
-            "dtend": segments[0]["dtend"],
             "segments": segments,
         }
 
@@ -613,7 +595,7 @@ def build_calendar_reminders(
         "slots": slot_results,
         "as_needed": as_needed_meds,
         "unscheduled": unscheduled,
-        "ics_calendar": generate_ics_calendar(events) if events else "",
+        "ics": _ics(events) if events else "",
     }
 
 
@@ -652,14 +634,11 @@ def explain_prescription(medicines: List[ConfirmedMedicine], language: Language,
         # rule-decoded directions. A sentence with a number the prescription doesn't give is replaced.
         guidance["medicines"] = crosscheck.check_guidance(guidance["medicines"], explainable, language)
     plan = plan_unresolved(explainable, doctor_notes)
-    reminders = build_calendar_reminders(explainable, language, guidance, plan=plan)
     return {
         "guidance": guidance,
         "explained_by": explained_by,
-        "schedule": build_schedule(explainable, plan),
+        "schedule": build_schedule(explainable, language, guidance, plan=plan),
         "plan": plan,
-        "reminders": reminders,
-        "as_needed": reminders.get("as_needed", []),
         "ask_pharmacist": ask_pharmacist,
     }
 

@@ -120,7 +120,6 @@ than sending patient text to an unnamed service.
 | MongoDB Atlas and YugabyteDB | Only the addresses an operator configures, only when switched on |
 
 Some addresses appear in the code but are opened by the visitor's browser, not by the server:
-`calendar.google.com` (a link to add a reminder, which carries the medicine schedule the patient chose),
 `assets.website-files.com` (fonts and one background image on the public pages and the workspace),
 `fonts.googleapis.com` and `fonts.gstatic.com` (a web font on the terms page), and `www.google.com`
 (the embedded map on the home page). The last three are named in `backend/app.py` only because the

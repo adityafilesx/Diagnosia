@@ -122,184 +122,91 @@ function saveButton(readingId, confirmed) {
         h('p', {}, 'Keep the medicines you ticked in your record, so your doctors can see them. Your photo is not kept.'),
         button);
 }
+// Saves the calendar file the server built. Any calendar app can open it; nothing is sent anywhere.
 function downloadIcs(icsText) {
     const blob = new Blob([icsText], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'curai_reminders.ics';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const link = h('a', { href: url, download: 'curai-schedule.ics' });
+    document.body.append(link);
+    link.click();
+    link.remove();
     URL.revokeObjectURL(url);
 }
 
 const SLOT_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' };
-const SLOT_ICONS = { morning: '🌅', afternoon: '☀️', night: '🌙' };
 
 // "days 1–5", "from day 6, no end date written", or "5 days". Never a length nobody wrote.
 function courseWords(part) {
     if (part.no_end_date || !part.duration_days) {
         return part.first_day > 1 ? `from day ${part.first_day}, no end date written` : 'no end date written';
     }
-    return part.first_day ? `days ${part.first_day}–${part.last_day}` : plural(part.duration_days, 'day');
+    return part.first_day > 1 || part.last_day !== part.duration_days ? `days ${part.first_day}–${part.last_day}` : plural(part.duration_days, 'day');
 }
 
-function calendarRemindersView(reminders, language) {
-    const slots = reminders.slots || {};
-    const hasSlots = Object.keys(slots).length > 0;
-    if (!hasSlots && !(reminders.as_needed || []).length && !(reminders.unscheduled || []).length) return null;
+function medicineLine(item) {
+    return h('li', {},
+        h('strong', {}, item.name),
+        item.quantity ? ` — ${item.quantity}` : '',
+        item.food ? `, ${item.food}` : '',
+        item.purpose ? h('em', {}, ` (${item.purpose})`) : '',
+        item.assumed ? h('span', { class: 'muted' }, " · usual time, the prescription doesn't say") : '',
+        item.no_end_date ? h('span', { class: 'muted' }, ' · No end date written. Ask your doctor how long to take it.') : '');
+}
 
-    const startInput = h('input', {
-        type: 'date',
-        value: reminders.start_date || new Date().toISOString().slice(0, 10),
-        'aria-label': 'Start date for reminders',
+// The one schedule: a table of what to take when, the reminder times, and the same thing as a
+// calendar file. `request` is what the server needs to rebuild it for other times.
+function scheduleView(schedule, language, request) {
+    const slots = schedule.slots || {};
+    const asNeeded = schedule.as_needed || [];
+    const unscheduled = schedule.unscheduled || [];
+    if (!Object.keys(slots).length && !asNeeded.length && !unscheduled.length) return null;
+
+    const sheet = h('div', { class: 'sheet' });
+    const startInput = h('input', { type: 'date', value: schedule.start_date });
+    const timeInputs = Object.fromEntries(Object.keys(SLOT_LABELS).map((slot) => [slot, h('input', { type: 'time', value: schedule.times[slot] })]));
+    const update = h('button', { type: 'button', class: 'quiet' }, 'Update times');
+    update.addEventListener('click', async () => {
+        update.disabled = true;
+        try {
+            const times = Object.fromEntries(Object.entries(timeInputs).filter(([, input]) => input.value).map(([slot, input]) => [slot, input.value]));
+            const updated = await api('/api/prescription/calendar', { method: 'POST', body: { ...request, language, start_date: startInput.value, times } });
+            sheet.replaceWith(scheduleView(updated, language, request));
+        } catch (error) {
+            toast(error.message, true);
+            update.disabled = false;
+        }
     });
-    const timeInputs = {};
-    for (const slot of ['morning', 'afternoon', 'night']) {
-        timeInputs[slot] = h('input', {
-            type: 'time',
-            value: reminders.times[slot],
-            'aria-label': `${SLOT_LABELS[slot]} reminder time`,
-        });
-    }
 
-    const refreshButton = h('button', {
-        type: 'button',
-        class: 'calendar-btn secondary',
-        onclick: async () => {
-            refreshButton.disabled = true;
-            refreshButton.textContent = 'Updating…';
-            try {
-                const customTimes = {};
-                for (const [slot, input] of Object.entries(timeInputs)) {
-                    if (input.value) customTimes[slot] = input.value;
-                }
-                const updated = await api('/api/prescription/calendar', {
-                    method: 'POST',
-                    body: {
-                        reading_id: reminders._readingId,
-                        confirmed: reminders._confirmed,
-                        language,
-                        guidance: reminders._guidance,
-                        plan: reminders._plan,
-                        start_date: startInput.value,
-                        times: customTimes,
-                    },
-                });
-                updated._readingId = reminders._readingId;
-                updated._confirmed = reminders._confirmed;
-                updated._guidance = reminders._guidance;
-                updated._plan = reminders._plan;
-                const parent = refreshButton.closest('.sheet');
-                if (parent) show(parent, ...calendarRemindersView(updated, language).children);
-            } catch (error) {
-                toast(error.message, true);
-            }
-            refreshButton.disabled = false;
-            refreshButton.textContent = '🔄 Update times';
-        },
-    }, '🔄 Update times');
+    const rows = Object.keys(SLOT_LABELS).filter((slot) => slots[slot]).flatMap((slot) => slots[slot].segments.map((part) => h('tr', {},
+        h('th', { scope: 'row' }, SLOT_LABELS[slot], h('div', { class: 'muted' }, slots[slot].time)),
+        h('td', {}, h('ul', { class: 'plain' }, part.medicines.map(medicineLine))),
+        h('td', {}, courseWords(part)))));
 
-    const controls = h('div', { class: 'calendar-controls no-print' },
-        h('label', {}, 'Start date', startInput),
-        ...['morning', 'afternoon', 'night'].map((slot) =>
-            h('label', {}, `${SLOT_ICONS[slot]} ${SLOT_LABELS[slot]}`, timeInputs[slot]),
-        ),
-        refreshButton,
-    );
-
-    const helperContainer = h('div', { class: 'calendar-helper', style: 'display: none;' });
-
-    const addAllButton = reminders.ics_calendar
-        ? h('button', {
-            type: 'button',
-            class: 'calendar-btn',
-            style: 'font-size: 1rem; padding: 10px 18px;',
-            onclick: () => {
-                downloadIcs(reminders.ics_calendar);
-                show(helperContainer, h('div', { class: 'calendar-import-note' },
-                    h('strong', {}, '📅 Reminders file downloaded (curai_reminders.ics)!'),
-                    h('p', {},
-                        'To import all slots into Google Calendar in one go: ',
-                        h('a', {
-                            href: 'https://calendar.google.com/calendar/r/settings/export',
-                            target: '_blank',
-                            rel: 'noopener noreferrer',
-                            class: 'calendar-link',
-                        }, 'Open Google Calendar Import ↗'),
-                        ' and select the downloaded .ics file, or open it directly in your device\'s calendar app.',
-                    ),
-                ));
-                helperContainer.style.display = 'block';
-            },
-        }, '📅 Add All Reminders to Calendar')
-        : null;
-
-    const medicineLine = (m) => h('li', {},
-        h('strong', {}, m.name),
-        m.quantity ? ` — ${m.quantity}` : '',
-        m.food ? `, ${m.food}` : '',
-        m.purpose ? h('em', {}, ` (${m.purpose})`) : '',
-        m.assumed ? h('span', { class: 'muted' }, ' · usual time, the prescription doesn\'t say') : '',
-        m.no_end_date ? h('span', { class: 'muted' }, ' · No end date written. Ask your doctor how long to take it.') : '',
-    );
-    const slotCards = ['morning', 'afternoon', 'night']
-        .filter((slot) => slots[slot])
-        .flatMap((slot) => (slots[slot].segments || [slots[slot]]).map((part) => h('div', { class: 'calendar-card' },
-            h('div', { class: 'slot-header' },
-                h('strong', {}, `${SLOT_ICONS[slot]} ${part.title}`),
-                h('span', { class: 'muted' }, `${slots[slot].time} · ${courseWords(part)}`),
-            ),
-            h('ul', {}, part.medicines.map(medicineLine)),
-        )));
-
-    const asNeeded = reminders.as_needed || [];
-    const asNeededSection = asNeeded.length
-        ? h('div', { class: 'calendar-card' },
-            h('strong', {}, '💊 As-needed medicines (not on timed reminders)'),
-            h('ul', {},
-                asNeeded.map((m) => h('li', {},
-                    h('strong', {}, m.name),
-                    m.dose ? ` ${m.dose}` : '',
-                    ' — ',
-                    m.instructions,
-                    m.purpose ? h('em', {}, ` (${m.purpose})`) : '',
-                )),
-            ),
-        )
-        : null;
-
-    const unscheduled = reminders.unscheduled || [];
-    const unscheduledSection = unscheduled.length
-        ? h('div', { class: 'calendar-card' },
-            h('strong', {}, '❓ No reminder yet. Please ask your doctor or pharmacist when to take these'),
-            h('ul', {}, unscheduled.map((m) => h('li', {}, h('strong', {}, m.name), m.reason ? ` — ${m.reason}` : ''))),
-        )
-        : null;
-
-    return h('div', { class: 'sheet' },
-        h('h2', {}, '📅 Medicine Reminders'),
-        h('p', { class: 'lede' }, 'Set daily alarms so you never miss a dose. Pick your preferred times and add all reminders to your calendar in one click.'),
-        controls,
-        addAllButton && h('div', { class: 'calendar-actions', style: 'margin: 14px 0 10px' }, addAllButton),
-        helperContainer,
-        ...slotCards,
-        asNeededSection,
-        unscheduledSection,
-    );
+    sheet.append(
+        h('h2', {}, 'Daily schedule'),
+        rows.length ? h('div', { class: 'table-scroll' }, h('table', { class: 'schedule-table' },
+            h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'When'), h('th', { scope: 'col' }, 'Medicines'), h('th', { scope: 'col' }, 'For how long'))),
+            h('tbody', {}, rows))) : '',
+        asNeeded.length ? h('div', {},
+            h('h3', {}, 'Only when needed (no reminder)'),
+            h('ul', {}, asNeeded.map((item) => h('li', {}, h('strong', {}, item.name), item.dose ? ` ${item.dose}` : '', item.purpose ? h('em', {}, ` (${item.purpose})`) : '')))) : '',
+        unscheduled.length ? h('div', {},
+            h('h3', {}, 'No time set. Ask your doctor or pharmacist when to take these'),
+            h('ul', {}, unscheduled.map((item) => h('li', {}, h('strong', {}, item.name), item.reason ? ` — ${item.reason}` : '')))) : '',
+        rows.length ? h('div', { class: 'schedule-controls no-print' },
+            h('label', {}, 'Start date', startInput),
+            ...Object.entries(SLOT_LABELS).map(([slot, label]) => h('label', {}, `${label} reminder`, timeInputs[slot])),
+            update) : '',
+        schedule.ics ? h('div', { class: 'row no-print', style: 'margin-top:12px' },
+            h('button', { type: 'button', onclick: () => downloadIcs(schedule.ics) }, 'Download reminders (.ics)'),
+            h('span', { class: 'muted' }, 'Open the file in your phone or computer calendar to set the reminders.')) : '');
+    return sheet;
 }
 
 function resultsView(data, language, reading, confirmed) {
     const guidance = data.guidance;
-    const hasSchedule = Object.values(data.schedule).some((entries) => entries.length);
-    const reminders = data.reminders || {};
-    // Attach originals so the refresh button can re-request with updated times.
-    reminders._readingId = reading.reading_id;
-    reminders._confirmed = confirmed;
-    reminders._guidance = guidance;
-    reminders._plan = data.plan;
-    const remindersSection = calendarRemindersView(reminders, language);
+    // What the server needs to rebuild the schedule when the patient changes the reminder times.
+    const request = { reading_id: reading.reading_id, confirmed: confirmed, guidance, plan: data.plan };
     return [
         guidance && h('div', { class: 'sheet', lang: language.slice(0, 2) },
             h('h2', { lang: 'en' }, 'Your medicines'),
@@ -313,12 +220,7 @@ function resultsView(data, language, reading, confirmed) {
                     medicine.decoded ? `That means: ${medicine.decoded}.` : ''),
                 medicine.directions_rejected && h('p', { lang: 'en' }, h('mark', {}, "We left out the AI's wording for this one because its numbers didn't match your prescription.")),
                 listenButton(`${medicine.name}. ${medicine.purpose} ${medicine.how_to_take}`, language)))),
-        hasSchedule && h('div', { class: 'sheet' },
-            h('h2', {}, 'Daily schedule'),
-            h('div', { class: 'schedule' }, [['morning', 'Morning'], ['afternoon', 'Afternoon'], ['night', 'Night']].map(([slot, title]) => h('div', {},
-                h('strong', {}, title),
-                data.schedule[slot].map((entry) => h('p', {}, entry.amount ? `${entry.name}: ${entry.amount}` : `${entry.name}${entry.assumed ? ' (usual time)' : ''}`)))))),
-        remindersSection,
+        scheduleView(data.schedule, language, request),
         reading.follow_up_date.value && listCard('Next appointment', [reading.follow_up_date.value]),
         data.ask_pharmacist.length > 0 && listCard('Please ask your pharmacist or doctor about', data.ask_pharmacist),
         confirmed.length > 0 && saveButton(reading.reading_id, confirmed),

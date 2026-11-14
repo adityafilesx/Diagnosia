@@ -221,7 +221,7 @@ def save_to_record(request: SaveRequest, user=Depends(require_user), db: sqlite3
 @router.post("/calendar")
 def calendar(request: CalendarRequest, user=Depends(require_user), db: sqlite3.Connection = Depends(get_db)) -> dict:
     _row, medicines = _confirmed(db, user, request.reading_id, request.confirmed)
-    return analyzer.build_calendar_reminders(
+    return analyzer.build_schedule(
         analyzer.confirmed_from(medicines, request.confirmed),
         request.language,
         request.guidance,

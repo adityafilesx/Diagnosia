@@ -272,7 +272,7 @@ UNTRACKED_ROUTES: Dict[str, str] = {
     "transcribe_chunk": "Runs every 25 seconds while recording. Only a failure is recorded",
     "read_aloud": "Reads text aloud and stores nothing",
     "save_to_record": "Kept in the audit log and the patient's timeline, and only the patient's own confirmed medicines",
-    "calendar": "Regenerates calendar links from already-confirmed medicines, stores nothing",
+    "calendar": "Rebuilds the schedule and its calendar file for new reminder times, from already-confirmed medicines; stores nothing",
     "approve": "LOINC mapping governance, kept in the audit log",
     "reject": "LOINC mapping governance, kept in the audit log",
     "correct": "LOINC mapping governance, kept in the audit log",

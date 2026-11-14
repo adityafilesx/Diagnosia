@@ -132,45 +132,44 @@ def test_there_is_no_default_course_length_any_more():
 
 
 def test_a_medicine_with_no_written_duration_gets_no_course_length():
-    reminders = analyzer.build_calendar_reminders([timed("T. Open", day_pattern="1-0-0")], "en-IN", start_date="2026-11-01")
+    reminders = analyzer.build_schedule([timed("T. Open", day_pattern="1-0-0")], "en-IN", start_date="2026-11-01")
     item = reminders["slots"]["morning"]["medicines"][0]
     assert item["duration_days"] is None and item["no_end_date"] is True
     assert "duration_assumed" not in item
     segment = reminders["slots"]["morning"]["segments"][0]
     assert segment["duration_days"] is None and segment["last_day"] is None and segment["no_end_date"] is True
     assert "no end date written, ask your doctor" in segment["description"].lower()
-    assert "COUNT" not in reminders["ics_calendar"] and "RRULE:FREQ=DAILY\r\n" in reminders["ics_calendar"]
-    assert "COUNT" not in segment["google_url"]
+    assert "COUNT" not in reminders["ics"] and "RRULE:FREQ=DAILY\r\n" in reminders["ics"]
 
 
 def test_a_written_duration_is_kept_exactly():
-    reminders = analyzer.build_calendar_reminders([timed("T. Five", day_pattern="1-0-0", duration="x 5 days")], "en-IN")
+    reminders = analyzer.build_schedule([timed("T. Five", day_pattern="1-0-0", duration="x 5 days")], "en-IN")
     item = reminders["slots"]["morning"]["medicines"][0]
     assert item["duration_days"] == 5 and item["no_end_date"] is False
-    assert "COUNT=5" in reminders["ics_calendar"]
+    assert "COUNT=5" in reminders["ics"]
 
 
 def test_a_dated_course_ends_and_an_undated_one_carries_on_without_a_length():
     five = timed("T. Five", day_pattern="1-0-0", duration="x 5 days")
     open_ended = timed("T. Open", day_pattern="1-0-0")
-    reminders = analyzer.build_calendar_reminders([five, open_ended], "en-IN", start_date="2026-11-01")
+    reminders = analyzer.build_schedule([five, open_ended], "en-IN", start_date="2026-11-01")
     first, second = reminders["slots"]["morning"]["segments"]
     assert [m["name"] for m in first["medicines"]] == ["T. Five", "T. Open"]
     assert (first["first_day"], first["last_day"], first["duration_days"]) == (1, 5, 5)
     assert [m["name"] for m in second["medicines"]] == ["T. Open"]
     assert (second["first_day"], second["last_day"], second["duration_days"]) == (6, None, None)
     assert second["dtstart"].startswith("20261106")
-    assert reminders["ics_calendar"].count("COUNT=") == 1 and "COUNT=5" in reminders["ics_calendar"]
+    assert reminders["ics"].count("COUNT=") == 1 and "COUNT=5" in reminders["ics"]
 
 
 @pytest.mark.parametrize("duration", ["", "till review", "continue", "as advised"])
 def test_no_reminder_ever_has_an_invented_course_length(duration):
-    reminders = analyzer.build_calendar_reminders([timed("T. Any", "BD", duration=duration)], "hi-IN")
+    reminders = analyzer.build_schedule([timed("T. Any", "BD", duration=duration)], "hi-IN")
     for slot in reminders["slots"].values():
         assert slot["duration_days"] is None
         for segment in slot["segments"]:
-            assert segment["duration_days"] is None and "COUNT" not in segment["google_url"]
-    assert "COUNT" not in reminders["ics_calendar"]
+            assert segment["duration_days"] is None and segment["no_end_date"] is True
+    assert "COUNT" not in reminders["ics"]
 
 
 def test_the_page_shows_the_decoded_directions_and_the_missing_end_date():
