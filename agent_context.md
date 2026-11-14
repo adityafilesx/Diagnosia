@@ -318,7 +318,7 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
 - **Live on both, lightly.** A Hindi interview and a synthetic prescription work on Groq and Gemini.
   Reading quality on real handwriting and real Hindi speech is untested. Run `backend/tests/live/`
   with `CURAI_LIVE_TESTS=1` after changing a model.
-- **Reading tools use Gemini first.** Prescription reading and explaining, and lab report reading, are pinned to Gemini (own settings), after a comparison on synthetic photos in `backend/tests/ai_eval/`. Re-run it when models change.
+- **Five tools use Gemini first** (`settings_store.READING_TOOLS`): prescription reading, explaining and planning the daily times, lab report reading, and the DiagnoFast interview turn, so patient interview answers go to Gemini first by default. Each has its own setting. The photo-reading choice came from a comparison on synthetic photos in `backend/tests/ai_eval/`. Re-run it when models change. `test_docs_match_code.py` fails if `docs/PLATFORM_SETUP.md` states a different count.
 - **Model choice.** Each tool's Groq model is a setting, and Gemini has one model for the other tools. A
   failed call goes to the other provider, or providers take turns (`ai.strategy`). With one provider,
   a failed call is retried once. A DiagnoFast question times out at 45 seconds per provider.
