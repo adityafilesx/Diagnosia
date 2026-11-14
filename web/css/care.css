@@ -212,6 +212,16 @@ form.stack { display: grid; gap: 10px; max-width: 560px; }
 form.inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 label { display: grid; gap: 2px; font-size: .85rem; color: var(--ink-soft); }
 label.tick { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: .95rem; }
+/* A group of choices, and an error shown beside the field it is about. */
+fieldset.choice { border: 1px solid var(--edge); border-radius: 6px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 2px; }
+fieldset.choice legend { font-size: .85rem; color: var(--ink-soft); padding: 0 4px; }
+fieldset.choice label.tick { min-height: 44px; }
+.field { display: grid; gap: 2px; }
+.field[hidden] { display: none; }
+.field-error { color: var(--alert); font-weight: 500; font-size: .9rem; margin: 2px 0 0; }
+[aria-invalid="true"] { border-color: var(--alert); outline: 2px solid var(--alert); outline-offset: 1px; }
+details.inline-details { display: inline-block; margin: 8px 12px 0 0; vertical-align: top; }
+details.inline-details > summary { cursor: pointer; color: var(--action); text-decoration: underline; }
 /* A consent a person can tap anywhere on, at least 44 px tall. */
 label.tick.consent-row { min-height: 44px; padding: 10px 14px; border: 1px solid var(--edge); border-radius: 6px; cursor: pointer; gap: 12px; }
 label.tick.consent-row input { width: 22px; height: 22px; flex: none; margin: 0; }
