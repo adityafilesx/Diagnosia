@@ -10,10 +10,16 @@ Code: `backend/clinscribe/`, `web/js/care/clinscribe.js`. Tests: `test_clinscrib
 1. A clinician opens a session on an in-progress visit. `ai_scribe` consent is required.
 2. The session starts paused. Recording begins only on a click, with a visible state.
 3. The browser sends 25-second audio chunks to Groq's Whisper, or lines can be typed if audio fails.
-4. After stopping, the model chosen in Settings drafts statements in a SOAP or history-and-physical template.
-5. The verifier checks each statement against the transcript and flags problems.
-6. The clinician edits and signs. Open flags must be acknowledged. A signed note is final.
-7. The transcript is deleted on signing unless `transcript_retention` was agreed.
+   A typed line needs the same consent as recording. A chunk the speech service could not turn into
+   text is counted on the session (`chunks_lost`) and shown as an "N chunks lost" badge on the session,
+   in the session list and on the draft.
+4. After "Stop and finish" the record controls are replaced by "Draft the note" and "Add a missed
+   line". A line posted to a stopped session is refused (409) unless it is marked as a missed line
+   (`missed_line: true`), and nothing is added once the note is signed.
+5. After stopping, the model chosen in Settings drafts statements in a SOAP or history-and-physical template.
+6. The verifier checks each statement against the transcript and flags problems.
+7. The clinician edits and signs. Open flags must be acknowledged. A signed note is final.
+8. The transcript is deleted on signing unless `transcript_retention` was agreed.
 
 States: session `paused`, `recording`, `stopped`. Note `draft`, `approved`, `discarded`.
 

@@ -39,6 +39,9 @@ class StateRequest(BaseModel):
 class TypedSegment(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
     speaker: Speaker = "unknown"
+    # After "Stop and finish" a line is taken only when the clinician says it is one the recording
+    # missed. A plain post to an ended session (an old tab, a replay) is refused.
+    missed_line: bool = False
 
 
 class SegmentCorrection(BaseModel):
@@ -118,8 +121,11 @@ def _add_segment(db: sqlite3.Connection, session: sqlite3.Row, text: str, speake
 
 def _note_payload(db: sqlite3.Connection, note: sqlite3.Row) -> dict:
     latest = _latest(db, note["id"])
+    lost = db.execute("SELECT chunks_lost FROM scribe_sessions WHERE id = ?", (note["session_id"],)).fetchone()
     return {
         **dict(note),
+        # Audio that never became text, so the reader knows the transcript behind this draft has gaps.
+        "chunks_lost": lost["chunks_lost"] if lost else 0,
         "version": latest["version"],
         "author_type": latest["author_type"],
         "content": latest["content"],
@@ -217,7 +223,13 @@ def transcribe_chunk(
     if len(data) > MAX_CHUNK_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "This audio chunk is too large.")
     release(db)  # nobody else waits on the write lock while speech is transcribed
-    text = speech.transcribe(data, audio.content_type or "audio/webm", session["language"])
+    try:
+        text = speech.transcribe(data, audio.content_type or "audio/webm", session["language"])
+    except (speech.SpeechUnavailable, speech.SpeechRejected):
+        # Up to 25 seconds of the consultation is gone. Count it where a reload can still see it.
+        db.execute("UPDATE scribe_sessions SET chunks_lost = chunks_lost + 1 WHERE id = ?", (session_id,))
+        db.commit()
+        raise
     if not text.strip():
         return {"segment": None}
     return {"segment": _add_segment(db, session, text, speaker, "speech")}
@@ -233,6 +245,13 @@ def add_typed_segment(
     """Keeps the tool usable when the microphone or the speech service isn't."""
     session = _session(db, session_id)
     gate.open_patient(db, user, session["patient_id"], "clinscribe.segment.add", CLINICAL)
+    # The same consent that recording needs: a typed line is still the patient's words.
+    care.require_consent(db, session["patient_id"], "ai_scribe")
+    if session["state"] == "stopped" and not request.missed_line:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This session has ended. Use \"Add a missed line\" to add to it.")
+    signed = db.execute("SELECT 1 FROM clinical_notes WHERE session_id = ? AND status = 'approved'", (session_id,)).fetchone()
+    if signed or session["transcript_deleted_at"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The note for this session is signed, so its transcript is closed.")
     return _add_segment(db, session, request.text, request.speaker, "typed")
 
 

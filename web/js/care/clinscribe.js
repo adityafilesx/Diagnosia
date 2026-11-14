@@ -116,11 +116,23 @@ async function renderSession(area, session, context, showNotes) {
         warning.textContent = message;
         warning.hidden = false;
     };
-    let lost = 0;
-    const lostChunk = () => {
-        lost += 1;
+    // Audio that never became text. The server keeps the count, so it survives a reload; a chunk
+    // that never reached the server (no network) is added here.
+    let lost = session.chunks_lost || 0;
+    const lostBadge = h('span', { id: 'chunks-lost', class: 'status bad', role: 'status', hidden: true });
+    const showLost = () => {
+        lostBadge.hidden = lost === 0;
+        lostBadge.textContent = `${plural(lost, 'chunk')} lost`;
+    };
+    showLost();
+    const lostChunk = async () => {
+        const counted = (await api(`${BASE}/sessions/${session.id}`).catch(() => null))?.chunks_lost ?? 0;
+        lost = Math.max(counted, lost + 1);
+        showLost();
         warn(`${plural(lost, 'part')} of this recording could not be transcribed. Type what was missed below.`);
     };
+    // Shows the session again from the server: after "Stop and finish" the record controls go.
+    const reopen = async () => renderSession(area, await api(`${BASE}/sessions/${session.id}`), context, showNotes);
 
     const state = h('div', { class: 'recording' }, h('span', { class: 'dot' }), h('span', {}));
     const paint = (name) => {
@@ -157,15 +169,19 @@ async function renderSession(area, session, context, showNotes) {
             },
         }, 'Start recording'),
         h('button', { type: 'button', class: 'quiet', onclick: async () => { await stopMicrophone(); await setState('paused'); } }, 'Pause'),
-        h('button', { type: 'button', class: 'danger', onclick: async () => { await stopMicrophone(); await setState('stopped'); await reload(); } }, 'Stop and finish'),
+        h('button', { type: 'button', class: 'danger', onclick: async () => { await stopMicrophone(); if (await setState('stopped')) await reopen(); } }, 'Stop and finish'),
         speaker,
         warning);
 
+    const ended = session.state === 'stopped';
     const typed = form(
-        [{ name: 'text', label: 'Type a line, for example if audio failed', type: 'textarea', required: true }],
-        'Add line',
+        [{ name: 'text', label: ended ? 'Something the recording missed' : 'Type a line, for example if audio failed', type: 'textarea', required: true }],
+        ended ? 'Add a missed line' : 'Add line',
         async ({ text }, element) => {
-            await act(() => api(`${BASE}/sessions/${session.id}/segments`, { method: 'POST', body: { text, speaker: speaker.value } }), context);
+            // The server takes a line for an ended session only when it is marked as a missed one.
+            const body = { text, speaker: speaker.value, missed_line: session.state === 'stopped' };
+            const added = await act(() => api(`${BASE}/sessions/${session.id}/segments`, { method: 'POST', body }), context);
+            if (!added) return;
             element.reset();
             reload();
         },
@@ -191,11 +207,13 @@ async function renderSession(area, session, context, showNotes) {
     );
     show(area,
         h('h2', {}, `Consultation started ${when(session.started_at)}`),
-        state,
-        session.state !== 'stopped' ? controls : null,
+        h('div', { class: 'row' }, state, lostBadge),
+        ended ? null : controls,
         list,
-        typed,
-        ...section('Draft a note', draft));
+        // Once the session has ended, the two things left to do: write the note, or add what was missed.
+        ...(ended
+            ? [...section('Draft the note', draft), h('div', { class: 'row', style: 'margin-top:12px' }, speaker), typed]
+            : [typed, ...section('Draft a note', draft)]));
 }
 
 function statementEditor(statement, section_) {
@@ -244,6 +262,7 @@ function renderNote(area, note, context, afterChange) {
         h('h2', {}, 'Review the draft'),
         h('div', { class: 'banner' }, 'This is an AI draft and not part of the record until you sign it. Highlighted lines need your eye.'),
         h('p', { class: 'muted' }, `${plural(note.open_flags, 'line')} to check. Drafted by ${note.model}, prompt ${note.prompt_version}.`),
+        note.chunks_lost ? h('div', { class: 'banner danger' }, `${plural(note.chunks_lost, 'chunk')} lost: that much of the recording could not be transcribed, so this draft may be missing what was said then.`) : null,
         editors.map((part) => h('div', {},
             h('h3', {}, part.heading),
             part.lines.length ? part.lines.map((line) => line.element) : h('p', { class: 'muted' }, 'Nothing said on this.'),
@@ -336,6 +355,7 @@ export async function renderClinScribe(container, context) {
             [
                 { label: 'Started', cell: (row) => when(row.started_at) },
                 { label: 'Lines', number: true, cell: (row) => row.segments },
+                { label: 'Audio lost', cell: (row) => (row.chunks_lost ? badge(`${plural(row.chunks_lost, 'chunk')} lost`, 'bad') : '') },
                 { label: 'State', cell: (row) => badge(row.transcript_deleted_at ? 'transcript deleted' : row.state) },
                 { label: '', cell: (row) => h('button', { type: 'button', class: 'quiet', onclick: () => showSession(row.id) }, 'Open') },
             ],
