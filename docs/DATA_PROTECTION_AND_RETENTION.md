@@ -117,9 +117,14 @@ than sending patient text to an unnamed service.
 | `speech.platform.bing.com` | Edge voices, demo mode only (inside the `edge-tts` library) |
 | MongoDB Atlas and YugabyteDB | Only the addresses an operator configures, only when switched on |
 
-Two addresses appear in the code but are opened by the visitor's browser, not by the server:
-`calendar.google.com` (a link to add a reminder, which carries the medicine schedule the patient chose)
-and `assets.website-files.com` (fonts on the public pages).
+Some addresses appear in the code but are opened by the visitor's browser, not by the server:
+`calendar.google.com` (a link to add a reminder, which carries the medicine schedule the patient chose),
+`assets.website-files.com` (fonts and one background image on the public pages and the workspace),
+`fonts.googleapis.com` and `fonts.gstatic.com` (a web font on the terms page), and `www.google.com`
+(the embedded map on the home page). The last three are named in `backend/app.py` only because the
+content-security-policy lists what the public pages may load; the workspace and the patient interview
+allow none of the Google addresses. Each of these sees the visitor's address and browser, never
+patient data.
 
 **The prescription consent tick.** The server refuses a photo without the agreement and the current
 wording's version, and stores that agreement. It cannot prove a person ticked the box: a client could

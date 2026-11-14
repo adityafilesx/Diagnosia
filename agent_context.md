@@ -217,6 +217,13 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
 
 **Security**
 - All SQL uses parameters. Passwords are Argon2. Session tokens are stored hashed.
+- Every answer carries a content-security-policy (`backend/app.py`): strict for `care.html` and
+  `intake.html`, and for the public pages each inline script is allowed by the hash of its text, worked
+  out at start-up. Don't add inline event handlers, `<object>` tags or scripts from other sites. HSTS is
+  sent when `CURAI_HTTPS=1`.
+- A session ends after 30 idle minutes (`CURAI_SESSION_IDLE_MINUTES`, sliding, migration 14). The
+  workspace marks requests made with no recent input as background (`X-Curai-Background`), so timed
+  refreshes don't keep a session alive; a new timed request that is real use passes `active: true` to `api()`.
 - Page text from patients and from the AI goes in with `textContent`, never `innerHTML`.
 - Only `web/` is served. Don't add routes that serve other folders.
 - Never log keys, patient text or full AI answers.

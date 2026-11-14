@@ -69,7 +69,7 @@ async function startMicrophone(session, speakerControl, handlers, context) {
         const data = new FormData();
         data.append('audio', blob, 'chunk.webm');
         data.append('speaker', speakerControl.value);
-        const saved = await act(() => api(`${BASE}/sessions/${session.id}/transcribe`, { method: 'POST', form: data }), context);
+        const saved = await act(() => api(`${BASE}/sessions/${session.id}/transcribe`, { method: 'POST', form: data, active: true }), context);
         if (saved === undefined) handlers.onLost();
         else if (saved.segment) handlers.onSegment();
     };

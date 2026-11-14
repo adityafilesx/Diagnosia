@@ -133,6 +133,11 @@ def _intake_review_stamp(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE intakes ADD COLUMN reviewed_at TEXT")
 
 
+def _session_last_seen(db: sqlite3.Connection) -> None:
+    """When a session was last used, for the idle timeout. Old sessions count from their next use."""
+    db.execute("ALTER TABLE sessions ADD COLUMN last_seen_at TEXT")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -147,6 +152,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (11, "intake_help_requested_at", _intake_help_requested_at),
     (12, "notification_link", _notification_link),
     (13, "intake_review_stamp", _intake_review_stamp),
+    (14, "session_last_seen", _session_last_seen),
 ]
 
 

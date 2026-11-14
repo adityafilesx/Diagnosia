@@ -441,7 +441,8 @@ The environment file is local-only. The following keys are documented in the exi
 |---|---|---|
 | `GROQ_API_KEY` | Groq AI and speech | Do not send real patient data; vendor approval is outstanding |
 | `GEMINI_API_KEY` | Gemini AI | Do not send real patient data; vendor approval is outstanding |
-| `CURAI_HTTPS` | Secure-cookie/deployment setting | Configure correctly for the environment; do not expose the app publicly by accident |
+| `CURAI_HTTPS` | Secure cookies and the HSTS header | Set to 1 only when the site is served over HTTPS; do not expose the app publicly by accident |
+| `CURAI_SESSION_IDLE_MINUTES` | Minutes of no activity before a session is signed out | Default 30; 0 turns the idle limit off (the 12-hour staff and 14-day patient lifetimes still apply) |
 | `CURAI_DB` | Existing database path | Defaults and actual path are defined by `backend/config.py` |
 | `CURAI_DOCUMENT_KEY_FILE` | Document encryption key file | Keep outside the repository; back up separately and securely |
 

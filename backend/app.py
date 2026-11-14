@@ -3,7 +3,10 @@
 Run from the project folder with:  uvicorn backend.app:app --reload
 """
 import asyncio
+import base64
+import hashlib
 import logging
+import re
 import sqlite3
 import threading
 import uuid
@@ -22,7 +25,7 @@ from backend.careflow import events as careflow_events
 from backend.careflow import live as careflow_live
 from backend.careflow import routes as careflow
 from backend.clinscribe import routes as clinscribe
-from backend.config import WEB_DIR
+from backend.config import WEB_DIR, settings
 from backend.db import connect, init_db
 from backend.diagnofast import routes as diagnofast
 from backend.dischargecare import routes as dischargecare
@@ -59,6 +62,50 @@ CARE_PAGE_POLICY = (
     "font-src 'self' https://assets.website-files.com; connect-src 'self'; media-src 'self' blob:; "
     "frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
 )
+# The workspace and the patient interview handle patient data, so they keep the strict policy above.
+STRICT_PAGES = ("care.html", "intake.html")
+# An API answer is data. A browser that opens one directly may load and run nothing.
+API_POLICY = "default-src 'none'; frame-ancestors 'none'"
+# Browsers remember for a year that this site is HTTPS-only. Sent only when CURAI_HTTPS=1.
+HSTS = "max-age=31536000; includeSubDomains"
+INLINE_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S)
+
+
+def _public_policy(page_text: str) -> str:
+    """The public pages are a Webflow template with a few inline scripts, a web font and a map.
+
+    Each inline script is allowed by the hash of its exact text, so an injected one is refused."""
+    hashes = "".join(
+        f" 'sha256-{base64.b64encode(hashlib.sha256(body.encode('utf-8')).digest()).decode()}'"
+        for body in INLINE_SCRIPT.findall(page_text)
+    )
+    return (
+        f"default-src 'self'; script-src 'self'{hashes}; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "img-src 'self' data: blob: https://assets.website-files.com; "
+        "font-src 'self' https://assets.website-files.com https://fonts.gstatic.com; "
+        "connect-src 'self'; media-src 'self' blob:; frame-src 'self' https://www.google.com; "
+        "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
+    )
+
+
+def _page_policies() -> dict:
+    return {
+        page.name: CARE_PAGE_POLICY if page.name in STRICT_PAGES else _public_policy(page.read_text(encoding="utf-8"))
+        for page in sorted(WEB_DIR.glob("*.html"))
+    }
+
+
+# Read once at start-up: the pages don't change while the app runs.
+PAGE_POLICIES = _page_policies()
+
+
+def _policy_for(path: str) -> str:
+    if path.startswith("/api/") or path in ("/healthz", "/readyz"):
+        return API_POLICY
+    page = "index.html" if path == "/" else path.lstrip("/")
+    # Scripts, styles, images and "not found" answers get the strict policy: none of them is a page.
+    return PAGE_POLICIES.get(page, CARE_PAGE_POLICY)
 
 
 SWEEP_STEPS = (
@@ -216,8 +263,9 @@ async def request_guard(request: Request, call_next):
         response.headers.setdefault(name, value)
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
-    if request.url.path == "/care.html":
-        response.headers["Content-Security-Policy"] = CARE_PAGE_POLICY
+    response.headers["Content-Security-Policy"] = _policy_for(request.url.path)
+    if settings.cookie_secure:
+        response.headers["Strict-Transport-Security"] = HSTS
     return response
 
 

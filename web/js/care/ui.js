@@ -10,8 +10,30 @@ export class ApiError extends Error {
     }
 }
 
+// The server signs an idle session out (30 minutes by default). "Idle" means the person, not the
+// page: a request made with no recent input (a timed refresh) is marked as background and doesn't
+// count. Input with no request for a while (typing a long note) sends one small request, so work
+// isn't lost. A recording in progress passes `active: true`: nobody touches the screen, but it is use.
+const QUIET_AFTER_MS = 60 * 1000;
+const KEEP_ALIVE_MS = 5 * 60 * 1000;
+let lastInput = Date.now();
+let lastCounted = Date.now();
+
+function noteInput() {
+    lastInput = Date.now();
+    if (lastInput - lastCounted > KEEP_ALIVE_MS) {
+        lastCounted = lastInput;
+        fetch('/api/me').catch(() => { /* the next real request reports any problem */ });
+    }
+}
+for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+    window.addEventListener(type, noteInput, { capture: true, passive: true });
+}
+
 export async function api(path, options = {}) {
     const request = { method: options.method || 'GET', headers: {} };
+    if (options.active || Date.now() - lastInput <= QUIET_AFTER_MS) lastCounted = Date.now();
+    else request.headers['X-Curai-Background'] = '1';
     if (options.form) {
         request.body = options.form;
     } else if (options.body !== undefined) {
