@@ -148,6 +148,23 @@ def _scribe_chunks_lost(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE scribe_sessions ADD COLUMN chunks_lost INTEGER NOT NULL DEFAULT 0")
 
 
+def _one_draft_per_session(db: sqlite3.Connection) -> None:
+    """A ClinScribe session has at most one unsigned draft. Where an older database has several, the
+    newest stays and the others are marked discarded (nothing is deleted)."""
+    db.execute(
+        """
+        UPDATE clinical_notes SET status = 'discarded'
+        WHERE status = 'draft' AND EXISTS (
+            SELECT 1 FROM clinical_notes AS newer
+            WHERE newer.session_id = clinical_notes.session_id AND newer.status = 'draft'
+              AND (newer.created_at > clinical_notes.created_at
+                   OR (newer.created_at = clinical_notes.created_at AND newer.rowid > clinical_notes.rowid))
+        )
+        """
+    )
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_draft_per_session ON clinical_notes (session_id) WHERE status = 'draft'")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -165,6 +182,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (14, "session_last_seen", _session_last_seen),
     (15, "barrier_target_date", _barrier_target_date),
     (16, "scribe_chunks_lost", _scribe_chunks_lost),
+    (17, "one_draft_per_session", _one_draft_per_session),
 ]
 
 

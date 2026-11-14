@@ -8,6 +8,8 @@ const VERDICT_WORDS = {
     supported: 'Matches the transcript',
     uncertain: 'Please check',
     unsupported: 'Does not match the transcript',
+    // The rules can't compare English with a transcript in another language. This is not a pass.
+    not_checked: 'Not checked: compare with the source line',
     clinician_entered: 'Written by you',
 };
 
@@ -200,8 +202,19 @@ async function renderSession(area, session, context, showNotes) {
                 await stopMicrophone();
                 if (!(await setState('stopped'))) return;
             }
-            const note = await act(() => api(`${BASE}/sessions/${session.id}/draft-note`, { method: 'POST', body: values }), context, 'Draft ready');
-            if (note) showNotes(note.id);
+            try {
+                const note = await api(`${BASE}/sessions/${session.id}/draft-note`, { method: 'POST', body: values });
+                toast('Draft ready');
+                showNotes(note.id);
+            } catch (error) {
+                // A session has one draft at a time. Show the one that is already there.
+                if (error.detail?.code === 'draft_exists') {
+                    toast(error.detail.message);
+                    showNotes(error.detail.note_id);
+                } else {
+                    await act(() => { throw error; }, context);
+                }
+            }
         },
         { inline: true },
     );
@@ -216,19 +229,47 @@ async function renderSession(area, session, context, showNotes) {
             : [typed, ...section('Draft a note', draft)]));
 }
 
+const FLAGGED = ['uncertain', 'unsupported', 'not_checked'];
+// Lines the clinician has ticked as checked, kept while a note is re-drawn after a save.
+const ticked = new Set();
+
+// The words a statement rests on, shown beside it so the two can be compared, in their own language.
+function sourceLines(statement) {
+    if (!statement.sources?.length) return null;
+    return h('div', { class: 'source-lines' },
+        h('span', { class: 'muted' }, statement.sources.length === 1 ? 'Source line' : 'Source lines'),
+        statement.sources.map((source) => h('blockquote', { lang: source.language.slice(0, 2) },
+            h('span', { class: 'who', lang: 'en' }, `Line ${source.line}, ${source.speaker}`),
+            source.text)));
+}
+
 function statementEditor(statement, section_) {
     const check = statement.check || {};
-    const flagged = check.verdict === 'uncertain' || check.verdict === 'unsupported';
+    const flagged = FLAGGED.includes(check.verdict);
     const box = h('textarea', { 'aria-label': `Statement in ${section_}`, value: statement.text });
+    // One tick for each flagged line. Changing the words makes it a new line, so its tick goes.
+    const tick = flagged ? h('input', { type: 'checkbox', checked: ticked.has(statement.id), 'data-statement': statement.id }) : null;
+    tick?.addEventListener('change', () => (tick.checked ? ticked.add(statement.id) : ticked.delete(statement.id)));
+    box.addEventListener('input', () => {
+        if (!tick || box.value.trim() === statement.text) return;
+        tick.checked = false;
+        ticked.delete(statement.id);
+    });
     return {
         box,
-        element: h('div', { class: `verdict-${check.verdict}`, style: 'margin:8px 0' },
-            box,
-            h('div', { class: 'row muted' },
-                flagged ? h('mark', {}, VERDICT_WORDS[check.verdict]) : h('span', {}, VERDICT_WORDS[check.verdict]),
-                check.evidence?.length ? h('span', {}, `Transcript ${check.evidence.length === 1 ? 'line' : 'lines'} ${check.evidence.join(', ')}`) : null,
-                h('span', {}, statement.origin === 'patient_statement' ? 'Patient said' : statement.origin === 'ai_summary' ? 'AI summary' : 'Clinician said')),
-            check.reasons?.length ? h('ul', { class: 'reasons' }, check.reasons.map((reason) => h('li', {}, reason))) : null),
+        id: statement.id,
+        original: statement.text,
+        tick,
+        element: h('div', { class: `statement verdict-${check.verdict}`, style: 'margin:8px 0' },
+            h('div', {},
+                box,
+                h('div', { class: 'row muted' },
+                    flagged ? h('mark', {}, VERDICT_WORDS[check.verdict]) : h('span', {}, VERDICT_WORDS[check.verdict]),
+                    check.evidence?.length ? h('span', {}, `Transcript ${check.evidence.length === 1 ? 'line' : 'lines'} ${check.evidence.join(', ')}`) : null,
+                    h('span', {}, statement.origin === 'patient_statement' ? 'Patient said' : statement.origin === 'ai_summary' ? 'AI summary' : 'Clinician said')),
+                check.reasons?.length ? h('ul', { class: 'reasons' }, check.reasons.map((reason) => h('li', {}, reason))) : null,
+                tick ? h('label', { class: 'tick' }, tick, 'I have checked this line') : null),
+            sourceLines(statement)),
     };
 }
 
@@ -257,7 +298,7 @@ function renderNote(area, note, context, afterChange) {
         })),
     });
     const save = () => act(() => api(`${BASE}/notes/${note.id}`, { method: 'PATCH', body: collect() }), context, 'Saved');
-    const acknowledge = h('input', { type: 'checkbox' });
+    const flaggedIds = (content_) => content_.sections.flatMap((part) => part.statements).filter((line) => FLAGGED.includes(line.check?.verdict)).map((line) => line.id);
     show(area,
         h('h2', {}, 'Review the draft'),
         h('div', { class: 'banner' }, 'This is an AI draft and not part of the record until you sign it. Highlighted lines need your eye.'),
@@ -279,7 +320,7 @@ function renderNote(area, note, context, afterChange) {
             ? h('div', {}, h('h3', {}, 'Not in the transcript'), h('ul', {}, content.missing_information.map((item) => h('li', {}, item))))
             : null,
         h('div', { class: 'sheet' },
-            note.open_flags ? h('label', { class: 'tick' }, acknowledge, 'I have checked every highlighted line') : null,
+            note.open_flags ? h('p', { class: 'muted' }, `Tick "I have checked this line" on each of the ${plural(note.open_flags, 'highlighted line')} before signing.`) : null,
             h('div', { class: 'row', style: 'margin-top:8px' },
                 h('button', {
                     type: 'button',
@@ -291,14 +332,16 @@ function renderNote(area, note, context, afterChange) {
                     onclick: async () => {
                         const saved = await save();
                         if (!saved) return;
-                        // Saving checks typed lines again. A flag the clinician has not seen yet is
-                        // shown first: ticking "I have checked" must mean these lines too.
-                        if (saved.open_flags > note.open_flags) {
-                            toast(`Your changes gave ${plural(saved.open_flags - note.open_flags, 'more line')} to check. Look at ${saved.open_flags - note.open_flags === 1 ? 'it' : 'them'}, then sign.`, true);
+                        // Saving checks typed lines again, so the flags are read from what was saved. Each
+                        // one needs its own tick: a flag raised by this save is shown before anything is signed.
+                        const open = flaggedIds(saved.content).filter((id) => !ticked.has(id));
+                        if (open.length) {
+                            toast(`${plural(open.length, 'highlighted line')} still to check. Tick each one after comparing it, then sign.`, true);
                             afterChange(note.id);
                             return;
                         }
-                        const signed = await act(() => api(`${BASE}/notes/${note.id}/approve`, { method: 'POST', body: { acknowledge_flags: acknowledge.checked } }), context, 'Note signed');
+                        const acknowledged = flaggedIds(saved.content);
+                        const signed = await act(() => api(`${BASE}/notes/${note.id}/approve`, { method: 'POST', body: { acknowledged } }), context, 'Note signed');
                         if (signed) afterChange(note.id);
                     },
                 }, 'Sign note'),

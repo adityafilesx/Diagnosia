@@ -56,8 +56,19 @@ Under `/api/addons/clinscribe`: `POST encounters/{id}/sessions`,
   questioned. Signing stops to show a flag the clinician has not seen yet.
 - Limits of these rules: they know a medicine only by its place beside a dose or a form, they compare
   doses by number and unit, and they have been tested on made-up lines only.
-- Hindi transcripts can't be word-matched, so lines are marked for manual comparison,
-  while numbers are still checked.
+- Hindi transcripts can't be word-matched. Those statements are marked `not_checked` ("Not checked:
+  compare with the source line"), never supported, and a note with any of them has the status
+  `not_checked`, not `verified`. Numbers are still checked, counting ones spoken as words in English
+  or Hindi.
+- The review screen shows the cited transcript line beside each statement, in its own language. The
+  lines are read from the transcript when the note is opened and are never saved into the note.
+- Each flagged statement has an id and needs its own acknowledgement: `POST notes/{id}/approve` takes
+  `acknowledged` (a list of statement ids) and refuses with `flags_open` and the ids still missing. One
+  tick for the whole note is no longer accepted. The signed version records which flags were acknowledged.
+- When the transcript is deleted (at signing without retention consent, or by hand), the line numbers
+  that pointed into it are dropped from the note, which is then marked `sources_deleted`.
+- A session has one unsigned draft at a time (migration 17 adds the index). Drafting again returns
+  409 `draft_exists` with the draft's id; discard it to draft again.
 
 ## Limits
 

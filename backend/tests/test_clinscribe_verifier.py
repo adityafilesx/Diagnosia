@@ -140,7 +140,7 @@ def test_an_edited_in_wrong_dose_is_flagged(doctor, patient, encounter, monkeypa
     assert edited["open_flags"] == 1
     url = f"{BASE}/notes/{note['id']}/approve"
     assert doctor.post(url, json={}).json()["detail"]["code"] == "flags_open"
-    assert doctor.post(url, json={"acknowledge_flags": True}).status_code == 200  # the clinician stays in charge
+    assert doctor.post(url, json={"acknowledged": [line["id"]]}).status_code == 200  # the clinician stays in charge
 
 
 def test_an_edited_in_wrong_frequency_or_medicine_swap_is_flagged(doctor, patient, encounter, monkeypatch):

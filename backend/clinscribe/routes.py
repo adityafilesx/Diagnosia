@@ -5,6 +5,7 @@ until the clinician who held the consultation signs it.
 """
 import json
 import sqlite3
+import uuid
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -68,7 +69,9 @@ class NoteEdit(BaseModel):
 
 
 class Approval(BaseModel):
-    acknowledge_flags: bool = False
+    # The id of each flagged statement the clinician has looked at. Every flag needs its own:
+    # one tick for the whole note is not accepted.
+    acknowledged: List[str] = Field(default_factory=list, max_length=300)
 
 
 def _session(db: sqlite3.Connection, session_id: str) -> sqlite3.Row:
@@ -91,7 +94,7 @@ def _latest(db: sqlite3.Connection, note_id: str) -> dict:
             "SELECT * FROM clinical_note_versions WHERE note_id = ? ORDER BY version DESC LIMIT 1", (note_id,)
         ).fetchone()
     )
-    version["content"] = json.loads(version["content"])
+    version["content"] = verifier.ensure_ids(json.loads(version["content"]))
     return version
 
 
@@ -119,9 +122,21 @@ def _add_segment(db: sqlite3.Connection, session: sqlite3.Row, text: str, speake
     return one(db.execute("SELECT * FROM transcript_segments WHERE id = ?", (segment_id,)).fetchone())
 
 
-def _note_payload(db: sqlite3.Connection, note: sqlite3.Row) -> dict:
+def _note_payload(db: sqlite3.Connection, note: sqlite3.Row, for_clinician: bool = False) -> dict:
     latest = _latest(db, note["id"])
-    lost = db.execute("SELECT chunks_lost FROM scribe_sessions WHERE id = ?", (note["session_id"],)).fetchone()
+    lost = db.execute("SELECT chunks_lost, transcript_deleted_at FROM scribe_sessions WHERE id = ?", (note["session_id"],)).fetchone()
+    if lost and lost["transcript_deleted_at"]:
+        # The lines are gone, so their numbers point at nothing. They are left out of what is shown.
+        latest["content"] = verifier.without_pointers(latest["content"])
+    elif for_clinician:
+        # The words each statement rests on, read fresh from the transcript and never saved into the note.
+        lines = {segment["sequence"]: segment for segment in _segments(db, note["session_id"])}
+        for statement in verifier.statements(latest["content"]):
+            statement["sources"] = [
+                {"line": number, "speaker": lines[number]["speaker"], "text": lines[number]["text"], "language": lines[number]["language"]}
+                for number in sorted(set(statement.get("evidence_segments", [])))
+                if number in lines
+            ]
     return {
         **dict(note),
         # Audio that never became text, so the reader knows the transcript behind this draft has gaps.
@@ -298,22 +313,30 @@ def draft_note(
     if not headings:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Add at least one section heading.")
 
+    # One draft at a time: a second one would leave two unsigned versions of the same consultation.
+    _refuse_second_draft(db, session_id)
     model = settings_store.model_for("clinscribe_note")
     release(db)  # nobody else waits on the write lock while the AI drafts
     content = drafting.draft_note(segments, headings)
-    note_id = insert(
-        db,
-        "clinical_notes",
-        session_id=session_id,
-        patient_id=session["patient_id"],
-        encounter_id=session["encounter_id"],
-        clinician_id=session["clinician_id"],
-        template=request.template,
-        model=model,
-        prompt_version=drafting.PROMPT_VERSION,
-        verifier_version=verifier.VERSION,
-        created_at=now_iso(),
-    )
+    try:
+        note_id = insert(
+            db,
+            "clinical_notes",
+            session_id=session_id,
+            patient_id=session["patient_id"],
+            encounter_id=session["encounter_id"],
+            clinician_id=session["clinician_id"],
+            template=request.template,
+            model=model,
+            prompt_version=drafting.PROMPT_VERSION,
+            verifier_version=verifier.VERSION,
+            created_at=now_iso(),
+        )
+    except sqlite3.IntegrityError:
+        # Another request drafted this session while the AI was answering. The index keeps one.
+        db.rollback()
+        _refuse_second_draft(db, session_id)
+        raise
     insert(
         db,
         "clinical_note_versions",
@@ -328,7 +351,16 @@ def draft_note(
         db, "ClinScribe", "note_draft.created", events.for_patient(db, session["patient_id"], user), "review_required", user,
         key=note_id, metadata={"review_required": True}, used_ai=True,
     )
-    return _note_payload(db, _note(db, note_id))
+    return _note_payload(db, _note(db, note_id), for_clinician=True)
+
+
+def _refuse_second_draft(db: sqlite3.Connection, session_id: str) -> None:
+    existing = db.execute("SELECT id FROM clinical_notes WHERE session_id = ? AND status = 'draft'", (session_id,)).fetchone()
+    if existing is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            {"code": "draft_exists", "note_id": existing["id"], "message": "This session already has a draft. Open it, or discard it to draft again."},
+        )
 
 
 @router.get("/patients/{patient_id}/notes")
@@ -344,7 +376,7 @@ def list_notes(
         """,
         (patient_id, int(access.is_clinician)),
     ).fetchall()
-    return [_note_payload(db, note) for note in notes]
+    return [_note_payload(db, note, for_clinician=access.is_clinician) for note in notes]
 
 
 @router.get("/notes/{note_id}")
@@ -353,7 +385,7 @@ def get_note(note_id: str, user=Depends(require_user), db: sqlite3.Connection = 
     access = gate.open_patient(db, user, note["patient_id"], "clinscribe.note.read")
     if note["status"] != "approved" and not access.is_clinician:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "We couldn't find that note.")
-    payload = _note_payload(db, note)
+    payload = _note_payload(db, note, for_clinician=access.is_clinician)
     if access.is_clinician:
         payload["versions"] = rows(
             db.execute(
@@ -391,6 +423,7 @@ def edit_note(
             statements.append(
                 previous.get(statement.text)
                 or {
+                    "id": uuid.uuid4().hex[:12],
                     "text": statement.text,
                     "origin": "clinician_statement",
                     "evidence_segments": [],
@@ -412,7 +445,7 @@ def edit_note(
         content=dumps(content),
         created_at=now_iso(),
     )
-    return _note_payload(db, note)
+    return _note_payload(db, note, for_clinician=True)
 
 
 @router.post("/notes/{note_id}/approve")
@@ -429,13 +462,21 @@ def approve_note(
     if note["status"] != "draft":
         raise HTTPException(status.HTTP_409_CONFLICT, "This note is already signed.")
     latest = _latest(db, note_id)
-    flags = verifier.open_flags(latest["content"])
-    if flags and not request.acknowledge_flags:
+    flagged = verifier.flagged_ids(latest["content"])
+    flags = len(flagged)
+    known = {statement["id"] for statement in verifier.statements(latest["content"])}
+    if set(request.acknowledged) - known:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "That acknowledgement is for a line that isn't in this note. Reload it and check again.")
+    unacknowledged = [statement_id for statement_id in flagged if statement_id not in request.acknowledged]
+    if unacknowledged:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            {"code": "flags_open", "open_flags": flags, "message": f"Lines still to check: {flags}."},
+            {"code": "flags_open", "open_flags": len(unacknowledged), "unacknowledged": unacknowledged, "message": f"Lines still to check: {len(unacknowledged)}."},
         )
     signed_at = now_iso()
+    # Without the patient's agreement to keep it, the transcript goes at signing, and the line
+    # numbers that pointed into it go with it.
+    retained = care.active_consent(db, note["patient_id"], "transcript_retention") is not None
     update(db, "clinical_notes", note_id, status="approved", approved_at=signed_at)
     insert(
         db,
@@ -445,17 +486,16 @@ def approve_note(
         author_type="clinician",
         author_id=user["id"],
         author_name=_author_name(user),
-        content=dumps({**latest["content"], "signed_with_open_flags": flags}),
+        content=dumps({**(latest["content"] if retained else verifier.without_pointers(latest["content"])), "signed_with_open_flags": flags, "acknowledged_flags": flagged}),
         created_at=signed_at,
     )
     audit.record(db, user, "clinscribe.note.signed", note["patient_id"], "clinical_note", note_id, reason=f"{flags} open flags")
     care.add_timeline(db, note["patient_id"], "clinscribe", "Consultation note signed", _author_name(user), "clinical_note", note_id)
     pack.enqueue(db, note["patient_id"], "clinical_note", note_id)
 
-    retained = care.active_consent(db, note["patient_id"], "transcript_retention") is not None
     if not retained:
         _delete_transcript(db, note["session_id"])
-    return {**_note_payload(db, _note(db, note_id)), "transcript_retained": retained}
+    return {**_note_payload(db, _note(db, note_id), for_clinician=True), "transcript_retained": retained}
 
 
 def _delete_transcript(db: sqlite3.Connection, session_id: str) -> None:

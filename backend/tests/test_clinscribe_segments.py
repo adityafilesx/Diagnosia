@@ -1,7 +1,7 @@
 """WI-222: typed lines are guarded by the session's state and by consent, and lost audio is counted."""
 from backend import llm, speech
 from backend.tests.conftest import FakeAI
-from backend.tests.test_clinscribe import draft, encounter, fake_draft, ready_session, session  # noqa: F401 (fixtures)
+from backend.tests.test_clinscribe import draft, encounter, fake_draft, ready_session, session, sign  # noqa: F401 (fixtures)
 
 BASE = "/api/addons/clinscribe"
 
@@ -57,7 +57,7 @@ def test_nothing_is_added_once_the_note_is_signed(doctor, patient, encounter, mo
     monkeypatch.setattr(llm, "ask", FakeAI(fake_draft()))
     started = ready_session(doctor, patient, encounter)
     note = draft(doctor, started["id"]).json()
-    doctor.post(f"{BASE}/notes/{note['id']}/approve", json={"acknowledge_flags": True})
+    assert sign(doctor, note).status_code == 200
     response = type_line(doctor, started["id"], "Too late", missed_line=True)
     assert response.status_code == 409
     assert lines(doctor, started["id"]) == []  # the transcript was deleted on signing and stays empty

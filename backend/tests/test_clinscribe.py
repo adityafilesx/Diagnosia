@@ -65,7 +65,8 @@ def test_changed_unit_is_flagged():
 
 def test_a_hindi_transcript_is_never_marked_as_supported_by_word_matching():
     result = check("Fever for 3 days", ["तीन दिन से बुखार है ३ दिन"])
-    assert result["verdict"] == "uncertain"
+    assert result["verdict"] == "not_checked"  # flagged for the clinician, and no longer called a check (WI-221)
+    assert result["verdict"] in verifier.FLAGGED
     assert any("language" in reason for reason in result["reasons"])
 
 
@@ -114,6 +115,12 @@ def ready_session(doctor, patient, encounter):
     doctor.post(f"/api/addons/clinscribe/sessions/{started['id']}/segments", json={"text": "I have had a cough for three days", "speaker": "patient"})
     doctor.post(f"/api/addons/clinscribe/sessions/{started['id']}/state", json={"state": "stopped"})
     return started
+
+
+def sign(doctor, note):
+    """Signs a note, acknowledging each of its flagged lines by id, as the review screen does."""
+    current = doctor.get(f"/api/addons/clinscribe/notes/{note['id']}").json()
+    return doctor.post(f"/api/addons/clinscribe/notes/{note['id']}/approve", json={"acknowledged": verifier.flagged_ids(current["content"])})
 
 
 def draft(doctor, session_id):
@@ -208,7 +215,7 @@ def test_open_flags_must_be_acknowledged_before_signing(doctor, patient, encount
     assert note["open_flags"] == 1
     url = f"/api/addons/clinscribe/notes/{note['id']}/approve"
     assert doctor.post(url, json={}).json()["detail"]["code"] == "flags_open"
-    assert doctor.post(url, json={"acknowledge_flags": True}).status_code == 200
+    assert sign(doctor, note).status_code == 200
 
 
 def test_only_the_treating_clinician_can_sign(doctor, person, patient, encounter, monkeypatch):
@@ -217,7 +224,7 @@ def test_only_the_treating_clinician_can_sign(doctor, person, patient, encounter
     code = doctor.post(f"/api/patients/{patient['id']}/share-codes", json={"purpose": "clinician"}).json()["code"]
     colleague = person("doctor")
     colleague.post("/api/patients/join", json={"code": code})
-    assert colleague.post(f"/api/addons/clinscribe/notes/{note['id']}/approve", json={"acknowledge_flags": True}).status_code == 403
+    assert colleague.post(f"/api/addons/clinscribe/notes/{note['id']}/approve", json={"acknowledged": verifier.flagged_ids(note["content"])}).status_code == 403
 
 
 def test_edits_keep_every_version_and_a_signed_note_is_final(doctor, patient, encounter, monkeypatch):
@@ -264,7 +271,7 @@ def test_signed_note_reaches_timeline_and_exports_as_fhir(doctor, patient, encou
     note = draft(doctor, ready_session(doctor, patient, encounter)["id"]).json()
     url = f"/api/addons/clinscribe/notes/{note['id']}"
     assert doctor.get(f"{url}/fhir").status_code == 409
-    doctor.post(f"{url}/approve", json={"acknowledge_flags": True})
+    assert sign(doctor, note).status_code == 200
     composition = doctor.get(f"{url}/fhir").json()
     assert composition["resourceType"] == "Composition"
     assert "&lt;worse&gt;" in composition["section"][0]["text"]["div"]

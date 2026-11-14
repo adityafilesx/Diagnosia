@@ -160,7 +160,13 @@ mark, .unreviewed {
 .reasons { list-style: none; padding: 0; margin: 2px 0 0; font-size: .85rem; color: var(--ink-soft); }
 .verdict-unsupported textarea, .verdict-uncertain textarea, .verdict-supported textarea, .verdict-clinician_entered textarea { min-height: 44px; }
 .verdict-unsupported textarea { border: 2px solid var(--alert); }
-.verdict-uncertain textarea { background: var(--highlighter); color: var(--highlighter-ink); border-color: var(--highlighter); }
+.verdict-uncertain textarea, .verdict-not_checked textarea { background: var(--highlighter); color: var(--highlighter-ink); border-color: var(--highlighter); }
+.verdict-not_checked textarea { min-height: 44px; }
+/* A statement with the transcript lines it rests on beside it, where there is room. */
+.statement { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+@media (min-width: 900px) { .statement:has(.source-lines) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+.source-lines blockquote { margin: 4px 0 0; padding: 6px 10px; border-left: 3px solid var(--rule); font-size: .95rem; }
+.source-lines .who { display: block; font-size: .8rem; color: var(--ink-soft); }
 
 .sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; margin: 12px 0; }
 .alert-card { border-color: var(--alert); }

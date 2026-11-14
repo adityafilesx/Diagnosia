@@ -224,7 +224,9 @@ def test_a_note_can_go_from_transcript_to_signed_record(journey, monkeypatch):
     )
     monkeypatch.setattr(llm, "ask", FakeAI(draft))
     note = doctor.post(f"/api/addons/clinscribe/sessions/{ids['session']}/draft-note", json={}).json()
-    signed = doctor.post(f"/api/addons/clinscribe/notes/{note['id']}/approve", json={"acknowledge_flags": True})
+    from backend.tests.test_clinscribe import sign
+
+    signed = sign(doctor, note)
     assert signed.status_code == 200
     assert any(event["module"] == "clinscribe" for event in doctor.get(f"/api/patients/{ids['ravi']}/timeline").json())
 

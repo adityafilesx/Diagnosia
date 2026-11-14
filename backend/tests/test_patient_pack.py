@@ -536,7 +536,9 @@ def test_a_note_reaches_the_pack_only_once_signed_and_without_its_transcript(ser
     run_worker(server)
     assert stored_text(server) == ""  # a draft is still only a draft
 
-    assert doctor.post(f"/api/addons/clinscribe/notes/{note['id']}/approve", json={"acknowledge_flags": True}).status_code == 200
+    from backend.tests.test_clinscribe import sign
+
+    assert sign(doctor, note).status_code == 200
     run_worker(server)
     text = stored_text(server)
     assert "Cough for three days" in text and "Signed consultation note" in text

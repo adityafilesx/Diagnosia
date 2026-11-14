@@ -13,14 +13,19 @@ often, using the prescription tool's rules. Text a clinician types is checked fo
 a dose or frequency that conflicts with what was said.
 """
 import re
+import uuid
 from typing import Dict, List, Optional, Set, Tuple
 
 from rapidfuzz import fuzz
 
+from backend.prescription import crosscheck
 from backend.prescription.medicines import CLOSE_SCORE, FORM_WORDS
 from backend.prescription.shorthand import doses_a_day
 
 VERSION = "2.0"
+# Verdicts a clinician must look at, one by one, before signing. "not_checked" is a statement the
+# rules could not compare with its source (a transcript in another language): it is not a pass.
+FLAGGED = ("uncertain", "unsupported", "not_checked")
 
 STOP_WORDS = {
     "a", "an", "the", "and", "or", "but", "if", "then", "of", "to", "in", "on", "for", "with", "by", "as", "is",
@@ -68,6 +73,15 @@ def tokens(text: str) -> Set[str]:
 
 def numbers(text: str) -> Set[str]:
     return {_canonical_number(found) for found in NUMBER.findall(_normal(text))}
+
+
+def said_numbers(text: str) -> Set[str]:
+    """Numbers in what was said, including ones spoken as words in English or Hindi ("three", "तीन").
+
+    Only for the transcript side: a note that writes "3 days" is supported by a patient saying "three days"."""
+    words = re.findall(r"[a-z]+|[\u0900-\u097F]+", _normal(text))
+    spoken = {crosscheck.ENGLISH.get(word, crosscheck.HINDI.get(word)) for word in words}
+    return numbers(text) | {_canonical_number(str(float(value))) for value in spoken if value is not None}
 
 
 def _canonical_number(value: str) -> str:
@@ -224,14 +238,14 @@ def check_statement(text: str, cited: List[int], segments: Dict[int, str]) -> di
     reasons: List[str] = []
 
     stated_numbers = numbers(FREQUENCY_COUNT.sub(" ", text))
-    missing_numbers = stated_numbers - numbers(transcript)
+    missing_numbers = stated_numbers - said_numbers(transcript)
     if missing_numbers:
         reasons.append(f"Number not in the transcript: {', '.join(sorted(missing_numbers))}")
     # Said somewhere, but not in the lines this statement rests on: it may belong to something else.
-    for number in sorted(stated_numbers - numbers(evidence) - missing_numbers):
-        places = ", ".join(f"line {n}" for n, line in segments.items() if number in numbers(line))
+    for number in sorted(stated_numbers - said_numbers(evidence) - missing_numbers):
+        places = ", ".join(f"line {n}" for n, line in segments.items() if number in said_numbers(line))
         reasons.append(f"Number {number} is in {places}, not in the lines this cites")
-    unplaced = stated_numbers - numbers(evidence)
+    unplaced = stated_numbers - said_numbers(evidence)
     changed_units = {f"{number} {unit}" for number, unit in quantities(text) - quantities(evidence) if number not in unplaced}
     if changed_units:
         reasons.append(f"Amount or unit differs from the cited lines: {', '.join(sorted(changed_units))}")
@@ -239,8 +253,8 @@ def check_statement(text: str, cited: List[int], segments: Dict[int, str]) -> di
     if not english:
         if not cited:
             reasons.append("No transcript line cited")
-        reasons.append("Transcript is in another language: compare by hand")
-        return {"verdict": "unsupported" if missing_numbers else "uncertain", "score": 0.0, "reasons": reasons, "evidence": sorted(cited)}
+        reasons.append("Not checked: the transcript is in another language. Compare it with the source line")
+        return {"verdict": "unsupported" if missing_numbers else "not_checked", "score": 0.0, "reasons": reasons, "evidence": sorted(cited)}
 
     if sides(text) and sides(text) - sides(transcript):
         reasons.append("Side of the body differs from the transcript")
@@ -269,9 +283,10 @@ def check_statement(text: str, cited: List[int], segments: Dict[int, str]) -> di
 
 def verify_note(content: dict, segments: Dict[int, str]) -> dict:
     """Adds a check to every statement, and a summary for the review screen."""
-    counts = {"supported": 0, "uncertain": 0, "unsupported": 0}
+    counts = {"supported": 0, "uncertain": 0, "unsupported": 0, "not_checked": 0}
     for section in content["sections"]:
         for statement in section["statements"]:
+            statement.setdefault("id", uuid.uuid4().hex[:12])  # so each flag can be acknowledged by itself
             check = check_statement(statement["text"], statement.get("evidence_segments", []), segments)
             if statement.get("origin") == "ai_summary" and check["verdict"] == "supported":
                 check["verdict"] = "uncertain"
@@ -282,20 +297,42 @@ def verify_note(content: dict, segments: Dict[int, str]) -> dict:
                 check["verdict"] = "uncertain" if check["verdict"] == "supported" else check["verdict"]
             statement["check"] = check
             counts[check["verdict"]] += 1
-    checked = counts["supported"] + counts["unsupported"] + counts["uncertain"]
+    checked = counts["supported"] + counts["unsupported"] + counts["uncertain"] + counts["not_checked"]
     status = "verified"
     if checked and counts["unsupported"] / checked > 0.3:
         status = "failed"
+    elif counts["not_checked"]:
+        status = "not_checked"  # some lines were never compared, so the note as a whole was not verified
     elif counts["unsupported"] or counts["uncertain"]:
         status = "partial"
     content["verification"] = {"status": status, "version": VERSION, **counts}
     return content
 
 
+def statements(content: dict) -> List[dict]:
+    return [statement for section in content["sections"] for statement in section["statements"]]
+
+
+def ensure_ids(content: dict) -> dict:
+    """Notes drafted before statements had ids get one from their place, the same on every read."""
+    for part, section in enumerate(content["sections"]):
+        for place, statement in enumerate(section["statements"]):
+            statement.setdefault("id", f"s{part}-{place}")
+    return content
+
+
+def flagged_ids(content: dict) -> List[str]:
+    return [statement["id"] for statement in statements(ensure_ids(content)) if statement.get("check", {}).get("verdict") in FLAGGED]
+
+
 def open_flags(content: dict) -> int:
-    return sum(
-        1
-        for section in content["sections"]
-        for statement in section["statements"]
-        if statement.get("check", {}).get("verdict") in ("uncertain", "unsupported")
-    )
+    return len(flagged_ids(content))
+
+
+def without_pointers(content: dict) -> dict:
+    """The note with no line numbers in it, for when the transcript those numbers pointed to is gone."""
+    for statement in statements(content):
+        statement["evidence_segments"] = []
+        if "check" in statement:
+            statement["check"] = {**statement["check"], "evidence": []}
+    return {**content, "sources_deleted": True}
