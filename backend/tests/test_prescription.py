@@ -241,6 +241,26 @@ def post_photo(client, consent="true", photos=1, version=CONSENT_VERSION):
     )
 
 
+def read_as(client, monkeypatch, *medicines):
+    """Reads a photo with a fake AI that returns these medicines, and gives back the reading's id.
+
+    Explaining, saving and the calendar all work from a stored reading, never from medicines sent
+    by the browser, so tests of those routes start here."""
+    empty = {"value": "", "legibility": "clear"}
+    result = ReadPrescription.model_validate(
+        {
+            "is_prescription": True,
+            "medicines": [json.loads(item.model_dump_json(exclude={"contains"})) for item in medicines],
+            "follow_up_date": empty,
+            "doctor_notes": empty,
+        }
+    )
+    monkeypatch.setattr(llm, "ask", RecordingAI(result))
+    response = post_photo(client)
+    assert response.status_code == 200
+    return response.json()["reading_id"]
+
+
 def test_reading_requires_sign_in(client, monkeypatch):
     ai = RecordingAI(read_result())
     monkeypatch.setattr(llm, "ask", ai)
@@ -312,11 +332,12 @@ def test_a_name_not_on_the_medicine_list_must_be_checked(client, details, monkey
 
 
 def test_explain_endpoint_returns_a_schedule(client, details, monkeypatch):
-    monkeypatch.setattr(llm, "ask", RecordingAI(guidance()))
     signed_in(client, details)
+    reading_id = read_as(client, monkeypatch, medicine())
+    monkeypatch.setattr(llm, "ask", RecordingAI(guidance()))
     response = client.post(
         "/api/prescription/explain",
-        json={"medicines": [json.loads(medicine().model_dump_json())], "language": "hi-IN"},
+        json={"reading_id": reading_id, "confirmed": [0], "language": "hi-IN"},
     )
     assert response.status_code == 200
     assert response.json()["schedule"]["morning"][0]["name"] == "Amoxicillin"
@@ -379,13 +400,14 @@ def test_calendar_reminders_build_google_urls_and_ics():
     assert "TRIGGER:-PT10M" in reminders["ics_calendar"]
 
 
-def test_calendar_endpoint_with_custom_times(client, details):
+def test_calendar_endpoint_with_custom_times(client, details, monkeypatch):
     signed_in(client, details)
     med = medicine("Azithromycin", frequency="1-0-0").model_copy(update={"duration": field("3 days")})
     response = client.post(
         "/api/prescription/calendar",
         json={
-            "medicines": [json.loads(med.model_dump_json())],
+            "reading_id": read_as(client, monkeypatch, med),
+            "confirmed": [0],
             "language": "hi-IN",
             "start_date": "2026-11-05",
             "times": {"morning": "09:15"},
@@ -555,12 +577,12 @@ def test_the_calendar_endpoint_reuses_the_plan_without_calling_the_ai(client, de
     def refuse(*_args, **_options):
         raise AssertionError("the calendar route must not call the AI")
 
-    monkeypatch.setattr(llm, "ask", refuse)
     signed_in(client, details)
-    meds = [json.loads(timed("A", "subah shaam", duration="x 3 days").model_dump_json())]
+    reading_id = read_as(client, monkeypatch, timed("A", "subah shaam", duration="x 3 days"))
+    monkeypatch.setattr(llm, "ask", refuse)
     response = client.post(
         "/api/prescription/calendar",
-        json={"medicines": meds, "language": "en-IN", "plan": {"0": {"slots": ["morning", "night"], "reason": ""}}},
+        json={"reading_id": reading_id, "confirmed": [0], "language": "en-IN", "plan": {"0": {"slots": ["morning", "night"], "reason": ""}}},
     )
     assert response.status_code == 200
     assert set(response.json()["slots"]) == {"morning", "night"}

@@ -438,6 +438,15 @@ button:not(.quiet):not(.danger):not(.link-button):not(.patient-row),
 .medicine-card strong { display: block; }
 .medicine-card p { margin: .25rem 0; }
 .medicine-card audio { display: block; width: 100%; margin-top: 8px; }
+/* The patient's own photo beside what was read from it. Side by side where there is room. */
+.medicine-card.with-photo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@media (min-width: 700px) { .medicine-card.with-photo { grid-template-columns: minmax(0, 1fr) minmax(0, 220px); } }
+.rx-photos { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.rx-photo { padding: 0; border: 1px solid var(--rule); border-radius: 4px; background: none; cursor: zoom-in; line-height: 0; min-width: 44px; min-height: 44px; }
+.rx-photo img { display: block; width: 100px; height: 100px; object-fit: cover; border-radius: 3px; }
+.rx-photo.large { cursor: zoom-out; flex-basis: 100%; }
+.rx-photo.large img { width: 100%; height: auto; object-fit: contain; }
+@media (min-width: 700px) { .medicine-card.with-photo:has(.rx-photo.large) { grid-template-columns: minmax(0, 1fr); } }
 .schedule { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .schedule p { margin: .2rem 0; font-size: .925rem; }
 

@@ -122,10 +122,20 @@ Handwriting reading is the risky part, so **nothing is explained until the patie
 3. `medicines.py` checks each name against a list of about 250,000 Indian medicines (rapidfuzz).
    Found, close ("Did you mean ...?") or not found. It only flags names. It **never changes** what
    was read. A "clear" name that isn't in the list is downgraded to "unsure".
-4. The patient ticks each medicine that matches their prescription. Unticked or unreadable ones go
-   to "ask your pharmacist" and **never reach the explanation step**.
+4. The patient ticks each medicine that matches their prescription, with their own photo beside each
+   card (a local object URL, never uploaded again). Unticked or unreadable ones go to "ask your
+   pharmacist" and **never reach the explanation step**.
 5. `/api/prescription/explain` explains only the confirmed medicines, in the patient's language.
    It never changes a dose or suggests a substitute.
+
+**The server never trusts the page for what was read.** `/read` keeps the reading for 24 hours
+(`prescription_readings`, no photo, no doctor's notes) and returns a `reading_id` and, per medicine,
+`confirmable`: the one readability rule (`analyzer.is_explainable`), which the page uses instead of a
+rule of its own. `/explain`, `/save` and `/calendar` take `reading_id` and `confirmed` (the ticked
+positions) and rebuild the medicines from the stored reading (`analyzer.confirmed_from`); a tick on a
+medicine that isn't confirmable is a 422. Each explain and save stores the ticked set, `APP_VERSION`
+(`backend/version.py`) and the models in `prescription_confirmations`. Don't add a route that takes
+medicines from the browser.
 
 The photo isn't stored. A consent box says it goes to outside AI services, and each agreement is stored in
 `consent_records` with the version of the words (`backend/records/consent.py`).

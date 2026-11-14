@@ -114,6 +114,7 @@ SWEEP_STEPS = (
     ("rate_limits", ratelimit.forget_expired),
     ("expired_links", diagnofast.expire_stale),
     ("stale_reports", diagnofast.fail_stale_reports),
+    ("old_prescription_readings", prescription.forget_old_readings),
 )
 
 

@@ -1,5 +1,6 @@
-// Prescription Analyzer. Nothing is explained until the patient has confirmed it:
-// a medicine left unticked is sent as unreadable, so it never reaches the explanation.
+// Prescription Analyzer. Nothing is explained until the patient has confirmed it. The server keeps
+// its own copy of what was read and says which medicines can be ticked (`confirmable`); this page
+// sends back only which cards were ticked, so the server never relies on the page for what was read.
 import { api, h, plural, readAloud, show, toast } from './ui.js';
 
 const LEGIBILITY_NOTE = {
@@ -7,12 +8,6 @@ const LEGIBILITY_NOTE = {
     unreadable: "We couldn't read this. Please ask your pharmacist.",
 };
 const LANGUAGES = [['hi-IN', 'हिन्दी'], ['en-IN', 'English']];
-
-function isReadable(medicine) {
-    return Boolean(medicine.name.value.trim())
-        && medicine.name.legibility !== 'unreadable'
-        && medicine.frequency.legibility !== 'unreadable';
-}
 
 function medicineCheckText(match) {
     if (!match) return null;
@@ -37,35 +32,58 @@ function otherReading(medicine) {
         h('ul', {}, different.map(([key, value]) => h('li', {}, `${FIELD_WORDS[key] || key}: the other reading said "${value || 'nothing'}"`))));
 }
 
+// The patient's own photos, shown beside each card so the reading can be compared with the paper.
+// They are local object addresses made in this browser: nothing here uploads them.
+let photoAddresses = [];
+
+function forgetPhotos() {
+    photoAddresses.forEach((address) => URL.revokeObjectURL(address));
+    photoAddresses = [];
+}
+
+function rememberPhotos(files) {
+    forgetPhotos();
+    photoAddresses = [...files].map((photo) => URL.createObjectURL(photo));
+}
+
+function photoStrip() {
+    if (!photoAddresses.length) return null;
+    return h('div', { class: 'rx-photos' }, photoAddresses.map((address, number) => {
+        const image = h('img', { src: address, alt: `Your photo ${number + 1} of the prescription`, loading: 'lazy' });
+        const toggle = h('button', { type: 'button', class: 'rx-photo', 'aria-expanded': 'false', 'aria-label': `Photo ${number + 1}: make larger or smaller` }, image);
+        toggle.addEventListener('click', () => {
+            const large = toggle.classList.toggle('large');
+            toggle.setAttribute('aria-expanded', String(large));
+        });
+        return toggle;
+    }));
+}
+
 function medicineCard(medicine, index) {
     const worst = [medicine.name, medicine.frequency, medicine.dose, medicine.duration]
         .some((field) => field.legibility === 'unsure') ? 'unsure' : 'clear';
-    const readable = isReadable(medicine);
+    // The server's rule, the same one it applies before explaining anything.
+    const readable = Boolean(medicine.confirmable);
     const state = readable ? worst : 'unreadable';
     const written = [medicine.dose.value, medicine.frequency.value, medicine.day_pattern.value, medicine.duration.value]
         .filter(Boolean).join(', ');
-    return h('div', { class: `medicine-card ${state}` },
-        h('strong', {}, medicine.name.value || 'A medicine we could not read'),
-        written && h('p', {}, `As written: ${written}`),
-        medicine.plain && h('p', {}, medicine.plain),
-        medicineCheckText(medicine.match) && h('p', {}, medicineCheckText(medicine.match)),
-        LEGIBILITY_NOTE[state] && h('p', {}, h('mark', {}, LEGIBILITY_NOTE[state])),
-        otherReading(medicine),
-        readable && h('label', { class: 'tick' },
-            h('input', { type: 'checkbox', 'data-index': index }),
-            'This matches my prescription'));
+    return h('div', { class: `medicine-card with-photo ${state}` },
+        h('div', {},
+            h('strong', {}, medicine.name.value || 'A medicine we could not read'),
+            written && h('p', {}, `As written: ${written}`),
+            medicine.plain && h('p', {}, medicine.plain),
+            medicineCheckText(medicine.match) && h('p', {}, medicineCheckText(medicine.match)),
+            LEGIBILITY_NOTE[state] && h('p', {}, h('mark', {}, LEGIBILITY_NOTE[state])),
+            otherReading(medicine),
+            readable && h('label', { class: 'tick' },
+                h('input', { type: 'checkbox', 'data-index': index }),
+                'This matches my prescription')),
+        photoStrip());
 }
 
-function confirmedMedicines(reading, list) {
-    const ticked = new Set([...list.querySelectorAll('input:checked')].map((tick) => Number(tick.dataset.index)));
-    return reading.medicines.map((medicine, index) => {
-        // What the page added for display stays on the page: only the fields the patient confirmed go on.
-        const { plain, match, differs, only_in_one_reading, ...fields } = medicine;
-        // Ingredients are only trusted when the name was an exact match.
-        const contains = match && match.status === 'found' ? match.contains || '' : '';
-        if (ticked.has(index)) return { ...fields, contains };
-        return { ...fields, name: { ...fields.name, legibility: 'unreadable' } };
-    });
+// Which cards the patient ticked, by their place in the reading.
+function tickedCards(list) {
+    return [...list.querySelectorAll('input:checked')].map((tick) => Number(tick.dataset.index));
 }
 
 function listenButton(text, language) {
@@ -86,12 +104,12 @@ function listCard(title, items, language) {
         language && listenButton(items.join('. ').slice(0, 2400), language));
 }
 
-function saveButton(medicines) {
+function saveButton(readingId, confirmed) {
     const button = h('button', { type: 'button', class: 'quiet no-print' }, 'Save to my record');
     button.addEventListener('click', async () => {
         button.disabled = true;
         try {
-            await api('/api/prescription/save', { method: 'POST', body: { medicines } });
+            await api('/api/prescription/save', { method: 'POST', body: { reading_id: readingId, confirmed: confirmed } });
             button.textContent = 'Saved to your record';
         } catch (error) {
             toast(error.message, true);
@@ -150,7 +168,8 @@ function calendarRemindersView(reminders, language) {
                 const updated = await api('/api/prescription/calendar', {
                     method: 'POST',
                     body: {
-                        medicines: reminders._medicines,
+                        reading_id: reminders._readingId,
+                        confirmed: reminders._confirmed,
                         language,
                         guidance: reminders._guidance,
                         plan: reminders._plan,
@@ -158,7 +177,8 @@ function calendarRemindersView(reminders, language) {
                         times: customTimes,
                     },
                 });
-                updated._medicines = reminders._medicines;
+                updated._readingId = reminders._readingId;
+                updated._confirmed = reminders._confirmed;
                 updated._guidance = reminders._guidance;
                 updated._plan = reminders._plan;
                 const parent = refreshButton.closest('.sheet');
@@ -260,16 +280,16 @@ function calendarRemindersView(reminders, language) {
     );
 }
 
-function resultsView(data, language, reading, confirmedMeds) {
+function resultsView(data, language, reading, confirmed) {
     const guidance = data.guidance;
     const hasSchedule = Object.values(data.schedule).some((entries) => entries.length);
     const reminders = data.reminders || {};
     // Attach originals so the refresh button can re-request with updated times.
-    reminders._medicines = confirmedMeds;
+    reminders._readingId = reading.reading_id;
+    reminders._confirmed = confirmed;
     reminders._guidance = guidance;
     reminders._plan = data.plan;
     const remindersSection = calendarRemindersView(reminders, language);
-    const ticked = confirmedMeds.filter((medicine) => medicine.name.legibility !== 'unreadable');
     return [
         guidance && h('div', { class: 'sheet', lang: language.slice(0, 2) },
             h('h2', { lang: 'en' }, 'Your medicines'),
@@ -286,7 +306,7 @@ function resultsView(data, language, reading, confirmedMeds) {
         remindersSection,
         reading.follow_up_date.value && listCard('Next appointment', [reading.follow_up_date.value]),
         data.ask_pharmacist.length > 0 && listCard('Please ask your pharmacist or doctor about', data.ask_pharmacist),
-        ticked.length > 0 && saveButton(ticked),
+        confirmed.length > 0 && saveButton(reading.reading_id, confirmed),
     ];
 }
 
@@ -311,10 +331,10 @@ export function renderPrescription(container) {
             explain.textContent = 'Explaining...';
             try {
                 const notes = reading.doctor_notes.legibility === 'unreadable' ? '' : reading.doctor_notes.value;
-                const confirmed = confirmedMedicines(reading, list);
+                const confirmed = tickedCards(list);
                 const data = await api('/api/prescription/explain', {
                     method: 'POST',
-                    body: { medicines: confirmed, language: language.value, doctor_notes: notes.slice(0, 2000) },
+                    body: { reading_id: reading.reading_id, confirmed: confirmed, language: language.value, doctor_notes: notes.slice(0, 2000) },
                 });
                 show(stepThree, resultsView(data, language.value, reading, confirmed));
                 stepThree.scrollIntoView({ behavior: 'smooth' });
@@ -327,6 +347,7 @@ export function renderPrescription(container) {
         show(stepTwo, h('div', { class: 'sheet' },
             h('h2', {}, 'Check what we read'),
             h('p', { class: 'lede' }, "Tick each medicine that matches your prescription. Anything you don't tick goes to your pharmacist's list and isn't explained."),
+            photoAddresses.length ? h('p', { class: 'muted' }, 'Your photo is beside each medicine so you can compare. Tap it to make it larger. It stays on this device.') : null,
             list,
             h('label', {}, 'Explain it in', language),
             h('div', { class: 'row' }, explain)));
@@ -343,6 +364,7 @@ export function renderPrescription(container) {
             readButton.disabled = true;
             readButton.textContent = 'Reading...';
             const body = new FormData();
+            rememberPhotos(photos.files);
             [...photos.files].forEach((photo) => body.append('images', photo));
             body.append('consent', consent.checked);
             body.append('consent_version', CONSENT_VERSION);

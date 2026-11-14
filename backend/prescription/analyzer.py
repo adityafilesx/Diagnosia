@@ -201,7 +201,39 @@ def read_prescription(images: List[Image.Image]) -> dict:
         # A clear reading of a name that isn't a known medicine may still be a misreading.
         if medicine["match"]["status"] in ("close", "not_found") and name["legibility"] == "clear":
             name["legibility"] = "unsure"
+        # The one readability rule. The page offers a tick only where this is true, and only a
+        # ticked medicine is explained, so both sides always agree on what can be confirmed.
+        medicine["confirmable"] = is_explainable(ConfirmedMedicine.model_validate(_fields(medicine)))
     return result
+
+
+FIELDS = ("name", "dose", "frequency", "day_pattern", "duration", "notes")
+
+
+def _fields(medicine: dict) -> dict:
+    """The fields that were read, without what the server added for display."""
+    return {key: medicine[key] for key in FIELDS}
+
+
+def confirmed_from(reading: List[dict], ticked: List[int]) -> List[ConfirmedMedicine]:
+    """The medicines to explain, built from the server's own reading and the cards the patient ticked.
+
+    A medicine that wasn't ticked is passed on with an unreadable name, which sends it to the
+    "ask your pharmacist" list and keeps it out of the explanation. Nothing the browser says about
+    how legible a field was is used.
+    """
+    chosen = set(ticked)
+    medicines = []
+    for index, medicine in enumerate(reading):
+        fields = _fields(medicine)
+        if index in chosen:
+            match = medicine.get("match") or {}
+            # Ingredients are only trusted when the name was an exact match.
+            contains = match.get("contains") or "" if match.get("status") == "found" else ""
+            medicines.append(ConfirmedMedicine.model_validate({**fields, "contains": contains}))
+        else:
+            medicines.append(ConfirmedMedicine.model_validate({**fields, "name": {**fields["name"], "legibility": "unreadable"}}))
+    return medicines
 
 
 def is_explainable(medicine: ConfirmedMedicine) -> bool:
@@ -568,6 +600,7 @@ def explain_prescription(medicines: List[ConfirmedMedicine], language: Language,
         if not is_explainable(medicine)
     ]
     guidance = None
+    explained_by = ""
     if explainable:
         details = [
             {
@@ -587,11 +620,14 @@ def explain_prescription(medicines: List[ConfirmedMedicine], language: Language,
             f"Language: {language}\n\nDoctor's notes: {doctor_notes or 'None'}\n\n"
             f"Medicines:\n{json.dumps(details, ensure_ascii=False, indent=2)}"
         )
+        llm.forget_last_model()
         guidance = llm.ask(EXPLAIN_SYSTEM, request, Guidance, tool="prescription_explain").model_dump()
+        explained_by = llm.last_model()  # before the planning call below, which may use another model
     plan = plan_unresolved(explainable, doctor_notes)
     reminders = build_calendar_reminders(explainable, language, guidance, plan=plan)
     return {
         "guidance": guidance,
+        "explained_by": explained_by,
         "schedule": build_schedule(explainable, plan),
         "plan": plan,
         "reminders": reminders,
