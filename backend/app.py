@@ -36,6 +36,7 @@ from backend.lablens import routes as lablens
 from backend.patient_pack import routes as patient_pack
 from backend.patient_pack import sync as pack_sync
 from backend.prescription import routes as prescription
+from backend.prescription import medicines as medicine_names
 from backend.prescription.medicines import get_medicine_list
 from backend.records import audit, care, vault
 from backend.records import routes as records
@@ -232,7 +233,10 @@ def readyz() -> JSONResponse:
         checks["database"] = False
     checks["key_ring"] = vault.status()[0]
     ready = all(checks.values())
-    return JSONResponse({"ready": ready, "checks": checks}, status_code=200 if ready else 503)
+    # Things that work less well but don't stop the site. Without the medicine list, names read
+    # from a prescription are not checked against anything.
+    warnings = [] if medicine_names.installed() else ["medicine_list_missing"]
+    return JSONResponse({"ready": ready, "checks": checks, "warnings": warnings}, status_code=200 if ready else 503)
 
 
 @app.middleware("http")

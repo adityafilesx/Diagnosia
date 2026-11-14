@@ -121,7 +121,11 @@ Handwriting reading is the risky part, so **nothing is explained until the patie
    disagree with the written frequency, and SOS/PRN medicines never get a fixed time.
 3. `medicines.py` checks each name against a list of about 250,000 Indian medicines (rapidfuzz).
    Found, close ("Did you mean ...?") or not found. It only flags names. It **never changes** what
-   was read. A "clear" name that isn't in the list is downgraded to "unsure".
+   was read. A "clear" name that isn't in the list is downgraded to "unsure". With no list installed
+   (`CURAI_MEDICINE_LIST`, default under `datasets/`) every name is `unchecked`: the card says "We could
+   not check this name against a list", the tool shows a banner (`medicine_list_ready` in the config,
+   `names_checked` on the reading), and `/readyz` lists the warning `medicine_list_missing`. CI runs the
+   real checker on `backend/tests/fixtures/medicine_list_fixture.csv`, which holds invented names only.
 4. The patient ticks each medicine that matches their prescription, with their own photo beside each
    card (a local object URL, never uploaded again). Unticked or unreadable ones go to "ask your
    pharmacist" and **never reach the explanation step**.

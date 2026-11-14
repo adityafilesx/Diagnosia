@@ -204,6 +204,11 @@ def read_prescription(images: List[Image.Image]) -> dict:
         # The one readability rule. The page offers a tick only where this is true, and only a
         # ticked medicine is explained, so both sides always agree on what can be confirmed.
         medicine["confirmable"] = is_explainable(ConfirmedMedicine.model_validate(_fields(medicine)))
+    # False when a name went unchecked because no medicine list is installed. The page then says so:
+    # without the list, a confident misreading of a name gets no second look.
+    result["names_checked"] = not any(
+        medicine["match"]["status"] == "unchecked" and medicine["name"]["value"].strip() for medicine in result["medicines"]
+    )
     return result
 
 

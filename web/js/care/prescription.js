@@ -15,6 +15,7 @@ function medicineCheckText(match) {
     if (match.status === 'found') return `Found in our medicine list.${contains}`;
     if (match.status === 'close') return `Did you mean ${match.name}?${contains}`;
     if (match.status === 'not_found') return "This name isn't in our medicine list.";
+    if (match.status === 'unchecked') return 'We could not check this name against a list. Compare it with your prescription letter by letter.';
     return null;
 }
 
@@ -72,7 +73,8 @@ function medicineCard(medicine, index) {
             h('strong', {}, medicine.name.value || 'A medicine we could not read'),
             written && h('p', {}, `As written: ${written}`),
             medicine.plain && h('p', {}, medicine.plain),
-            medicineCheckText(medicine.match) && h('p', {}, medicineCheckText(medicine.match)),
+            // A card with no name has nothing to check, so it says nothing about the list.
+            medicine.name.value.trim() && medicineCheckText(medicine.match) && h('p', {}, medicineCheckText(medicine.match)),
             LEGIBILITY_NOTE[state] && h('p', {}, h('mark', {}, LEGIBILITY_NOTE[state])),
             otherReading(medicine),
             readable && h('label', { class: 'tick' },
@@ -314,7 +316,9 @@ function resultsView(data, language, reading, confirmed) {
 const CONSENT_VERSION = '2026-11-13';
 const CONSENT_TEXT = "I agree to my photo being sent to outside AI services to read it. Curai doesn't keep the photo.";
 
-export function renderPrescription(container) {
+const NO_LIST = "Medicine names can't be checked against a list on this server right now, so a misread name won't be flagged. Compare every name with your prescription, and ask your pharmacist if any looks wrong.";
+
+export function renderPrescription(container, context) {
     const stepOne = h('div', {});
     const stepTwo = h('div', {});
     const stepThree = h('div', {});
@@ -347,6 +351,7 @@ export function renderPrescription(container) {
         show(stepTwo, h('div', { class: 'sheet' },
             h('h2', {}, 'Check what we read'),
             h('p', { class: 'lede' }, "Tick each medicine that matches your prescription. Anything you don't tick goes to your pharmacist's list and isn't explained."),
+            reading.names_checked === false ? h('div', { class: 'banner danger', role: 'status' }, NO_LIST) : null,
             photoAddresses.length ? h('p', { class: 'muted' }, 'Your photo is beside each medicine so you can compare. Tap it to make it larger. It stays on this device.') : null,
             list,
             h('label', {}, 'Explain it in', language),
@@ -391,6 +396,7 @@ export function renderPrescription(container) {
     show(container,
         h('h1', {}, 'Prescription Analyzer'),
         h('p', { class: 'lede' }, 'Reads your prescription and explains it in plain words. It never changes a dose.'),
+        context?.config?.medicine_list_ready === false ? h('div', { class: 'banner danger no-print', id: 'no-medicine-list', role: 'status' }, NO_LIST) : null,
         h('div', { class: 'sheet no-print' }, upload),
         stepOne, stepTwo, stepThree,
         h('p', { class: 'muted no-print' }, h('a', { href: 'prescription_analyzer_hiw.html' }, 'How it works')));

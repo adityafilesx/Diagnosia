@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from backend.auth import require_doctor, require_user
 from backend.config import settings
 from backend.db import connect, get_db
+from backend.prescription import medicines as medicine_names
 from backend.records import audit, vault
 from backend.records.store import dumps, now_iso
 
@@ -250,6 +251,8 @@ def public_config(user=Depends(require_user), db: sqlite3.Connection = Depends(g
     return {
         "tools": enabled_tools(db),
         "ai_ready": bool(provider_order(db)),
+        # Without the list, medicine names read from a prescription can't be checked. The page says so.
+        "medicine_list_ready": medicine_names.installed(),
         "defaults": {
             "referrals_routine_days": get("referrals.routine_days", db),
             "referrals_urgent_days": get("referrals.urgent_days", db),
