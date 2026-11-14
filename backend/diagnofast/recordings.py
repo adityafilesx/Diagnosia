@@ -4,6 +4,7 @@ They sit under the documents folder, so backups include them. Without a key ring
 nothing is kept: the interview carries on with the transcript alone.
 """
 import logging
+import secrets
 from pathlib import Path
 from typing import Iterator, Optional, Tuple
 
@@ -32,13 +33,20 @@ def _context(intake_id: int, name: str) -> str:
 
 
 def save(intake_id: int, turn: int, data: bytes, content_type: str) -> Optional[str]:
-    name = f"{turn}{EXTENSIONS[content_type]}"
+    # A random part keeps two answers to the same question from overwriting each other's file.
+    name = f"{turn}-{secrets.token_hex(4)}{EXTENSIONS[content_type]}"
     try:
         write_private(_path(intake_id, name), vault.encrypt(data, _context(intake_id, name)))
     except vault.VaultUnavailable:
         logger.warning("Recording not kept for intake %s: no key ring", intake_id)
         return None
     return name
+
+
+def discard(intake_id: int, name: Optional[str]) -> None:
+    """Removes a recording whose answer was not saved."""
+    if name:
+        _path(intake_id, name).unlink(missing_ok=True)
 
 
 def load(intake_id: int, name: str) -> Tuple[bytes, str]:

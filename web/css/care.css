@@ -31,8 +31,10 @@
   --highlighter-ink: #2f2b00;
   --alert: #a4211a;
   --alert-tint: #fbe6e3;
-  --done: #2f6b3f;
+  --done: #24583a;  /* 5.4:1 on --band, where status badges sit */
   --band: #d8d5d1;
+  /* Control borders need 3:1 against the sheet (WCAG 1.4.11); --rule is for decorative lines only. */
+  --edge: #807d79;
   --line: #86377f;
   /* The site's brand gradient, deepened so white text on it stays readable. */
   --brand: linear-gradient(132deg, #b8405f, #94408a 45%, #6f52b8 85%);
@@ -55,6 +57,7 @@
     --alert-tint: #3a1a18;
     --done: #8fd3a0;
     --band: #242424;
+    --edge: #7c7a77;
     --line: #eaa3cd;
   }
 }
@@ -75,6 +78,10 @@ h3 { font-size: 1rem; margin-top: 1.25rem; margin-bottom: .25rem; }
 p { margin: .25rem 0 .75rem; max-width: 72ch; }
 a { color: var(--action); }
 :focus-visible { outline: 3px solid var(--action); outline-offset: 2px; }
+/* On the black bar the action colour is too dark to see, so the ring is light there. */
+.topbar :focus-visible { outline-color: #eaa3cd; }
+/* A focused field is never hidden under the sticky patient bar (WCAG 2.4.11). app.js keeps --sticky current. */
+html { scroll-padding-top: calc(var(--sticky, 64px) + 12px); }
 
 .skip { position: absolute; left: -999px; }
 .skip:focus { left: 12px; top: 12px; background: var(--sheet); padding: 8px; z-index: 5; }
@@ -158,6 +165,13 @@ mark, .unreviewed {
 .sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; margin: 12px 0; }
 .alert-card { border-color: var(--alert); }
 .alert-card.moderate { border-color: var(--rule); }
+/* An urgent stop or a request for help in the waiting room. It stays until someone marks it seen. */
+.staff-alerts:empty { display: none; }
+.staff-alert { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 20px; background: var(--alert); color: var(--sheet); font-weight: 500; border-bottom: 1px solid var(--sheet); }
+.staff-alert.help { background: var(--highlighter); color: var(--highlighter-ink); }
+.staff-alert a { color: inherit; }
+.staff-alert .spacer { flex: 1; }
+.staff-alert button.quiet { color: inherit; border-color: currentColor; min-height: 36px; }
 .banner { background: var(--band); border-radius: 4px; padding: 8px 12px; font-size: .9rem; margin: 8px 0 12px; max-width: 80ch; }
 .banner.danger { background: var(--alert-tint); color: var(--alert); font-weight: 500; }
 .error { color: var(--alert); font-weight: 500; }
@@ -192,11 +206,14 @@ form.stack { display: grid; gap: 10px; max-width: 560px; }
 form.inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 label { display: grid; gap: 2px; font-size: .85rem; color: var(--ink-soft); }
 label.tick { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: .95rem; }
+/* A consent a person can tap anywhere on, at least 44 px tall. */
+label.tick.consent-row { min-height: 44px; padding: 10px 14px; border: 1px solid var(--edge); border-radius: 6px; cursor: pointer; gap: 12px; }
+label.tick.consent-row input { width: 22px; height: 22px; flex: none; margin: 0; }
 input, select, textarea {
   font: inherit;
   color: var(--ink);
   background: var(--sheet);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 4px;
   padding: 6px 8px;
   min-width: 0;
@@ -296,7 +313,9 @@ details > summary { cursor: pointer; color: var(--action); font-size: .9rem; }
   transition: opacity .2s;
 }
 .toast.show { opacity: 1; }
-.toast.bad { background: var(--alert); color: var(--sheet); }
+.toast.bad { background: var(--alert); color: var(--sheet); pointer-events: auto; padding-right: 40px; }
+.toast .toast-close { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 28px; height: 28px; min-width: 0; padding: 0; margin: 0; border: 0; border-radius: 4px; background: transparent; box-shadow: none; color: inherit; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.toast .toast-close:hover { background: rgba(255, 255, 255, 0.15); }
 
 @media (max-width: 820px) {
   #open-nav { display: inline; }

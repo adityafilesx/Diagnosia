@@ -209,3 +209,13 @@
   background-color: #ffffff !important;
 }
 
+
+/* At phone width the top bar has no room beside the menu, so the Login button floats at the bottom
+   instead of covering "faq" and "about us" (audit plan WI-109). */
+@media screen and (max-width: 600px) {
+  .fixed-cta.flow-button {
+    top: auto !important;
+    bottom: 16px !important;
+    right: 16px !important;
+  }
+}

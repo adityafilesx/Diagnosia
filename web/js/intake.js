@@ -12,6 +12,11 @@ const TEXT = {
         microphone: 'Microphone unavailable. You can type your answer below.',
         partial: 'We could not transcribe the full recording. Check that your answer is complete, or type it below.',
         name: 'Please enter your name and check your age.', placeholder: 'Your words will appear here. You can also type.',
+        agree: 'I agree, start my interview', consentTitle: 'Before we begin', decline: 'If you do not agree, please tell reception.',
+        yes: 'Yes', no: 'No', abhaNeeded: 'Please choose yes or no for your past records.',
+        failed: 'Something went wrong on our side. Please try again, or tell reception.',
+        helpSent: 'Reception has been told. If nobody comes, please go to the desk.',
+        helpFailed: 'We could not reach reception from here. Please go to the desk.',
     },
     'hi-IN': {
         start: 'बातचीत शुरू करें', record: 'दबाएँ और बोलें', stop: 'रिकॉर्डिंग रोकें', thinking: 'कृपया रुकिए…',
@@ -25,6 +30,11 @@ const TEXT = {
         microphone: 'माइक्रोफ़ोन उपलब्ध नहीं है। नीचे अपना जवाब लिख सकते हैं।',
         partial: 'पूरी रिकॉर्डिंग लिखी नहीं जा सकी। जवाब पूरा है या नहीं जाँचें, या नीचे लिखें।',
         name: 'कृपया नाम भरें और उम्र जाँचें।', placeholder: 'आपके शब्द यहाँ दिखेंगे। आप लिख भी सकते हैं।',
+        agree: 'मैं सहमत हूँ, बातचीत शुरू करें', consentTitle: 'शुरू करने से पहले', decline: 'सहमत नहीं हैं तो रिसेप्शन को बताएँ।',
+        yes: 'हाँ', no: 'नहीं', abhaNeeded: 'पुराने रिकॉर्ड के लिए हाँ या नहीं चुनें।',
+        failed: 'हमारी तरफ़ से कुछ गड़बड़ हुई। दोबारा कोशिश करें, या रिसेप्शन को बताएँ।',
+        helpSent: 'रिसेप्शन को बता दिया गया है। कोई न आए तो कृपया डेस्क पर जाएँ।',
+        helpFailed: 'यहाँ से रिसेप्शन तक बात नहीं पहुँची। कृपया डेस्क पर जाएँ।',
     },
 };
 const DEPARTMENTS = {
@@ -36,6 +46,9 @@ const DEPARTMENTS = {
     pediatrics: ['Pediatrics', 'बाल चिकित्सा', '☆'],
 };
 const MAX_RECORDING_MS = 28000;
+// After an urgent stop the message stays on the screen for a minute: the "Finish" control is held
+// back, so the next person at a shared tablet can't clear it before the patient has read it.
+const URGENT_HOLD_MS = 60000;
 const $ = (id) => document.getElementById(`intake-${id}`);
 let token = new URLSearchParams(location.search).get('token');
 const kiosk = !token;
@@ -56,14 +69,73 @@ let meterFrame = null;
 let activeAudio = null;
 let currentReply = null;
 let playbackGeneration = 0;
-const words = () => TEXT[$('language').value];
+// No language is chosen for the patient. Until they pick one, controls fall back to English labels.
+const words = () => TEXT[$('language').value] || TEXT['en-IN'];
+// The consent words come from the server with their version, so what is stored is what was shown.
+let consentWords = null;
+let abhaWords = null;
+let abhaChoice = null;
+let consentShown = false;
+
+function renderConsent() {
+    const language = $('language').value;
+    if (!language || !consentWords) return;
+    $('consent-title').textContent = words().consentTitle;
+    $('consent-lines').replaceChildren(...consentWords.lines[language].map((line) => element('li', '', line)));
+    $('abha').hidden = !abhaWords;
+    if (abhaWords) {
+        $('abha-question').textContent = abhaWords.lines[language][0];
+        $('abha-yes').textContent = words().yes;
+        $('abha-no').textContent = words().no;
+    }
+    $('consent-decline').textContent = words().decline;
+    $('consent').hidden = false;
+    consentShown = true;
+}
+
+// A failure the patient can do nothing about (the server, the network, a limit) is said in their own
+// language with a next step, and a button that marks the visit in the staff queue. Messages about their
+// own answer ("Please answer the question") are shown as they are.
+function showFailure(node, failure) {
+    const theirs = failure.status >= 400 && failure.status < 500 && failure.status !== 429;
+    showError(node, theirs ? failure.message : words().failed);
+    $('help-status').textContent = '';
+    $('help-box').hidden = !token;
+}
+
+async function tellReception() {
+    $('help-button').disabled = true;
+    try {
+        await apiFetch(`/api/diagnofast/patient/${encodeURIComponent(token)}/help`, { method: 'POST' });
+        $('help-status').textContent = words().helpSent;
+    } catch (_) {
+        $('help-status').textContent = words().helpFailed;
+    }
+    $('help-button').disabled = false;
+}
+
+function chooseLanguage(language) {
+    $('language').value = language;
+    document.querySelectorAll('.language-choice button').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.language === language));
+    });
+    applyLanguage();
+    renderConsent();
+}
+
+function chooseAbha(choice) {
+    abhaChoice = choice;
+    $('abha-yes').setAttribute('aria-pressed', String(choice === true));
+    $('abha-no').setAttribute('aria-pressed', String(choice === false));
+}
 
 function applyLanguage() {
     document.documentElement.lang = $('language').value.startsWith('hi') ? 'hi' : 'en';
-    const labels = { start: 'start', type: 'type', send: 'send',
+    const labels = { type: 'type', send: 'send',
         'assistant-label': 'assistant', 'transcript-label': 'transcript', replay: 'replay', 'chip-hint': 'chipHint',
         'review-hint': 'review', 'safety-note': 'safety', 'answer-label': 'answer' };
     for (const [id, key] of Object.entries(labels)) $(id).textContent = words()[key];
+    $('start').textContent = words().agree;
     $('language-tag').textContent = $('language').value === 'hi-IN' ? 'हिन्दी' : 'English (IN)';
     $('answer').placeholder = words().placeholder;
     $('confidence').textContent = words().confidence;
@@ -136,18 +208,28 @@ function renderChips(chips = []) {
     });
 }
 
+// One key per question. A retry after a lost reply sends the same key, so the answer is saved once.
+const newAnswerKey = () => (window.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+let answerKey = newAnswerKey();
+
 function showNext(reply) {
     currentReply = reply;
+    answerKey = newAnswerKey();
     pendingBlob = null;
     $('answer').value = '';
     $('confidence').textContent = words().confidence;
     $('record-status').textContent = words().ready;
     renderChips(reply.suggested_chips);
+    $('help-box').hidden = true;
     if (reply.finished) {
         $('interview').hidden = true;
         $('finish').hidden = false;
         $('finish-message').textContent = reply.message;
         $('finish-message').className = reply.urgent ? 'urgent-banner' : 'intake-question';
+        if (reply.urgent) {
+            $('reset').hidden = true;
+            setTimeout(() => { $('reset').hidden = false; }, URGENT_HOLD_MS);
+        }
         // Remove the spent bearer token and identifying details from the shared screen.
         history.replaceState(null, '', 'intake.html');
         $('patient-name').value = '';
@@ -166,6 +248,7 @@ async function sendAnswer() {
     if (busy || recorder || acquiring || stopping || !$('answer').value.trim()) return;
     const data = new FormData();
     data.append('text', $('answer').value.trim());
+    data.append('answer_key', answerKey);
     if (pendingBlob) data.append('audio', pendingBlob, 'answer');
     $('answer-error').hidden = true;
     busy = true;
@@ -175,7 +258,7 @@ async function sendAnswer() {
         const response = await apiFetch(`/api/diagnofast/patient/${encodeURIComponent(token)}/answer`, { method: 'POST', body: data });
         if (!disposed) showNext(await response.json());
     } catch (failure) {
-        if (!disposed) showError($('answer-error'), failure.message);
+        if (!disposed) showFailure($('answer-error'), failure);
     } finally {
         busy = false;
         syncControls();
@@ -347,24 +430,31 @@ $('answer').addEventListener('input', () => {
     syncControls();
 });
 $('replay').addEventListener('click', () => currentReply && play(currentReply));
-$('language').addEventListener('change', applyLanguage);
+document.querySelectorAll('.language-choice button').forEach((button) => {
+    button.addEventListener('click', () => chooseLanguage(button.dataset.language));
+});
+$('help-button').addEventListener('click', tellReception);
+$('abha-yes').addEventListener('click', () => chooseAbha(true));
+$('abha-no').addEventListener('click', () => chooseAbha(false));
 $('change-specialty').addEventListener('click', () => { $('welcome').hidden = true; $('specialties').hidden = false; });
 
 $('start').addEventListener('click', async () => {
-    if ($('start').disabled) return;
+    if ($('start').disabled || !consentShown) return;
     $('start-error').hidden = true;
+    if (abhaWords && abhaChoice === null) { showError($('start-error'), words().abhaNeeded); return; }
     if (kiosk && (!$('patient-name').value.trim() || !$('age').checkValidity())) {
         showError($('start-error'), words().name); return;
     }
     $('start').disabled = true;
     $('change-specialty').disabled = true;
-    $('language').disabled = true;
+    const languageButtons = document.querySelectorAll('.language-choice button');
+    languageButtons.forEach((button) => { button.disabled = true; });
     try {
         if (!token) {
             const made = await postJson('/api/diagnofast/kiosk/intakes', {
                 form_id: formId, patient_name: $('patient-name').value.trim(),
                 patient_age: $('age').value === '' ? null : Number($('age').value),
-                patient_sex: $('sex').value || null, consent: true,
+                patient_sex: $('sex').value || null, consent: consentShown,
             });
             token = new URL(made.link, location.href).searchParams.get('token');
             // Keep the new link on a start failure so a retry cannot create a second visit.
@@ -373,17 +463,18 @@ $('start').addEventListener('click', async () => {
             $('demographics').querySelectorAll('input, select').forEach((input) => { input.disabled = true; });
         }
         const reply = await postJson(`/api/diagnofast/patient/${encodeURIComponent(token)}/start`, {
-            language: $('language').value, consent: true, abha_consent: true,
+            language: $('language').value, consent: consentShown, consent_version: consentWords.version,
+            abha_consent: abhaChoice === true,
         });
         $('welcome').hidden = true;
         $('interview').hidden = false;
         showNext({ finished: false, ...reply });
     } catch (failure) {
-        showError($('start-error'), failure.message);
+        showFailure($('start-error'), failure);
     } finally {
         $('start').disabled = false;
         $('change-specialty').disabled = false;
-        $('language').disabled = false;
+        languageButtons.forEach((button) => { button.disabled = false; });
     }
 });
 
@@ -407,10 +498,20 @@ async function initialize() {
             const response = await apiFetch(`/api/diagnofast/patient/${encodeURIComponent(token)}`);
             const patient = await response.json();
             $('name').textContent = `, ${patient.patient_name}`;
-            $('welcome').hidden = false;
+            consentWords = patient.consent;
+            abhaWords = patient.abha_consent || null;
+            if (patient.status === 'in_progress' && patient.question) {
+                // Reloaded mid-interview: carry on at the same question.
+                chooseLanguage(patient.language);
+                $('interview').hidden = false;
+                showNext({ finished: false, question: patient.question, audio: patient.audio });
+            } else {
+                $('welcome').hidden = false;
+            }
         } else {
             const response = await apiFetch('/api/diagnofast/kiosk');
-            const { forms } = await response.json();
+            const { forms, consent } = await response.json();
+            consentWords = consent;
             Object.entries(DEPARTMENTS).forEach(([id, [title, hindi, symbol]]) => {
                 if (!forms.some((form) => form.id === id)) return;
                 const button = element('button', 'specialty-card');

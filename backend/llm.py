@@ -15,6 +15,8 @@ import logging
 import re
 import threading
 import time
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
 from typing import List, Optional, Tuple, Type, TypeVar, Union
 
 import httpx
@@ -46,6 +48,10 @@ class AINotConfigured(AIUnavailable):
 
 class AIRateLimited(AIUnavailable):
     """The free plan's limit was reached."""
+
+
+class AIBudgetReached(AIUnavailable):
+    """Today's AI budget for the whole deployment is used up, so no call is made."""
 
 
 class AIDeclined(Exception):
@@ -108,6 +114,9 @@ def build_request(system: str, content: Union[str, list], schema: Type[Schema], 
 
 def _post(body: dict, key: str, timeout: int, base_url: Optional[str] = None, attempts: int = MAX_ATTEMPTS) -> httpx.Response:
     url = f"{base_url or settings.ai_base_url}/chat/completions"
+    # Patient text goes only to the named providers. Another AI_BASE_URL is refused, not quietly used.
+    if (urlsplit(url).hostname or "").lower() not in settings.allowed_ai_hosts:
+        raise AINotConfigured("AI host not on the allowed list")
     wait = 1.0
     failure: Exception = AIUnavailable("no attempt made")
     for attempt in range(attempts):
@@ -160,10 +169,16 @@ def _providers_in_order(tool: str) -> List[str]:
     return names
 
 
-def _attempts(tool: str) -> List[Tuple[str, str]]:
-    """Each (provider, model) to try, in order. Gemini may appear twice, with a backup model."""
+def _attempts(tool: str, prefer_other: bool = False) -> List[Tuple[str, str]]:
+    """Each (provider, model) to try, in order. Gemini may appear twice, with a backup model.
+
+    `prefer_other` starts with the provider that would normally be second, for an independent second opinion.
+    """
     attempts = []
-    for provider in _providers_in_order(tool):
+    providers = _providers_in_order(tool)
+    if prefer_other and len(providers) > 1:
+        providers = providers[1:] + providers[:1]
+    for provider in providers:
         if provider == "gemini":
             attempts += [("gemini", model) for model in settings_store.gemini_models(tool)]
         else:
@@ -189,7 +204,33 @@ def _ask_model(
         raise AIDeclined("unexpected reply") from error
     if choice.get("finish_reason") not in ("stop", None) or message.get("refusal"):
         raise AIDeclined(f"finished with {choice.get('finish_reason')}")
-    return _parse(message.get("content"), schema)
+    usage = response.json().get("usage")
+    return _parse(message.get("content"), schema), usage if isinstance(usage, dict) else None
+
+
+def cost(model: str, prompt_tokens: int, completion_tokens: int) -> Optional[float]:
+    """US dollars, from the operator's price table (CURAI_AI_PRICES). None when the model has no price."""
+    price = settings.ai_prices.get(model)
+    if not price:
+        return None
+    return (prompt_tokens * price[0] + completion_tokens * price[1]) / 1_000_000
+
+
+def _today_utc() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def check_budget() -> None:
+    """The deployment's daily breaker: refuses before calling once today's tokens or spend reach the cap."""
+    tokens_cap, spend_cap = settings.ai_daily_tokens, settings.ai_daily_spend_usd
+    if not tokens_cap and not spend_cap:
+        return
+    used = execution.usage_since(_today_utc())
+    tokens = sum(row["prompt_tokens"] + row["completion_tokens"] for row in used)
+    spend = sum(cost(row["model"], row["prompt_tokens"], row["completion_tokens"]) or 0 for row in used)
+    if (tokens_cap and tokens >= tokens_cap) or (spend_cap and spend >= spend_cap):
+        logger.warning("Daily AI budget reached: %s tokens, about %.2f USD", tokens, spend)
+        raise AIBudgetReached("daily budget reached")
 
 
 def ask(
@@ -199,19 +240,21 @@ def ask(
     tool: str,
     max_tokens: int = 6000,
     timeout: int = REQUEST_TIMEOUT_SECONDS,
+    prefer_other: bool = False,
 ) -> Schema:
     """Calls the model chosen for this tool, and the next choice if that one fails."""
-    attempts = _attempts(tool)
+    attempts = _attempts(tool, prefer_other)
     if not attempts:
         raise AINotConfigured("no API key")
+    check_budget()
     # With another choice waiting, a slow first one costs more than it's worth retrying.
     tries = MAX_ATTEMPTS if len(attempts) == 1 else 1
     failure: Exception = AIUnavailable("no attempt made")
     run = execution.AgentRun(tool)
     for provider, model in attempts:
         try:
-            answer = _ask_model(provider, model, system, content, schema, max_tokens, timeout, tries)
-            run.tried(provider, model, "succeeded")
+            answer, usage = _ask_model(provider, model, system, content, schema, max_tokens, timeout, tries)
+            run.tried(provider, model, "succeeded", usage)
             run.finish("succeeded")
             return answer
         except (AIUnavailable, AIDeclined) as error:

@@ -18,7 +18,7 @@ from backend.db import connect
 from backend.diagnofast import agent
 from backend.integrations import execution
 from backend.lablens.extract import ReadReport, ReadResult
-from backend.records import staff
+from backend.records import consent, staff
 
 CASE = "case_demo_001"
 DOCTOR = "careflow.demo.doctor@example.com"
@@ -121,7 +121,7 @@ def run(real_ai: bool = False) -> Dict[str, object]:
         link = demo._check(doctor.post("/api/diagnofast/intakes", json={"form_id": "general_physician", "patient_name": "Demo Person", "patient_id": patient_id}))
         token = link["link"].split("token=")[1]
         interview = TestClient(demo_app())
-        demo._check(interview.post(f"/api/diagnofast/patient/{token}/start", json={"language": "en-IN", "consent": True}))
+        demo._check(interview.post(f"/api/diagnofast/patient/{token}/start", json={"language": "en-IN", "consent": True, "consent_version": consent.VERSION}))
         for _question in range(agent.MAX_QUESTIONS):
             reply = demo._check(interview.post(f"/api/diagnofast/patient/{token}/answer", data={"text": INTERVIEW_ANSWER}))
             if reply["finished"]:

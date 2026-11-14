@@ -8,11 +8,12 @@ import asyncio
 import re
 import time
 from typing import Literal, Optional
+from urllib.parse import urlsplit
 
 import httpx
 
 from backend import settings_store
-from backend.config import settings
+from backend.config import neural_tts_allowed, settings
 from backend.integrations import execution
 
 TTS_MODEL = "canopylabs/orpheus-v1-english"
@@ -51,6 +52,8 @@ def _key() -> str:
 def _post(path: str, **options) -> httpx.Response:
     """One retry for a blip. Anything else is reported, and no text is ever invented."""
     url = f"{settings.ai_base_url}{path}"
+    if (urlsplit(url).hostname or "").lower() not in settings.allowed_ai_hosts:
+        raise SpeechUnavailable("Speech host not on the allowed list")  # patient audio goes only to named providers
     headers = {"Authorization": f"Bearer {_key()}"}
     failure: Optional[SpeechUnavailable] = None
     for attempt in range(MAX_ATTEMPTS):
@@ -142,7 +145,7 @@ def speak_neural(text: str, language: Language) -> bytes:
     """
     if len(text) > MAX_SPEECH_CHARS:
         raise SpeechRejected("Text is too long to read aloud in one request")
-    if not settings.neural_tts_enabled or language not in NEURAL_VOICES:
+    if not neural_tts_allowed() or language not in NEURAL_VOICES:
         raise SpeechUnavailable("Neural voice is disabled")
     try:
         import edge_tts

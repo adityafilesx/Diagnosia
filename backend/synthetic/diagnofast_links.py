@@ -4,7 +4,7 @@
     python -m backend.synthetic.diagnofast_links --per-form 5
 
 Run it after the synthetic accounts exist (`python -m backend.synthetic.serve` or `seed_accounts`), against
-the same database the server uses. Each link is single use and belongs to the specialty's test doctor, so
+the same database the server uses. Each link serves one interview, expires after a day, and belongs to the specialty's test doctor, so
 that doctor sees the report in their queue. The script is written next to the database, in
 backend/storage/synthetic/diagnofast_script.md (git-ignored). Open a link, then type or speak the answers
 in the script, and compare with what the interview and the doctor's report captured.

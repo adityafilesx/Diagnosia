@@ -188,3 +188,60 @@ def test_an_urgent_answer_reaches_reception_even_when_the_ai_is_down(client, det
     assert queue[0]["id"] == urgent_id
     assert queue[0]["urgent"] == ["Chest pain"]
     assert queue[1]["id"] == calm_id
+
+
+# Phrasings and negations the first rules missed on the dev split (audit plan WI-201)
+
+
+@pytest.mark.parametrize("answer, label", [
+    ("There is a heavy pressure in my chest", "Chest pain"),
+    ("seena dukh raha hai", "Chest pain"),
+    ("छाती दुख रही है", "Chest pain"),
+    ("Breathing has become very difficult", "Trouble breathing"),
+    ("My mouth has gone crooked", "Possible stroke signs"),
+    ("He suddenly can't speak clearly", "Possible stroke signs"),
+    ("ek taraf ka haath pair achanak kamzor pad gaya", "Possible stroke signs"),
+    ("एक तरफ का हाथ पैर अचानक कमज़ोर पड़ गया", "Possible stroke signs"),
+    ("I vomited blood this morning", "Heavy bleeding"),
+    ("khaansi mein khoon aa raha hai", "Heavy bleeding"),
+    ("खांसी में खून आ रहा है", "Heavy bleeding"),
+    ("She had a fit and bit her tongue", "Seizure"),
+    ("mirgi ka daura pad raha hai", "Seizure"),
+    ("haath pair akad gaye hain aur jhatke aa rahe hain", "Seizure"),
+    ("हाथ पैर अकड़ गए हैं और झटके आ रहे हैं", "Seizure"),
+    ("dawai ke baad chehra sooj gaya hai", "Severe allergic reaction"),
+    ("दवा के बाद चेहरा सूज गया है", "Severe allergic reaction"),
+    ("My face is swollen after the injection", "Severe allergic reaction"),
+    ("He ate a whole strip of sleeping pills", "Poisoning or overdose"),
+    ("saari goliyan kha li", "Poisoning or overdose"),
+    ("bachche ne keetnashak pee liya", "Poisoning or overdose"),
+    ("बच्चे ने कीटनाशक पी लिया", "Poisoning or overdose"),
+])
+def test_more_ways_of_saying_an_urgent_symptom_are_caught(answer, label):
+    assert label in screen(answer)
+
+
+@pytest.mark.parametrize("answer", [
+    "आत्महत्या के विचार नहीं है",
+    "आत्महत्या के विचार कभी नहीं हुआ",
+    "aatmahatya ke vichar kabhi nahi hua",
+    "बेहोशी कभी नहीं हुआ",
+    "बहुत खून बहना कभी नहीं हुआ",
+    "ज़हर खाना कभी नहीं हुआ",
+    "seene mein dard bilkul nahi hai",
+])
+def test_a_hindi_negation_a_few_words_after_the_symptom_is_still_a_negation(answer):
+    assert screen(answer) == []
+
+
+@pytest.mark.parametrize("answer, label", [
+    # The longer reach must not swallow a real symptom: only filler words may sit before the "nahi".
+    ("seene mein dard hai saha nahi jaata", "Chest pain"),
+    ("सीने में दर्द है नींद नहीं आती", "Chest pain"),
+    ("aatmahatya ke vichar nahi hua aur seena dukh raha hai", "Chest pain"),
+    ("bukhar nahi hai aur mirgi ka daura pad raha hai", "Seizure"),
+    ("A fit of coughing at night", None),
+])
+def test_the_longer_negation_reach_does_not_hide_a_symptom(answer, label):
+    found = screen(answer)
+    assert (label in found) if label else found == []

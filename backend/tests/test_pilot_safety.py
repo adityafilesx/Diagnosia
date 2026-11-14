@@ -91,6 +91,42 @@ def test_an_unknown_environment_stops_startup(client, monkeypatch):
             pass
 
 
+def test_demo_mode_outside_development_stops_startup(client, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "staging")
+    monkeypatch.setattr(settings, "demo_mode", True)
+    with pytest.raises(RuntimeError, match="Demo mode is on outside development"):
+        with TestClient(app):
+            pass
+
+
+def test_a_public_demo_must_say_so_explicitly(db, monkeypatch):
+    monkeypatch.setattr(settings, "environment", "staging")
+    monkeypatch.setattr(settings, "demo_mode", True)
+    monkeypatch.setattr(settings, "demo_outside_development", True)
+    monkeypatch.setattr(safety, "_configuration_checks", lambda: [])
+    safety.assert_safe_to_start(db)  # no refusal
+
+
+@pytest.mark.parametrize("environment, setting, expected", [
+    ("development", None, True), ("staging", None, False), ("production", None, False),
+    ("production", "1", True), ("development", "0", False),
+])
+def test_demo_mode_is_only_on_by_default_in_development(monkeypatch, environment, setting, expected):
+    monkeypatch.setenv("CURAI_ENV", environment)
+    if setting is None:
+        monkeypatch.delenv("CURAI_DEMO_MODE", raising=False)
+    else:
+        monkeypatch.setenv("CURAI_DEMO_MODE", setting)
+    assert Settings().demo_mode is expected
+
+
+def test_demo_settings_are_announced_at_startup(db, monkeypatch, caplog):
+    monkeypatch.setattr(settings, "demo_mode", True)
+    with caplog.at_level("WARNING", logger="curai.safety"):
+        safety.assert_safe_to_start(db)
+    assert "DEMO SETTINGS ON" in caplog.text
+
+
 def test_an_unknown_environment_counts_as_production(monkeypatch):
     monkeypatch.setattr(settings, "environment", "prod")
     assert safety.is_production()

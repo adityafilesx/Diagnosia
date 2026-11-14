@@ -3,6 +3,11 @@
 Exports are generic FHIR R4, built in `backend/records/fhir.py`. Internal tables are
 not FHIR resources. No LOINC mapping has been approved yet, so exports hold no LOINC codes today.
 
+**The export routes are live**, not switched off: anyone the access gate lets read the chart can call
+them, and each call is in the audit log. Only ClinScribe's signed note has a button in the workspace;
+the patient bundle and the lab report export have none. Whether to put them behind a setting is part
+of the owner's demo decision (audit plan D1, WI-111).
+
 **These exports are not ABDM-compliant.** They have not been validated against the
 NRCeS profiles or with the HL7 validator, and no terminology beyond LOINC codes is
 applied. Don't describe them as compliant until both are done.

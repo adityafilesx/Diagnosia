@@ -6,7 +6,8 @@ request holds the main database's write lock while the AI works, so a separate w
 database would wait on its own request. And nothing here is a clinical record. The delivery worker
 copies new and changed runs to YugabyteDB when that's switched on. Otherwise they stay here.
 
-Nothing here holds a prompt, an answer, reasoning, or any patient detail.
+Nothing here holds a prompt, an answer, reasoning, or any patient detail. Each attempt keeps the
+token counts the provider reported, so the daily AI budget and the cost report can be worked out.
 """
 import logging
 import sqlite3
@@ -67,9 +68,17 @@ CREATE TABLE IF NOT EXISTS agent_attempts (
     started_at TEXT NOT NULL,
     finished_at TEXT NOT NULL,
     duration_ms INTEGER NOT NULL,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
     UNIQUE (run_id, attempt_number)
 );
+CREATE INDEX IF NOT EXISTS agent_attempts_finished ON agent_attempts (finished_at);
 """
+# Columns added after the first release. This file isn't the main database, so it upgrades itself here.
+_LATER_COLUMNS = (
+    ("prompt_tokens", "ALTER TABLE agent_attempts ADD COLUMN prompt_tokens INTEGER"),
+    ("completion_tokens", "ALTER TABLE agent_attempts ADD COLUMN completion_tokens INTEGER"),
+)
 
 last_model: ContextVar[Optional[Tuple[str, str]]] = ContextVar("last_model", default=None)
 workflow_ref: ContextVar[Optional[str]] = ContextVar("workflow_ref", default=None)
@@ -84,6 +93,10 @@ def connect() -> sqlite3.Connection:
     connection = sqlite3.connect(path(), timeout=BUSY_TIMEOUT_SECONDS)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode = WAL")
+    present = {row["name"] for row in connection.execute("PRAGMA table_info(agent_attempts)")}
+    for column, statement in _LATER_COLUMNS:
+        if present and column not in present:  # an empty set means a new file: SCHEMA below makes it whole
+            connection.execute(statement)
     connection.executescript(SCHEMA)
     return connection
 
@@ -135,7 +148,7 @@ class AgentRun:
                     (self.run_id, workflow_ref.get(), TOOL_MODULES.get(tool, tool), tool, request_id.get(), self.started_at, BOOT_ID, self.started_at),
                 )
 
-    def tried(self, provider: str, model: str, outcome: str) -> None:
+    def tried(self, provider: str, model: str, outcome: str, usage: Optional[dict] = None) -> None:
         finished = _now()
         duration = int((time.monotonic() - self.clock) * 1000)
         self.attempts += 1
@@ -151,10 +164,14 @@ class AgentRun:
                 db.execute(
                     """
                     INSERT OR IGNORE INTO agent_attempts
-                        (attempt_id, run_id, attempt_number, provider, model, status, error_category, started_at, finished_at, duration_ms)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (attempt_id, run_id, attempt_number, provider, model, status, error_category, started_at, finished_at, duration_ms,
+                         prompt_tokens, completion_tokens)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (f"{self.run_id}:{self.attempts}", self.run_id, self.attempts, provider, model, "succeeded" if succeeded else "failed", self.error_category, self.started_at, finished, duration),
+                    (
+                        f"{self.run_id}:{self.attempts}", self.run_id, self.attempts, provider, model, "succeeded" if succeeded else "failed",
+                        self.error_category, self.started_at, finished, duration, _count(usage, "prompt_tokens"), _count(usage, "completion_tokens"),
+                    ),
                 )
 
     def finish(self, status: str) -> None:
@@ -174,6 +191,34 @@ class AgentRun:
                         finished, int((time.monotonic() - self.started) * 1000), finished, self.run_id,
                     ),
                 )
+
+
+def _count(usage: Optional[dict], name: str) -> Optional[int]:
+    value = (usage or {}).get(name)
+    return value if isinstance(value, int) and value >= 0 else None
+
+
+def usage_since(since: str) -> List[Dict]:
+    """Tokens per tool and model for attempts finished at or after `since` (an ISO time, UTC)."""
+    with _Write() as db:
+        if db is None:
+            return []
+        return [
+            dict(row)
+            for row in db.execute(
+                """
+                SELECT agent_runs.tool, agent_attempts.provider, agent_attempts.model, COUNT(*) AS calls,
+                    COALESCE(SUM(agent_attempts.prompt_tokens), 0) AS prompt_tokens,
+                    COALESCE(SUM(agent_attempts.completion_tokens), 0) AS completion_tokens
+                FROM agent_attempts JOIN agent_runs ON agent_runs.run_id = agent_attempts.run_id
+                WHERE agent_attempts.finished_at >= ?
+                GROUP BY agent_runs.tool, agent_attempts.provider, agent_attempts.model
+                ORDER BY agent_runs.tool, agent_attempts.model
+                """,
+                (since,),
+            )
+        ]
+    return []
 
 
 def recover_interrupted() -> int:

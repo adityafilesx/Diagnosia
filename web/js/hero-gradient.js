@@ -172,10 +172,27 @@
       orb1.style.transform = `translate3d(${(state.orb1.x - r1).toFixed(1)}px, ${(state.orb1.y - r1).toFixed(1)}px, 0) scale(${scale1.toFixed(3)}) rotate(${rot1.toFixed(1)}deg)`;
       orb2.style.transform = `translate3d(${(state.orb2.x - r2).toFixed(1)}px, ${(state.orb2.y - r2).toFixed(1)}px, 0) scale(${scale2.toFixed(3)}) rotate(${rot2.toFixed(1)}deg)`;
 
-      requestAnimationFrame(render);
+      if (!paused) requestAnimationFrame(render);
     }
 
-    requestAnimationFrame(render);
+    // Moving backgrounds can make some people unwell. Respect the system setting, and give everyone a pause.
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let paused = reduced;
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'motion-toggle';
+    const label = () => {
+      toggle.textContent = paused ? 'Play background motion' : 'Pause background motion';
+      toggle.setAttribute('aria-pressed', String(paused));
+    };
+    toggle.addEventListener('click', () => {
+      paused = !paused;
+      label();
+      if (!paused) requestAnimationFrame(render);
+    });
+    label();
+    stage.appendChild(toggle);
+    requestAnimationFrame(render);  // one frame places the orbs; it stops there when paused
   }
 
   if (document.readyState === 'loading') {

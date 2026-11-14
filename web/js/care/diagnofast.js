@@ -1,4 +1,4 @@
-// DiagnoFast: reception sends a single-use link, and the doctor reads the report.
+// DiagnoFast: reception sends a link for one interview, and the doctor reads the report.
 import { act, api, form, h, show, when } from './ui.js';
 import { packPanel } from './pack.js';
 
@@ -8,6 +8,7 @@ const STATUS_TEXT = {
     preparing_report: 'Preparing report',
     done: 'Report ready',
     report_failed: 'Answers ready',
+    expired: 'Link expired',
 };
 const POLL_MS = 10000;
 let poll = null;
@@ -50,6 +51,38 @@ function barcode(id) {
     return h('div', { class: 'barcode-label' }, bars, h('small', {}, `Intake #${digits}`));
 }
 
+// Until a doctor stamps it, the report is an AI draft. The stamp changes nothing in it.
+function reviewBar(detail, context) {
+    if (detail.reviewed || !['done', 'report_failed'].includes(detail.status)) return null;
+    return h('div', { class: 'banner no-print' },
+        'Not yet reviewed by a doctor. Read the report and the patient’s own answers, then mark it reviewed. ',
+        h('button', {
+            type: 'button',
+            onclick: async () => {
+                const done = await act(() => api(`/api/diagnofast/intakes/${detail.id}/review`, { method: 'POST' }), context, 'Marked as reviewed');
+                if (done) context?.refresh?.();
+            },
+        }, 'Mark as reviewed'));
+}
+
+const PROBLEM_FIELD = { review_of_systems: 'Review of systems', suggested_investigations: 'Investigations to consider' };
+
+// What the code's checks found in the AI's report. Nothing in the report was changed because of them.
+function problemList(detail) {
+    const report = detail.report;
+    if (!report || !detail.report_problems?.length) return null;
+    const label = (item) => {
+        if (item.field === 'review_of_systems') {
+            const entry = report.review_of_systems?.[item.index];
+            return entry ? `${entry.system} / ${entry.parameter}` : `row ${item.index + 1}`;
+        }
+        return report.suggested_investigations?.[item.index] || `item ${item.index + 1}`;
+    };
+    return h('div', { class: 'banner danger' },
+        h('strong', {}, 'Checks flagged parts of this AI draft. Verify them with the patient:'),
+        h('ul', {}, detail.report_problems.map((item) => h('li', {}, `${PROBLEM_FIELD[item.field] || item.field}, ${label(item)}: ${item.problem}`))));
+}
+
 export function reportView(detail, context) {
     const pack = h('div', { class: 'no-print' });
     const { report, patient, records } = detail;
@@ -76,12 +109,23 @@ export function reportView(detail, context) {
             row('Patient', patient.name), row('Age / sex', `${age} / ${patient.sex || 'Not stated'}`),
             row('UHID / chart ID', patient.record_id || 'Not linked'), row('Department', detail.form_title),
             row('Visit', detail.created_at ? when(detail.created_at) : 'Not recorded'),
-            row('Status', report ? 'Intake complete · clinician review required' : STATUS_TEXT[detail.status] || detail.status),
+            row('Status', detail.reviewed ? `Reviewed by ${detail.reviewed.by}, ${when(detail.reviewed.at)}`
+                : report ? 'Intake complete · not yet reviewed by a doctor' : STATUS_TEXT[detail.status] || detail.status),
             records && patient.abha_id && row('ABHA ID', patient.abha_id)),
         detail.urgent.length > 0 && h('div', { class: 'banner danger requisition-alert' },
             h('strong', {}, 'URGENT SYMPTOMS — PATIENT DIRECTED TO RECEPTION: '), detail.urgent.join(', ')),
-        detail.status === 'report_failed' && h('div', { class: 'banner' }, "The summary couldn't be written. Review the original answers below."),
+        detail.status === 'report_failed' && h('div', { class: 'banner no-print' }, "The summary couldn't be written. Review the original answers below. ",
+            h('button', {
+                type: 'button',
+                class: 'quiet',
+                onclick: async () => {
+                    const done = await act(() => api(`/api/diagnofast/intakes/${detail.id}/report/retry`, { method: 'POST' }), context, 'Writing the summary again');
+                    if (done) context?.refresh?.();
+                },
+            }, 'Try writing the summary again')),
         !report && detail.status !== 'report_failed' && h('p', { class: 'muted' }, STATUS_TEXT[detail.status] || detail.status),
+        reviewBar(detail, context),
+        problemList(detail),
         report && [
             h('p', { class: 'requisition-disclaimer' }, 'AI draft from reported history. Confirm with the patient. This is not a diagnosis, laboratory result or test order.'),
             row('Chief complaint', report.chief_complaint),
@@ -102,7 +146,7 @@ export function reportView(detail, context) {
         history.length ? reportTable(['Record type', 'Details / date if known', 'Source'], history)
             : h('p', {}, 'No history available. ABHA records were not included.'),
         report?.gaps?.length > 0 && row('Unclear or missing — verify', report.gaps.join(' • ')),
-        report && [h('h3', {}, 'Suggested initial investigations · Physician review only'),
+        report && 'suggested_investigations' in report && [h('h3', {}, 'Suggested initial investigations · Physician review only'),
             h('p', { class: 'requisition-legend' }, 'Suggestions are not orders. The physician decides whether any investigation is indicated.'),
             report.suggested_investigations?.length ? h('div', { class: 'investigation-checklist' },
                 report.suggested_investigations.map((item) => h('label', {}, h('input', { type: 'checkbox' }), item)))
@@ -178,7 +222,7 @@ export function preparePrintReport(container, detail) {
             (records[key] || []).forEach((x) => add(label, x));
     }
     if (report?.gaps?.length) { section('Unclear or missing · verify'); report.gaps.forEach((x) => add('Verify', x)); }
-    if (report?.suggested_investigations?.length) {
+    if (report && 'suggested_investigations' in report && report.suggested_investigations.length) {
         section('Suggested investigations · for physician review only · not orders');
         report.suggested_investigations.forEach((x) => add('Consider', x));
     }
@@ -241,8 +285,9 @@ export async function renderDiagnoFast(container, context) {
         const intakes = await api(url);
         show(queue, intakes.length
             ? intakes.map((intake) => h('a', { class: `queue-item${intake.urgent.length ? ' urgent' : ''}`, href: `#/diagnofast/${intake.id}` },
-                h('span', {}, `${intake.urgent.length ? 'Urgent: ' : ''}${intake.patient_name}`),
-                h('span', { class: 'muted' }, `${STATUS_TEXT[intake.status] || intake.status}, ${when(intake.created_at)}`)))
+                h('span', {}, `${intake.urgent.length ? 'Urgent: ' : ''}${intake.patient_name}`,
+                    intake.needs_help && h('mark', { style: 'margin-left:8px' }, 'Asked for help')),
+                h('span', { class: 'muted' }, `${intake.reviewed ? 'Reviewed' : STATUS_TEXT[intake.status] || intake.status}, ${when(intake.created_at)}`)))
             : h('p', { class: 'muted' }, patient ? 'No interviews for this patient yet.' : 'No patients yet. Send a link to start.'));
     };
 
@@ -263,7 +308,7 @@ export async function renderDiagnoFast(container, context) {
             if (!made) return;
             const url = new URL(made.link, window.location.href).href;
             show(created, h('div', { class: 'banner' },
-                h('p', {}, 'Open this link on the waiting-room tablet. It works for this patient only, and stops when the interview ends.'),
+                h('p', {}, 'Open this link on the waiting-room tablet. It works for this patient only, stops when the interview ends, and expires if it is not used within a day.'),
                 h('a', { class: 'link-box', href: url, target: '_blank', rel: 'noopener' }, url)));
             if (!patient) element.reset();
             await loadQueue();

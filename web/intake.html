@@ -31,9 +31,23 @@
         <div><label class="tool-label" for="intake-age">Age in years / उम्र (optional)</label><input id="intake-age" type="number" min="0" max="130" step="1"></div>
         <div><label class="tool-label" for="intake-sex">Sex / लिंग (optional)</label><select id="intake-sex"><option value="">Not stated / नहीं बताया</option><option value="female">Female / महिला</option><option value="male">Male / पुरुष</option><option value="other">Other / अन्य</option></select></div>
       </div>
-      <label class="tool-label" for="intake-language">भाषा / Language</label>
-      <select id="intake-language"><option value="hi-IN">हिन्दी</option><option value="en-IN">English</option></select>
-      <div class="tool-actions"><button id="intake-start" class="use-now" type="button"></button></div>
+      <p class="tool-label" id="intake-language-title">भाषा चुनें / Choose your language</p>
+      <input id="intake-language" type="hidden" value="">
+      <div class="language-choice" role="group" aria-labelledby="intake-language-title">
+        <button id="intake-language-hi" type="button" lang="hi" aria-pressed="false" data-language="hi-IN">हिन्दी</button>
+        <button id="intake-language-en" type="button" lang="en" aria-pressed="false" data-language="en-IN">English</button>
+      </div>
+      <div id="intake-consent" class="consent-box" hidden>
+        <h2 id="intake-consent-title"></h2>
+        <ul id="intake-consent-lines"></ul>
+        <fieldset id="intake-abha" class="abha-choice" hidden>
+          <legend id="intake-abha-question"></legend>
+          <button id="intake-abha-yes" type="button" aria-pressed="false"></button>
+          <button id="intake-abha-no" type="button" aria-pressed="false"></button>
+        </fieldset>
+        <p id="intake-consent-decline" class="intake-hint"></p>
+        <div class="tool-actions"><button id="intake-start" class="use-now" type="button"></button></div>
+      </div>
       <p id="intake-start-error" class="tool-error" role="alert" hidden></p>
     </section>
     <section id="intake-interview" class="intake-columns" hidden aria-label="Patient interview">
@@ -66,6 +80,10 @@
       <p id="intake-finish-message" class="intake-question" aria-live="assertive"></p>
       <a id="intake-reset" class="use-now" href="intake.html">Finish / समाप्त करें</a>
     </section>
+    <div id="intake-help-box" class="help-box" hidden>
+      <button id="intake-help-button" class="tool-secondary" type="button">Tell reception / रिसेप्शन को बताएँ</button>
+      <p id="intake-help-status" class="intake-hint" role="status"></p>
+    </div>
     <p class="intake-help">Need help at any time? Please tell reception. / मदद के लिए रिसेप्शन पर बताएँ।</p>
   </main>
   <script src="js/tools.js"></script>

@@ -46,8 +46,9 @@ reports, and explaining a prescription. Each has its own provider and Gemini mod
 reading ones default to `gemini-3.5-flash`, which is often busy or over its free limit, so they back
 up to `gemini-3.5-flash-lite` and then to Groq. Round robin never moves these three.
 
-Gemini carries text and images. Speech to text and the English voice stay on Groq, and the browser's
-own voice covers the rest, so Gemini alone can't transcribe a consultation. A failed call is logged
+Gemini carries text and images. Speech to text and the English voice stay on Groq. In demo mode,
+DiagnoFast questions use Microsoft Edge voices (question text only, never answers); outside demo mode
+that service is never called. The browser's own voice covers the rest, so Gemini alone can't transcribe a consultation. A failed call is logged
 by provider name only, never with its content. **Both providers receive patient content**, so each
 needs its own agreement before real use.
 

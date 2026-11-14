@@ -5,6 +5,7 @@ said. This code stays in charge of the rest: which fields count, when the
 interview ends, and how many questions a patient can be asked.
 """
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
@@ -15,13 +16,20 @@ from backend import llm
 from backend.diagnofast import red_flags
 from backend.speech import Language
 
+logger = logging.getLogger("curai.diagnofast")
+
 FORMS_DIR = Path(__file__).parent / "forms"
 MAX_QUESTIONS = 12
+# A doctor must not prescribe without these, so the code asks them itself before the questions run out,
+# whatever the AI chose to ask about.
+HIGH_RISK_FIELDS = ("current_medicines", "allergies")
+MAX_KEPT_ANSWER = 500
 PATIENT_WAIT_SECONDS = 45  # someone in a waiting room is looking at the screen
 
 URGENT_MESSAGE = {
-    "en-IN": "Please tell the reception staff about this right now.",
-    "hi-IN": "कृपया यह बात अभी रिसेप्शन पर बताइए।",
+    # Where to go and what to do, and nothing about how serious anything is.
+    "en-IN": "Please go to the reception desk now and tell the staff what you told us.",
+    "hi-IN": "कृपया अभी रिसेप्शन डेस्क पर जाइए और स्टाफ़ को यह बात बताइए।",
 }
 THANK_YOU = {
     "en-IN": "Thank you. The doctor will read this before seeing you.",
@@ -65,6 +73,7 @@ and any past records. The doctor has under a minute to read it.
   never turn a subjective symptom into a lab result. NORMAL requires an explicit negative or
   supplied normal measurement. CRITICAL is reserved for urgent symptoms already identified.
   Use 'Not applicable (symptom)' for norms of subjective findings, never invented ranges.
+  evidence_turns lists the conversation turns (numbered from 1) each row comes from.
 - suggested_investigations: at most 6 initial labs/imaging to CONSIDER based on the supplied
   symptoms, for physician review only, not orders. Return [] if unsupported or history is scant.
   Do not recommend medicines, diagnoses or a blanket testing panel.
@@ -104,6 +113,8 @@ class ReviewOfSystem(BaseModel):
     finding: str
     flag: Literal["NORMAL", "L*", "H*", "CRITICAL", "NOT_ASSESSED"]
     norm: str
+    # The conversation turns (numbered from 1) the row comes from. A NORMAL row must cite one (validate.py).
+    evidence_turns: List[int] = Field(default_factory=list, max_length=12)
 
 
 class Report(BaseModel):
@@ -153,21 +164,51 @@ def missing_required(form: dict, answers: Dict[str, str]) -> List[dict]:
     return [item for item in form["fields"] if item["required"] and not answers.get(item["key"])]
 
 
-def apply_turn(form: dict, answers: Dict[str, str], turn: Turn, questions_asked: int, language: Language) -> Step:
-    """Applies the AI's turn under this code's rules."""
+def field_asked(form: dict, question: str, language: Language) -> Optional[dict]:
+    """The form field a question was for, when the question is one of the form's own."""
+    wanted = (question or "").strip()
+    return next((item for item in form["fields"] if item["question"][language] == wanted), None)
+
+
+def apply_turn(
+    form: dict,
+    answers: Dict[str, str],
+    turn: Turn,
+    questions_asked: int,
+    language: Language,
+    asked: Optional[dict] = None,
+    said: str = "",
+    keep_any_field: bool = False,
+) -> Step:
+    """Applies the AI's turn under this code's rules.
+
+    `asked` is the form field the last question was for, and `said` the patient's reply to it.
+    """
     known = {item["key"] for item in form["fields"]}
     updated = dict(answers)
     for update in turn.updates:
         if update.key in known and update.value.strip():
             updated[update.key] = update.value.strip()
+    # The patient answered one of the form's own questions and the AI recorded nothing for it. Their
+    # own words are kept, so the doctor sees what was said about medicines and allergies either way.
+    # With the AI down this applies to every field, since nothing else will fill them.
+    if asked and said.strip() and not updated.get(asked["key"]) and (keep_any_field or asked["key"] in HIGH_RISK_FIELDS):
+        updated[asked["key"]] = said.strip()[:MAX_KEPT_ANSWER]
 
     # A patient with an urgent symptom needs a person now, not more questions.
     if turn.urgent_symptoms:
         return Step(updated, urgent=turn.urgent_symptoms)
+
+    missing = missing_required(form, updated)
+    risky = [item for item in missing if item["key"] in HIGH_RISK_FIELDS]
+    # The last questions are kept for medicines and allergies, so the limit can't end the interview first.
+    if risky and questions_asked >= MAX_QUESTIONS - len(risky):
+        if questions_asked >= MAX_QUESTIONS:
+            return Step(updated)
+        return Step(updated, question=risky[0]["question"][language], suggested_chips=field_chips(risky[0], language))
     if questions_asked >= MAX_QUESTIONS:
         return Step(updated)
 
-    missing = missing_required(form, updated)
     if turn.finished and not missing:
         return Step(updated)
     question = "" if turn.finished else turn.next_question.strip()
@@ -208,8 +249,18 @@ def advance(form: dict, answers: Dict[str, str], conversation: List[dict], quest
     flags = red_flags.screen(conversation[-1]["answer"]) if conversation else []
     if flags:
         return Step(dict(answers), urgent=flags)
-    turn = next_turn(form, answers, conversation, language)
-    return apply_turn(form, answers, turn, questions_asked, language)
+    last = conversation[-1] if conversation else {"question": "", "answer": ""}
+    asked = field_asked(form, last["question"], language)
+    try:
+        turn = next_turn(form, answers, conversation, language)
+        ai_down = False
+    except (llm.AIUnavailable, llm.AIDeclined) as error:
+        # The form carries on by itself: its own questions in order, the patient's own words kept.
+        # A patient in a waiting room is never left with an error because an AI service is down.
+        logger.warning("Interview question fell back to the form: %s", type(error).__name__)
+        turn = Turn(updates=[], next_question="", finished=False, urgent_symptoms=[])
+        ai_down = True
+    return apply_turn(form, answers, turn, questions_asked, language, asked, last["answer"], keep_any_field=ai_down)
 
 
 def write_report(form: dict, answers: Dict[str, str], conversation: List[dict], records: Optional[dict]) -> Report:

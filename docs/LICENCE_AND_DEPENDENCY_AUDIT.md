@@ -30,6 +30,9 @@ No code from any GPL, AGPL, MPL or unlicensed source is in this repository.
 |---|---|
 | LOINC codes in `backend/lablens/analytes.json` | The licence requires its notice. **Not yet added.** See `CLINICAL_GOVERNANCE.md` |
 | Groq | Patient data leaves our servers and India. Check its terms and sign an agreement before real use |
+| Google Gemini | The same content as Groq, apart from audio, when a Gemini key is set. Needs its own agreement |
+| Microsoft Edge voices (`edge-tts`) | An unofficial client for a consumer service, with no agreement. Question text only, demo mode only (`edge_tts_terms` signoff) |
+| Meko | Finished records as text when patient packs are on. No agreement (`meko_agreement` signoff) |
 
 ## Our own content, not third-party
 

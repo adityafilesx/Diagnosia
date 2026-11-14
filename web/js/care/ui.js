@@ -129,11 +129,20 @@ export function plural(count, word) {
 
 export function toast(message, bad = false) {
     const element = document.getElementById('toast');
+    clearTimeout(toast.timer);
+    // An error is announced at once and stays until dismissed, so nobody misses it (WCAG 4.1.3, 2.2.1).
+    element.setAttribute('role', bad ? 'alert' : 'status');
+    element.setAttribute('aria-live', bad ? 'assertive' : 'polite');
     element.textContent = message;
     element.classList.toggle('bad', bad);
     element.classList.add('show');
-    clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => element.classList.remove('show'), 4000);
+    if (bad) {
+        const close = h('button', { type: 'button', class: 'quiet toast-close', 'aria-label': 'Dismiss message' }, '×');
+        close.addEventListener('click', () => element.classList.remove('show'));
+        element.append(close);
+    } else {
+        toast.timer = setTimeout(() => element.classList.remove('show'), 4000);
+    }
 }
 
 // Runs an action, shows any failure, and offers to record consent when that is what's missing.

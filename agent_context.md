@@ -97,6 +97,8 @@ Open <http://127.0.0.1:8000>. `python -m backend.operator_cli setup-local` creat
 `python -m backend.synthetic.serve` seeds 14 staff and 60 patient records (30 with logins) if they
 aren't there yet, then starts the server (`seed_accounts` alone only seeds).
 Data sources and the plan for a labelled test set: `docs/DATA_SOURCES_AND_EVAL_PLAN.md`.
+The audit register and the ordered fix plan (issues I-xx, work items WI-xxx): `docs/AUDIT_AND_REFINEMENT_PLAN.md`.
+Pick work from it, write the failing test first, and update its status table.
 Staff accounts are **not** self-declared: a doctor stays pending until an organization administrator
 verifies them, and the first administrator is only created from the command line.
 
@@ -125,28 +127,47 @@ Handwriting reading is the risky part, so **nothing is explained until the patie
 5. `/api/prescription/explain` explains only the confirmed medicines, in the patient's language.
    It never changes a dose or suggests a substitute.
 
-The photo isn't stored. A consent box says it goes to outside AI services.
+The photo isn't stored. A consent box says it goes to outside AI services, and each agreement is stored in
+`consent_records` with the version of the words (`backend/records/consent.py`).
 
 ### DiagnoFast (`backend/diagnofast/`)
 - Six specialty forms live in `forms/*.json`: general medicine, dermatology, cardiology, orthopedics, ENT and pediatrics (no form builder).
-- Reception creates a **single-use link** for each patient. The patient needs no account. The
-  link stops working when the interview ends. Only a hash of each link is stored.
+- Reception creates a **one-interview link** for each patient. The patient needs no account. The
+  link stops working when the interview ends, after 24 hours unopened, or 2 hours after it starts
+  (`CURAI_DIAGNOFAST_LINK_HOURS`, `CURAI_DIAGNOFAST_INTERVIEW_HOURS`). Only a hash of each link is stored.
+  A reload carries on at the current question. An answer is saved only if its question is still
+  open, and the page's `answer_key` makes a retry return the stored reply instead of saving twice.
 - `intake.html` without a token opens the self-service specialty grid when
   `DIAGNOFAST_KIOSK_DOCTOR_ID` names a verified doctor. New visits go only to that doctor;
   public callers cannot attach a chart, choose a doctor or fetch ABHA records. The kiosk is
   unavailable when unconfigured or when that doctor loses verification, except in demo mode,
   where it falls back to the first verified doctor. The kiosk and the patient routes are
   rate-limited (`ratelimit.py`).
+- The patient chooses a language first, then reads three consent lines and taps "I agree". ABHA records
+  are a separate yes or no. `/start` needs the current wording's version and stores the consent. The
+  words live in `backend/records/consent.py`: change the words, change the version.
 - The interview is a **controlled loop**, not a free-running agent. `agent.advance` runs each
   answer. The AI picks the next question and extracts fields. `agent.apply_turn` keeps the rules in
   code: only fields on the form are kept, required fields must be filled, and there's a maximum of
   12 questions. The AI never diagnoses.
+- **Medicines and allergies are always asked.** The code keeps the last questions for them
+  (`agent.HIGH_RISK_FIELDS`) and stores the patient's own words if the AI records nothing.
+- **With the AI down the form finishes the interview**: `agent.advance` falls back to the form's own
+  required questions in order and keeps each answer as said. The report then fails and the doctor reads
+  the answers. A failure the patient can't fix shows a plain message and a "Tell reception" button,
+  which marks the visit "Asked for help" in the queue (`POST /patient/{token}/help`).
 - Urgent symptoms (chest pain, trouble breathing and similar) end the interview at once and send
   the patient to reception. Two layers check for them. First `red_flags.screen` runs plain rules on
   the answer in English, Hindi and romanised Hindi, skipping clearly negated symptoms; a match stops
   the interview without calling the AI, so it works even when the AI is down. If the rules find
   nothing, the AI's `urgent_symptoms` still can. The rules deliberately skip words that usually
   describe history (stroke, heart attack, epilepsy, food poisoning) and leave those to the AI.
+  They score 100% on the frozen v1 set (`docs/BASELINES.md`), which only proves v1's own phrasings
+  are handled. Tune on the dev split only, and never edit v1.
+- An urgent stop tells the patient to go to the reception desk now (no word about seriousness), holds
+  that screen for a minute, and alerts staff: a notification for the interview's doctor and the patient's
+  clinicians, which every staff screen polls every 5 seconds (`GET /api/diagnofast/alerts`) and shows as
+  a banner until someone marks it seen. "Tell reception" raises the same kind of banner.
 - Voice: Edge neural voices read questions in Indian English (Neerja) and Hindi (Swara).
   `CURAI_NEURAL_TTS=0` disables this service. After an 8-second neural timeout, English
   can use Groq WAV and Hindi uses the browser. Browser voice and typing remain fallbacks.
@@ -164,7 +185,12 @@ The photo isn't stored. A consent box says it goes to outside AI services.
   demographics, reported ROS, provenance-labeled history, investigation suggestions for physician
   review, and a blank physician workspace. H*/L* require supplied measured values and ranges;
   unasked symptoms are never normal. Original answers and recordings remain expandable. Reports print on one A4 page; if entries do not fit, the printout explicitly says it is incomplete
-  and directs the doctor to the full report, original answers and transcript on screen. AI output remains unreviewed.
+  and directs the doctor to the full report, original answers and transcript on screen. AI output remains unreviewed
+  until a doctor presses "Mark as reviewed" (`POST /intakes/{id}/review`, stored as `reviewed_by` and
+  `reviewed_at`); the queue and the chart show which reports are reviewed. `diagnofast/validate.py` checks
+  each report on view and flags, never changes: a NORMAL row must cite an answer with a negative
+  (`evidence_turns`), an H*/L* row needs a number and a printed range, and no investigation may name a
+  medicine or dose.
 
 ## Rules that must not be broken
 
@@ -209,11 +235,21 @@ The photo isn't stored. A consent box says it goes to outside AI services.
   `tools.css`. The public pages use the Webflow template in `index.css`.
 - Only the microphone browser check is in the repo (`backend/tests/browser/`). After a UI change,
   test it in a real browser at desktop, tablet and phone widths.
-- Don't add dependencies without a reason. `backend/requirements.txt` is the app.
+- Don't add dependencies without a reason. `backend/requirements.txt` is the app. `backend/requirements.lock`
+  pins every package for Linux and Windows and is what CI installs; after changing requirements, regenerate it with
+  `uv pip compile backend/requirements.txt --universal --python-version 3.11 -o backend/requirements.lock` and run
+  `pip-audit -r backend/requirements.lock`. CI (`.github/workflows/ci.yml`) runs the suite on both systems and the audit.
 - A new tool's routes join the sweep in `test_security.py`. Add a real gate, not a list entry.
 - Code and tests must work on both Windows and Linux. Protect sensitive files with
   `private_files.py`, because `chmod` does nothing on Windows. Pass `encoding="utf-8"` when reading
   text, because Windows otherwise uses cp1252.
+
+## Features held for regulatory review
+
+"Investigations to consider" in DiagnoFast and the patient-pack AI brief and questions are behind
+Settings switches (`features.*` in `settings_store.HELD_FEATURES`) that start off, until a written
+regulatory view arrives. Off means the API refuses them and nothing is stored or shown. Don't switch
+them on by default.
 
 ## CareFlow
 
@@ -234,7 +270,10 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
   patients only.
 - In demo mode every consent is recorded by default, marked `demo_default`, and the workspace has no
   consent panel. `care.consent_by_default` must stay false with real patient data. Before real use, the
-  consent panel, the record of who opened a chart, FHIR export and the pilot warnings need bringing back.
+  consent panel, the record of who opened a chart and the pilot warnings need bringing back.
+- **FHIR export routes are live** (`GET /api/patients/{id}/fhir`, ClinScribe and LabLens exports), behind
+  the normal access gate and audit log. Only ClinScribe shows an export button. The output is generic
+  FHIR R4, not validated against ABDM profiles. See `docs/FHIR_MAPPING.md`.
 - Clinical text never goes in Meko memory or conversations.
 - Meko never returns a datapack slot, so live tests must not create them freely.
 
@@ -252,18 +291,30 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
 
 ## Known gaps and open work
 
+- **SQLite contention.** One writer at a time. A request that has written anything (an audit row
+  counts) holds the lock until it commits, so routes call `db.release(db)` before a slow outside call
+  (AI, speech, Meko). A lock not had within `CURAI_DB_BUSY_SECONDS` is a plain 503.
+  `python -m backend.synthetic.load_test` measures it; the PostgreSQL threshold and numbers are in
+  `docs/BASELINES.md`. Do the same in any new route that calls the AI after writing.
 - **Not hosted.** Netlify can't run this backend. It needs a Python host. Set `CURAI_HTTPS=1`
   in production.
-- **Rate limiting covers only the public routes.** The kiosk, the patient interview routes and
-  prescription read-aloud are limited (`ratelimit.py`, counted in SQLite). The other signed-in AI
-  routes still have no limit, so anyone with an account can run up AI costs. Behind a reverse proxy,
+- **Rate limits and the AI budget.** The kiosk, the patient interview routes, sign-up and login (per
+  address), and every signed-in AI route (per account, plus a shared daily quota) are limited
+  (`ratelimit.py`, counted in SQLite). `llm.ask` refuses once the deployment's daily tokens
+  (`CURAI_AI_DAILY_TOKENS`) or spend (`CURAI_AI_DAILY_SPEND_USD`, priced from `CURAI_AI_PRICES`) are
+  used up. Each AI attempt records its token counts; `operator_cli ai-usage --days 7` prints use and
+  cost per tool. Speech transcription isn't counted in the token budget yet. Seeding scripts lift the
+  limits for themselves with `ratelimit.suspended()`. Behind a reverse proxy,
   run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>`, or every visitor shares the
   proxy's limit. Patient links can be guessed at only by luck (they're long random tokens).
 - **Demo mode opens the kiosk.** With `DIAGNOFAST_KIOSK_DOCTOR_ID` unset, demo mode sends kiosk
   visits to the first verified doctor. Set it, or turn demo mode off, before real use.
 - **Prescription reading varies between runs.** The same photo can read `Azu` one time and `Azee`
   the next, and a confident "clear" can still be wrong. The patient confirmation step is the safety
-  net. An idea not built: read each prescription twice and flag fields where the readings differ.
+  net. **Read twice** is built as an experiment, off by default (Settings, `prescription.read_twice`):
+  a second reading from the other provider, and `prescription/compare.py` marks every field the two
+  disagree on as unsure, shows the other reading beside it, and never picks a winner. It doubles the
+  reading cost. Measure it with `ai_eval/run_eval.py --twice` before switching it on.
 - **Live on both, lightly.** A Hindi interview and a synthetic prescription work on Groq and Gemini.
   Reading quality on real handwriting and real Hindi speech is untested. Run `backend/tests/live/`
   with `CURAI_LIVE_TESTS=1` after changing a model.

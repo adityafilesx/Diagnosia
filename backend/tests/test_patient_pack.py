@@ -9,7 +9,7 @@ from datetime import date, timedelta
 import httpx
 import pytest
 
-from backend import llm
+from backend import llm, settings_store
 from backend.config import settings
 from backend.db import connect
 from backend.diagnofast import agent
@@ -97,6 +97,12 @@ class FakePackServer:
     def knowledgebase_delete_document(self, arguments):
         del self.datapacks[arguments["datapack_id"]][arguments["document_id"]]
         return {"chunks_deleted": 1, "s3_deleted": True}
+
+
+@pytest.fixture(autouse=True)
+def brief_switched_on(monkeypatch):
+    """The AI brief is held for review and off by default (WI-113). These tests are about how it works."""
+    monkeypatch.setitem(settings_store.SETTINGS["features.patient_pack_brief"], "default", True)
 
 
 @pytest.fixture

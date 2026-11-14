@@ -8,9 +8,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from backend import ratelimit, settings_store
 from backend.auth import require_doctor, require_user
 from backend.careflow import events
-from backend.db import get_db
+from backend.db import get_db, release
 from backend.integrations import meko
 from backend.patient_pack import brief, sync
 from backend.patient_pack.access import open_pack
@@ -66,14 +67,15 @@ def pack_item(patient_id: str, item_id: str, user=Depends(require_doctor), db: s
     return {key: source[key] for key in ("label", "date", "text", "source_type", "source_id")}
 
 
-@router.post("/brief")
+@router.post("/brief", dependencies=[Depends(settings_store.feature_enabled("features.patient_pack_brief")), Depends(ratelimit.per_user_ai(ratelimit.PACK_QUESTIONS))])
 def pack_brief(patient_id: str, user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
     open_pack(db, user, patient_id, "pack.brief")
     _ready(db, patient_id)
+    release(db)  # nobody else waits on the write lock while the AI writes the brief
     return brief.build_brief(db, patient_id)
 
 
-@router.post("/ask")
+@router.post("/ask", dependencies=[Depends(settings_store.feature_enabled("features.patient_pack_brief")), Depends(ratelimit.per_user_ai(ratelimit.PACK_QUESTIONS))])
 def pack_ask(
     patient_id: str, request: brief.Question, user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)
 ) -> dict:
@@ -82,6 +84,7 @@ def pack_ask(
     pack = db.execute("SELECT datapack_id FROM patient_packs WHERE patient_id = ? AND state = 'active'", (patient_id,)).fetchone()
     if pack is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "This patient's pack hasn't been built yet.")
+    release(db)  # nobody else waits on the write lock during the search and the AI's answer
     try:
         return brief.answer(db, client, pack["datapack_id"], patient_id, request.question)
     except meko.MekoUnavailable:

@@ -26,6 +26,8 @@ that decision would defeat the control.
 | `security_penetration_test` | Independent tester | All |
 | `incident_response` | Named clinical and data owners | All |
 | `loinc_notice` | Legal adviser | Any distribution using LOINC codes |
+| `edge_tts_terms` | Legal adviser, or replace the voice | DiagnoFast neural question voices (demo mode only today) |
+| `meko_agreement` | Legal, with Meko and Yugabyte | Patient packs |
 
 ## Known limits
 

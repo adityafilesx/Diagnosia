@@ -121,9 +121,30 @@ function askConsent(detail) {
     notice.scrollIntoView({ block: 'center' });
 }
 
+let lastRoute = null;
+
+// Keeps the scroll padding equal to the sticky patient bar, whose height changes with the patient and width.
+function trackStickyHeight() {
+    const band = document.getElementById('wristband');
+    if (!band || !window.ResizeObserver) return;
+    new ResizeObserver(() => {
+        document.documentElement.style.setProperty('--sticky', `${band.offsetHeight}px`);
+    }).observe(band);
+}
+
+// After a route change, focus moves to the new page's heading so keyboard and screen reader users land on it.
+function focusHeading() {
+    const heading = main.querySelector('h1');
+    const target = heading || main;
+    if (heading) heading.tabIndex = -1;
+    target.focus({ preventScroll: true });
+}
+
 async function render() {
     renderRail();
     const { name, detail } = currentRoute();
+    const routeChanged = window.location.hash !== lastRoute;
+    lastRoute = window.location.hash;
     const label = TOOLS[name]?.label ?? LABELS[name];
     document.title = name === 'home' ? 'Curai' : `${label}: Curai`;
     loading(main);
@@ -145,8 +166,9 @@ async function render() {
             startNewPatient,
         });
     } catch (error) {
-        show(main, h('p', { class: 'error' }, error.message));
+        show(main, h('p', { class: 'error', role: 'alert' }, error.message));
     }
+    if (routeChanged) focusHeading();
 }
 
 // The add-a-patient form is the patient record's empty state.
@@ -171,6 +193,37 @@ async function openPatient(patientId) {
     } catch (storageBlocked) { /* the page works without it */ }
     await renderWristband();
     await render();
+}
+
+// Urgent stops and requests for help from the waiting room. Every staff screen asks every few seconds,
+// so an alert shows whatever page is open. The banner stays until someone marks it seen.
+const ALERT_POLL_MS = 5000;
+const shownAlerts = new Map();
+
+async function refreshAlerts() {
+    const found = await api('/api/diagnofast/alerts').catch(() => null);
+    if (!found) return;
+    const area = document.getElementById('alerts');
+    const current = new Set(found.map((item) => item.id));
+    for (const [id, node] of shownAlerts) {
+        if (!current.has(id)) { node.remove(); shownAlerts.delete(id); }
+    }
+    for (const item of found) {
+        if (shownAlerts.has(item.id)) continue;
+        const seen = h('button', { type: 'button', class: 'quiet' }, 'Mark as seen');
+        const node = h('div', { class: `staff-alert ${item.kind}` },
+            h('span', {}, item.body ? `${item.title}: ${item.body}` : item.title),
+            h('span', { class: 'spacer' }),
+            h('a', { href: `#/diagnofast/${item.intake_id}` }, 'Open'),
+            seen);
+        seen.addEventListener('click', async () => {
+            await api(`/api/notifications/${item.id}/read`, { method: 'POST' }).catch(() => {});
+            refreshAlerts();
+            refreshInbox();
+        });
+        shownAlerts.set(item.id, node);
+        area.append(node);
+    }
 }
 
 async function refreshInbox() {
@@ -233,6 +286,7 @@ async function renderOnboarding() {
 }
 
 async function start() {
+    trackStickyHeight();
     state.me = await api('/api/me');
     document.getElementById('who').textContent = `${state.me.first_name} ${state.me.last_name}`;
     if (state.me.role === 'doctor' && state.me.account_status !== 'verified') {
@@ -248,6 +302,10 @@ async function start() {
     const first = state.me.role === 'patient' ? state.patients.find((item) => item.relationship === 'self') : null;
     await openPatient(state.patients.some((item) => item.id === remembered) ? remembered : first?.id ?? '');
     refreshInbox();
+    if (state.me.role === 'doctor') {
+        refreshAlerts();
+        setInterval(refreshAlerts, ALERT_POLL_MS);
+    }
 }
 
 start().catch((error) => {

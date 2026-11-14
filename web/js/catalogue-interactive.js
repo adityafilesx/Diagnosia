@@ -13,8 +13,9 @@
     if (filterButtons.length && cards.length) {
       filterButtons.forEach((btn) => {
         btn.addEventListener('click', () => {
-          filterButtons.forEach((b) => b.classList.remove('active'));
+          filterButtons.forEach((b) => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
           btn.classList.add('active');
+          btn.setAttribute('aria-selected', 'true');
 
           const filter = btn.getAttribute('data-filter') || 'all';
 

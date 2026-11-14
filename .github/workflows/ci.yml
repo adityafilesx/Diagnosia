@@ -1,0 +1,44 @@
+# Runs the test suite on Linux and Windows, and audits dependencies, on every push and pull request.
+# The suite needs no keys and no network: every AI and speech call is faked.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - name: Install pinned dependencies
+        run: python -m pip install -r backend/requirements.lock
+      - name: Run tests
+        run: python -m pytest backend/tests --ignore=backend/tests/browser -q
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Audit pinned dependencies for known vulnerabilities
+        run: |
+          python -m pip install pip-audit
+          pip-audit -r backend/requirements.lock

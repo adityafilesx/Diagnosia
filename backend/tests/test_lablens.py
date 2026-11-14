@@ -272,6 +272,7 @@ def test_patient_can_upload_and_stranger_cannot_read(doctor, person):
 
 
 def confirm(client, report_id, **body):
+    body.setdefault("compared_with_original", True)  # the person ticked that they compared with the original
     return client.post(f"/api/addons/lablens/reports/{report_id}/confirm", json=body)
 
 
@@ -311,6 +312,34 @@ def test_corrections_keep_the_original(doctor, patient):
     saved = next(row for row in doctor.get(f"/api/patients/{patient['id']}/observations").json() if row["value_number"] == 12.2)
     assert saved["review_status"] == "corrected"
     assert json.loads(saved["original_value"])["value_text"] == "11.2"
+
+
+def test_untouched_results_are_never_accepted_silently(doctor, patient):
+    report = upload(doctor, patient["id"], lab_pdf(clean_report_lines())).json()
+    refused = confirm(doctor, report["id"], compared_with_original=False)
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["code"] == "comparison_needed"
+    assert doctor.get(f"/api/patients/{patient['id']}/observations").json() == []
+    assert all(row["reviewed_by"] is None for row in extraction(doctor, report["id"])["results"])
+
+
+def test_results_each_checked_by_a_person_need_no_tick(doctor, patient):
+    report = upload(doctor, patient["id"], lab_pdf(clean_report_lines())).json()
+    for result in extraction(doctor, report["id"])["results"]:
+        doctor.patch(f"/api/addons/lablens/results/{result['id']}", json={"action": "accept"})
+    assert confirm(doctor, report["id"], compared_with_original=False).status_code == 200
+    assert len(doctor.get(f"/api/patients/{patient['id']}/observations").json()) == 2
+
+
+def test_a_typed_fix_gets_the_same_plausibility_check(doctor, patient):
+    report = upload(doctor, patient["id"], lab_pdf(clean_report_lines())).json()
+    result = extraction(doctor, report["id"])["results"][0]  # haemoglobin 11.2
+    fixed = doctor.patch(f"/api/addons/lablens/results/{result['id']}", json={"action": "correct", "value_text": "112"}).json()
+    assert any("plausible" in issue for issue in json.loads(fixed["issues"]))
+    assert fixed["review_status"] == "pending"
+    assert fixed["confidence"] == "review"
+    # It blocks confirmation until a person accepts it again, having seen the warning.
+    assert confirm(doctor, report["id"]).json()["detail"]["code"] == "results_pending"
 
 
 def test_rejected_results_never_reach_the_record(doctor, patient):

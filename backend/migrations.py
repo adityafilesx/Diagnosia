@@ -99,6 +99,40 @@ def _document_description(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE clinical_documents ADD COLUMN description TEXT NOT NULL DEFAULT ''")
 
 
+def _intake_expiry_and_answer_key(db: sqlite3.Connection) -> None:
+    """Interview links expire, and a retried answer is recognised instead of saved twice.
+
+    Links still open when this runs get a day from now, so nobody's link dies mid-visit.
+    """
+    db.execute("ALTER TABLE intakes ADD COLUMN expires_at TEXT")
+    db.execute("ALTER TABLE intakes ADD COLUMN last_answer_key TEXT")
+    db.execute("ALTER TABLE intakes ADD COLUMN last_answer_reply TEXT")
+    db.execute(
+        "UPDATE intakes SET expires_at = datetime('now', '+24 hours') WHERE status IN ('waiting', 'in_progress')"
+    )
+
+
+def _intake_report_requested_at(db: sqlite3.Connection) -> None:
+    """When a report was asked for, so one whose background job died can be found and retried."""
+    db.execute("ALTER TABLE intakes ADD COLUMN report_requested_at TEXT")
+
+
+def _intake_help_requested_at(db: sqlite3.Connection) -> None:
+    """When a patient pressed "Tell reception", so the queue can show that someone needs a person."""
+    db.execute("ALTER TABLE intakes ADD COLUMN help_requested_at TEXT")
+
+
+def _notification_link(db: sqlite3.Connection) -> None:
+    """Where a notification points in the workspace, such as the interview an alert is about."""
+    db.execute("ALTER TABLE notifications ADD COLUMN link TEXT")
+
+
+def _intake_review_stamp(db: sqlite3.Connection) -> None:
+    """Who reviewed a DiagnoFast report and when. Until then it is an unreviewed AI draft."""
+    db.execute("ALTER TABLE intakes ADD COLUMN reviewed_by INTEGER REFERENCES users (id)")
+    db.execute("ALTER TABLE intakes ADD COLUMN reviewed_at TEXT")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -108,6 +142,11 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (6, "intake_patient_link", _intake_patient_link),
     (7, "delivery_detail", _delivery_detail),
     (8, "document_description", _document_description),
+    (9, "intake_expiry_and_answer_key", _intake_expiry_and_answer_key),
+    (10, "intake_report_requested_at", _intake_report_requested_at),
+    (11, "intake_help_requested_at", _intake_help_requested_at),
+    (12, "notification_link", _notification_link),
+    (13, "intake_review_stamp", _intake_review_stamp),
 ]
 
 

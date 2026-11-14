@@ -10,11 +10,11 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
-from backend import settings_store, speech
+from backend import ratelimit, settings_store, speech
 from backend.auth import require_doctor, require_user
 from backend.careflow import events
 from backend.clinscribe import drafting, verifier
-from backend.db import get_db
+from backend.db import get_db, release
 from backend.patient_pack import sync as pack
 from backend.records import access as gate
 from backend.records import audit, care, fhir
@@ -199,7 +199,7 @@ def set_state(
     return {"state": request.state}
 
 
-@router.post("/sessions/{session_id}/transcribe", status_code=status.HTTP_201_CREATED)
+@router.post("/sessions/{session_id}/transcribe", status_code=status.HTTP_201_CREATED, dependencies=[Depends(ratelimit.per_user_ai(ratelimit.SCRIBE_CALLS))])
 def transcribe_chunk(
     session_id: str,
     audio: UploadFile = File(...),
@@ -216,6 +216,7 @@ def transcribe_chunk(
     data = audio.file.read(MAX_CHUNK_BYTES + 1)
     if len(data) > MAX_CHUNK_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "This audio chunk is too large.")
+    release(db)  # nobody else waits on the write lock while speech is transcribed
     text = speech.transcribe(data, audio.content_type or "audio/webm", session["language"])
     if not text.strip():
         return {"segment": None}
@@ -258,7 +259,7 @@ def correct_segment(
     return one(db.execute("SELECT * FROM transcript_segments WHERE id = ?", (segment_id,)).fetchone())
 
 
-@router.post("/sessions/{session_id}/draft-note", status_code=status.HTTP_201_CREATED)
+@router.post("/sessions/{session_id}/draft-note", status_code=status.HTTP_201_CREATED, dependencies=[Depends(ratelimit.per_user_ai(ratelimit.SCRIBE_CALLS))])
 def draft_note(
     session_id: str,
     request: DraftRequest,
@@ -279,6 +280,7 @@ def draft_note(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Add at least one section heading.")
 
     model = settings_store.model_for("clinscribe_note")
+    release(db)  # nobody else waits on the write lock while the AI drafts
     content = drafting.draft_note(segments, headings)
     note_id = insert(
         db,
