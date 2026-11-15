@@ -31,6 +31,13 @@ def needs_live():
         pytest.skip("Set CURAI_LIVE_TESTS=1 to call real services")
 
 
+def needs_key():
+    """Live, and a real Groq key: the Groq tests can't say anything without one."""
+    needs_live()
+    if not settings.groq_api_key:
+        pytest.skip("Set GROQ_API_KEY to call Groq")
+
+
 @pytest.mark.parametrize("model", ["openai/gpt-oss-120b", "openai/gpt-oss-20b"])
 def test_groq_returns_strict_structured_output(monkeypatch, model):
     needs_key()
