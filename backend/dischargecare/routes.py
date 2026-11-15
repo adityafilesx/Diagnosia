@@ -339,7 +339,7 @@ def add_task(
     db: sqlite3.Connection = Depends(get_db),
 ) -> dict:
     episode = _editable(db, user, episode_id, "dischargecare.task.add")
-    care.create_task(
+    task_id = care.create_task(
         db,
         episode["patient_id"],
         request.title,
@@ -357,6 +357,13 @@ def add_task(
         link_type="discharge_episode",
         link_id=episode_id,
     )
+    if episode["status"] == "active" and request.audience == "patient":
+        # The family already has their checklist. A step added now would go unseen unless they are told.
+        db.execute(
+            "INSERT INTO discharge_late_steps (task_id, episode_id, added_at) VALUES (?, ?, ?)", (task_id, episode_id, now_iso())
+        )
+        patient = db.execute("SELECT user_id FROM patients WHERE id = ?", (episode["patient_id"],)).fetchone()
+        care.notify(db, patient["user_id"], "A new step was added to your going-home checklist", request.title, episode["patient_id"], "dischargecare")
     return _payload(db, episode)
 
 
@@ -397,12 +404,30 @@ def checklist(episode_id: str, user=Depends(require_user), db: sqlite3.Connectio
     gate.open_patient(db, user, episode["patient_id"], "dischargecare.checklist.read")
     if episode["status"] == "draft":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "This checklist isn't ready yet.")
-    tasks = [task for task in _tasks(db, episode_id) if task["audience"] == "patient"]
+    late = {row["task_id"] for row in db.execute("SELECT task_id FROM discharge_late_steps WHERE episode_id = ?", (episode_id,))}
+    # Only what a family needs to act on a step. The team's own fields (priority, owner, who it
+    # escalates to) stay with the team.
+    tasks = [
+        {
+            "id": task["id"],
+            "title": task["title"],
+            "detail": task["detail"],
+            "due_at": task["due_at"],
+            "status": task["status"],
+            "overdue": task["overdue"],
+            "added_after_approval": task["id"] in late,
+        }
+        for task in _tasks(db, episode_id)
+        if task["audience"] == "patient" and task["status"] not in ("held", "cancelled")
+    ]
+    approver = db.execute("SELECT first_name, last_name FROM users WHERE id = ?", (episode["approved_by"],)).fetchone()
     return {
         "discharge_date": episode["discharge_date"],
         "destination": episode["destination"],
         "emergency_contact": episode["emergency_contact"],
         "status": episode["status"],
+        "approved_at": episode["approved_at"],
+        "approved_by": f"Dr {approver['first_name']} {approver['last_name']}" if approver else "",
         "instructions": rows(
             db.execute("SELECT topic, text, language FROM discharge_instructions WHERE episode_id = ?", (episode_id,))
         ),

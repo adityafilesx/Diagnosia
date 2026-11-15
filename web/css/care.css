@@ -216,6 +216,16 @@ label.tick { display: flex; gap: 8px; align-items: center; color: var(--ink); fo
 fieldset.choice { border: 1px solid var(--edge); border-radius: 6px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 2px; }
 fieldset.choice legend { font-size: .85rem; color: var(--ink-soft); padding: 0 4px; }
 fieldset.choice label.tick { min-height: 44px; }
+/* The family's going-home checklist: large type for the number to call, one big button a step. */
+.who-to-call h2 { margin: 0 0 4px; }
+.who-to-call .call-line { font-size: 1.35rem; font-weight: 700; margin: 4px 0; overflow-wrap: anywhere; }
+ul.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+ul.steps .step { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper, #fff); }
+@media (min-width: 700px) { ul.steps .step { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } }
+ul.steps .step.done { opacity: .8; }
+ul.steps .step p { margin: 4px 0 0; }
+.step-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+button.big-done { min-height: 56px; min-width: 140px; font-size: 1.15rem; font-weight: 700; flex: 1 1 140px; }
 .field { display: grid; gap: 2px; }
 .field[hidden] { display: none; }
 .field-error { color: var(--alert); font-weight: 500; font-size: .9rem; margin: 2px 0 0; }
