@@ -302,7 +302,7 @@ the interview's AI request is byte-for-byte unchanged. Sarvam and Neo4j stop com
   `backend/tests/fake_graph.py`. SQLite stays the record. `graph_sync.py` queues a reference with the
   change and re-reads SQLite; Neo4j gets IDs and coded terms only, and every word shown is re-read from
   SQLite after the access gate. With Neo4j off or down, the views come from SQLite.
-- **Question graph** (`diagnofast/graph/questions_v1.json`, NOT clinically reviewed): offered to the AI
+- **Question graph** (`diagnofast/graph/questions_v2.json`, NOT clinically reviewed): offered to the AI
   after `red_flags.screen`, only while room remains for the form's required questions. Red-flag nodes
   only add screening questions. `apply_turn`'s rules are unchanged.
 - **Doctor-like interview**: known context with its source (ABHA is simulated and only ever confirmed),

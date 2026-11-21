@@ -139,7 +139,7 @@ Everything below is for made-up patients only, starts switched off, and stops co
 2. Set `NEO4J_PASSWORD` (8 characters or more) and `NEO4J_URI=neo4j://127.0.0.1:7687` in `.env`.
 3. `docker compose -f docker-compose.integrations.yml up neo4j`. It listens on this machine only.
 4. Turn on Settings, Neo4j, then the DiagnoFast add-ons you want. The question graph loads itself from
-   `backend/diagnofast/graph/questions_v1.json` (not clinically reviewed). Finished visits are copied by
+   `backend/diagnofast/graph/questions_v2.json` (not clinically reviewed). Finished visits are copied by
    the app's sweep; `python -m backend.operator_cli graph-rebuild` empties the copy and sends them again.
 
 **OPD bookings and the slot QR login**: turn on DiagnoFast add-ons, OPD bookings (and slot QR login),

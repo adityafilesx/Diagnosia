@@ -27,7 +27,7 @@ from backend.integrations import graph
 logger = logging.getLogger("curai.diagnofast")
 
 GRAPH_DIR = Path(__file__).parent / "graph"
-SEED_FILE = GRAPH_DIR / "questions_v1.json"
+SEED_FILE = GRAPH_DIR / "questions_v2.json"
 EXAMPLES_FILE = GRAPH_DIR / "good_questions.json"
 MAX_EXAMPLES = 6
 DEVANAGARI = r"ऀ-ॿ"

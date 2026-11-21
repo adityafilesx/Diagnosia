@@ -41,7 +41,7 @@ def request_body(ai):
 
 def test_the_seed_is_versioned_and_marked_not_clinically_reviewed():
     seed = guidance.seed()
-    assert seed["version"] == "questions_v1"
+    assert seed["version"] == "questions_v2"
     assert seed["clinically_reviewed"] is False and "NOT CLINICALLY REVIEWED" in seed["status"]
     for complaint in seed["complaints"]:
         for key in ("follow_ups", "associated", "red_flags"):
@@ -260,3 +260,23 @@ def test_a_driver_failure_is_reported_without_its_message():
     with pytest.raises(graph.GraphUnavailable) as caught:
         graph.Neo4jGraph(Driver(), "neo4j").next_question(["fever"], [])
     assert "patient" not in str(caught.value)
+
+
+def test_a_question_id_has_one_wording_because_neo4j_merges_on_it():
+    # MERGE (q:Question {id}) keeps one node per ID, so two wordings under one ID would silently become one.
+    wordings = {}
+    for complaint in guidance.seed()["complaints"]:
+        for key in ("follow_ups", "associated", "red_flags"):
+            for item in complaint[key]:
+                wordings.setdefault(item["id"], set()).add((item["en"], item["hi"]))
+    assert {qid: texts for qid, texts in wordings.items() if len(texts) > 1} == {}
+
+
+def test_the_fake_keeps_one_question_per_id_as_merge_does():
+    seed = {"version": "t", "complaints": [
+        {"id": "a", "department": "ent", "follow_ups": [{"id": "q", "en": "first", "hi": "पहला"}], "associated": [], "red_flags": []},
+        {"id": "b", "department": "ent", "follow_ups": [{"id": "q", "en": "second", "hi": "दूसरा"}], "associated": [], "red_flags": []},
+    ]}
+    fake = FakeGraph()
+    fake.load_questions(seed)
+    assert fake.next_question(["a"], [])["en"] == fake.next_question(["b"], [])["en"] == "second"

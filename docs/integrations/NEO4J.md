@@ -24,7 +24,7 @@ Researched on 21 November 2026. Sources are listed with each fact.
 - **Only finished records go in.** Never a draft, an unfinished interview, an unreviewed suggestion or an
   unconfirmed medicine.
 - **The question graph is product content, not patient data.** It lives in a versioned seed file in git
-  (`backend/diagnofast/graph/questions_v1.json`), marked "not clinically reviewed", and Neo4j is loaded
+  (`backend/diagnofast/graph/questions_v2.json`), marked "not clinically reviewed", and Neo4j is loaded
   from it. Red-flag nodes only add screening questions. They never decide anything and never replace
   `red_flags.screen`, which still runs first on every answer.
 - **Graph results are suggestions to staff.** The walk-in department suggestion is shown to staff only,
@@ -97,6 +97,27 @@ vendor and would need the same review as any other.
 
 Settings: `NEO4J_URI` (for example `neo4j://127.0.0.1:7687`; empty means Neo4j is off), `NEO4J_USER` and
 `NEO4J_PASSWORD`, from `.env`. The password can also be saved in Settings. Never in code.
+
+## Live check (22 November 2026)
+
+`CURAI_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_neo4j.py -s`, against
+`neo4j:5.26-community` in Docker on this machine, with made-up data only: 12 of 12 passed.
+
+- Loading the question graph twice leaves the node and relationship counts unchanged.
+- For every complaint, the real next-question order and wording match the in-memory fake exactly:
+  follow-ups, then red-flag screens, then associated symptoms. `CALL (c) { ... }` works on 5.26.
+- Visits merge and read back, including one with no medicines, allergies or report rows (the FOREACH
+  and empty-UNWIND paths). Merging a visit twice changes nothing.
+- History, evidence and department votes return what the fake returns.
+
+**Found and fixed:** three question IDs (`pain_site`, `pain_onset`, `pain_character`) had two wordings
+in the seed. On a real server `MERGE` keeps one node per ID, so one wording silently replaced the other,
+which the fake hid. The seed is now `questions_v2` with those IDs split, a test forbids two wordings
+under one ID, and the fake now keeps one question per ID, as `MERGE` does.
+
+Timings, local Docker: the first query of each kind took 1.5 to 1.8 s while the server planned it.
+After that, each next-question step took about 2 to 6 ms, merging a visit 157 ms, history 62 ms,
+evidence 47 ms and department votes 35 ms.
 
 ## Tests
 

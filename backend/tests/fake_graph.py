@@ -27,6 +27,10 @@ class FakeGraph:
         self._check("load_questions")
         self.loads += 1
         self.rows = question_rows(seed)
+        # As MERGE (q:Question {id}) does: one node per ID, so the last wording loaded wins everywhere.
+        latest = {item["id"]: item for row in self.rows for item in row["questions"]}
+        for row in self.rows:
+            row["questions"] = [{**item, "en": latest[item["id"]]["en"], "hi": latest[item["id"]]["hi"]} for item in row["questions"]]
 
     def next_question(self, complaints: Sequence[str], asked: Sequence[str]) -> Optional[dict]:
         self._check("next_question")
