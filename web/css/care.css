@@ -589,3 +589,6 @@ button:not(.quiet):not(.danger):not(.link-button):not(.patient-row),
 .graph-node.answer rect { stroke-dasharray: 4 3; }
 .graph-node.row.uncited rect, .graph-node.visit.current rect { stroke-width: 2; }
 .graph-edge { fill: none; stroke: var(--action); stroke-width: 1.5; opacity: 0.8; }
+
+.translation-line { margin: 6px 0 0; color: var(--ink-soft); }
+.feedback-panel { margin: 18px 0; }

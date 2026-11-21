@@ -274,6 +274,7 @@ UNTRACKED_ROUTES: Dict[str, str] = {
     "consent_audio": "Reads the consent words aloud and stores nothing",
     "kiosk_consent_audio": "Reads the consent words aloud at the kiosk and stores nothing",
     "patient_status_audio": "Reads the queue number and department aloud and stores nothing",
+    "review_feedback": "A doctor's note on the interview's questions, kept for evaluation; not a step in the visit",
     "save_to_record": "Kept in the audit log and the patient's timeline, and only the patient's own confirmed medicines",
     "calendar": "Rebuilds the schedule and its calendar file for new reminder times, from already-confirmed medicines; stores nothing",
     "approve": "LOINC mapping governance, kept in the audit log",

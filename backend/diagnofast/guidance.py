@@ -107,13 +107,25 @@ def vague_probe(answer: str) -> Optional[dict]:
     return None
 
 
-def examples() -> List[dict]:
-    """Good follow-up questions, as prompt examples. Hand-written for the demo at first; reviewed doctor
-    feedback is added later (step 9). Fine-tuning comes later still, and only on reviewed real data."""
-    if not EXAMPLES_FILE.exists():
-        return []
-    data = json.loads(EXAMPLES_FILE.read_text(encoding="utf-8"))
-    return data.get("examples", [])[:MAX_EXAMPLES]
+def examples(db: Optional[sqlite3.Connection] = None) -> List[dict]:
+    """Good follow-up questions, as prompt examples. Hand-written for the demo at first, then reviewed
+    doctor feedback that a person promoted (operator_cli feedback-promote). Newest promoted first.
+    Fine-tuning comes later, and only on reviewed real data."""
+    found: List[dict] = []
+    if db is not None:
+        try:
+            found = [
+                {"source": "doctor_feedback", "patient_said": "", "good_question": row["good_question"]}
+                for row in db.execute(
+                    "SELECT good_question FROM diagnofast_feedback WHERE promoted_at IS NOT NULL AND good_question IS NOT NULL ORDER BY promoted_at DESC LIMIT ?",
+                    (MAX_EXAMPLES,),
+                )
+            ]
+        except sqlite3.Error:
+            found = []
+    if EXAMPLES_FILE.exists():
+        found += json.loads(EXAMPLES_FILE.read_text(encoding="utf-8")).get("examples", [])
+    return found[:MAX_EXAMPLES]
 
 
 def _loaded(client) -> bool:

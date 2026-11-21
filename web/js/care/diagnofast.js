@@ -85,6 +85,30 @@ function problemList(detail) {
         h('ul', {}, detail.report_problems.map((item) => h('li', {}, `${PROBLEM_FIELD[item.field] || item.field}, ${label(item)}: ${item.problem}`))));
 }
 
+// "Anything you wish had been asked?" It changes nothing in the report; it helps the questions improve.
+function feedbackPanel(detail, context) {
+    const done = ['done', 'report_failed'].includes(detail.status);
+    const list = h('ul', {}, detail.feedback.answers.map((answer) => h('li', {}, answer.wished_asked,
+        answer.good_question && h('span', { class: 'muted' }, ` · suggested: “${answer.good_question}”`))));
+    const box = form(
+        [
+            { name: 'wished_asked', label: detail.feedback.question, type: 'textarea', required: true, maxlength: 1000 },
+            { name: 'good_question', label: 'A question you would have asked (optional)', maxlength: 300 },
+        ],
+        'Save feedback',
+        async (values, element) => {
+            const saved = await act(() => api(`/api/diagnofast/intakes/${detail.id}/feedback`, {
+                method: 'POST', body: { wished_asked: values.wished_asked, good_question: values.good_question || null },
+            }), context, 'Thank you. This helps the questions improve.');
+            if (!saved) return;
+            list.append(h('li', {}, values.wished_asked, values.good_question && h('span', { class: 'muted' }, ` · suggested: “${values.good_question}”`)));
+            element.reset();
+        },
+    );
+    return h('section', { class: 'no-print feedback-panel' }, h('h3', {}, 'Your feedback on the questions'), list,
+        done ? box : h('p', { class: 'muted' }, 'Feedback opens when the interview is finished.'));
+}
+
 export function reportView(detail, context) {
     const pack = h('div', { class: 'no-print' });
     const { report, patient, records } = detail;
@@ -158,13 +182,15 @@ export function reportView(detail, context) {
             h('p', { class: 'plan-line' }, 'Prescription / plan: ', h('span', { class: 'writing-line' })),
             h('div', { class: 'signoff' }, h('p', {}, 'Doctor signature: ____________________'), h('p', {}, 'Date: ____________________'))),
         detail.graphs && graphsPanel(detail.graphs),
+        detail.feedback && feedbackPanel(detail, context),
         h('details', { class: 'no-print requisition-original', open: !report },
             h('summary', {}, 'Original form answers & patient transcript'),
             h('h3', {}, `${detail.form_title} form`),
             detail.answers.map((answer) => row(answer.label, answer.value)),
             h('h3', {}, "The patient’s own words"),
             detail.transcript.map((turn, index) => h('div', { class: 'medicine-card' },
-                h('p', {}, turn.question), h('strong', {}, turn.answer),
+                h('p', {}, turn.question), h('strong', { lang: /[\u0900-\u097F]/.test(turn.answer) ? 'hi' : null }, turn.answer),
+                turn.english && h('p', { class: 'translation-line' }, h('span', { class: 'status' }, turn.english_label), ' ', turn.english),
                 turn.has_audio && h('audio', { class: 'no-print', controls: true, preload: 'none', src: `/api/diagnofast/intakes/${detail.id}/audio/${index}` })))),
         h('p', { class: 'requisition-legend' }, `DiagnoFast · Intake #${detail.id} · Clinical decisions and sign-off remain with the examining physician.`),
         h('div', { class: 'row no-print' },

@@ -392,9 +392,14 @@ def intake_detail(
         "records": json.loads(row["records"]) if row["records"] else None,
         "report": report,
         "transcript": [
-            {"question": turn["question"], "answer": turn["answer"], "has_audio": bool(turn.get("audio"))}
+            {
+                "question": turn["question"], "answer": turn["answer"], "has_audio": bool(turn.get("audio")),
+                # Only when there is one, so with Sarvam off the answer is exactly as before.
+                **({"english": turn["english"], "english_label": "machine translation"} if turn.get("english") else {}),
+            }
             for turn in transcript
         ],
+        "feedback": _feedback_view(db, row),
     }
 
 
@@ -435,6 +440,50 @@ def review_report(
     if not row["patient_id"]:  # with a chart, the gate above has already written this to the audit log
         audit.record(db, doctor, "diagnofast.report.reviewed", None, "intake", str(row["id"]))
     return {"reviewed": True}
+
+
+FEEDBACK_QUESTION = "Anything you wish had been asked?"
+
+
+class Feedback(BaseModel):
+    wished_asked: str = Field(min_length=1, max_length=1000)
+    good_question: Optional[str] = Field(default=None, max_length=300)
+
+
+def _feedback_view(db: sqlite3.Connection, row: sqlite3.Row) -> Optional[dict]:
+    from backend import addons
+
+    if not addons.enabled("diagnofast.review_feedback", db):
+        return None
+    answers = db.execute(
+        "SELECT wished_asked, good_question, created_at FROM diagnofast_feedback WHERE intake_id = ? ORDER BY id", (row["id"],)
+    ).fetchall()
+    return {"question": FEEDBACK_QUESTION, "answers": [dict(answer) for answer in answers]}
+
+
+@router.post("/intakes/{intake_id}/feedback", status_code=status.HTTP_201_CREATED)
+def review_feedback(
+    intake_id: int, request: Feedback, doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    """The reviewing doctor's answer to "Anything you wish had been asked?". It changes nothing in the report."""
+    from backend import addons
+
+    if not addons.enabled("diagnofast.review_feedback", db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": "addon_off", "message": "Review feedback is switched off."})
+    row = _readable_intake(intake_id, doctor, db, "diagnofast.report.viewed", WRITE)
+    if row["status"] not in ("done", "report_failed"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Feedback comes after the interview is finished.")
+    wished = request.wished_asked.strip()
+    if not wished:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Please write what you wish had been asked.")
+    good = (request.good_question or "").strip() or None
+    db.execute(
+        "INSERT INTO diagnofast_feedback (intake_id, doctor_id, wished_asked, good_question, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+        (row["id"], doctor["id"], wished, good),
+    )
+    if not row["patient_id"]:
+        audit.record(db, doctor, "diagnofast.report.feedback", None, "intake", str(row["id"]))
+    return {"saved": True}
 
 
 @router.get("/intakes/{intake_id}/graph")
@@ -517,7 +566,7 @@ def _guidance(
             doctor_like=True,
             known_context=guidance.known_context(db, row),
             vague_answer=guidance.vague_probe(conversation[-1]["answer"]) if conversation else None,
-            examples=guidance.examples(),
+            examples=guidance.examples(db),
         )
     if graph_on:
         graph_state["complaints"] = guidance.match_complaints([turn["answer"] for turn in conversation])
@@ -691,10 +740,32 @@ def preview_transcript(token: str, audio: UploadFile = File(...), db: sqlite3.Co
     return {"text": said}
 
 
+def _translate_answers(db: sqlite3.Connection, row: sqlite3.Row) -> None:
+    """An English machine translation beside each Hindi answer the patient confirmed, for the doctor.
+
+    Runs in the report job, so the patient never waits for it. Only with Sarvam ready (speech.py decides);
+    a failure leaves the line untranslated. The patient's own words are never changed, and the report AI
+    still reads those, not the translation.
+    """
+    transcript = json.loads(row["transcript"])
+    changed = False
+    for turn in transcript:
+        if "english" in turn:
+            continue
+        english = speech.translate_to_english(turn["answer"])
+        turn["english"] = english
+        changed = changed or english is not None
+    if changed:
+        db.execute("UPDATE intakes SET transcript = ? WHERE id = ?", (json.dumps(transcript, ensure_ascii=False), row["id"]))
+        db.commit()
+
+
 def _build_report(intake_id: int) -> None:
     """Runs after the patient has their thank-you, so they aren't kept waiting."""
     db = connect()
     try:
+        row = db.execute("SELECT * FROM intakes WHERE id = ?", (intake_id,)).fetchone()
+        _translate_answers(db, row)
         row = db.execute("SELECT * FROM intakes WHERE id = ?", (intake_id,)).fetchone()
         try:
             report = agent.write_report(

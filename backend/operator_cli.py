@@ -293,6 +293,25 @@ def signoff(args) -> int:
     return 0
 
 
+def feedback_promote(args) -> int:
+    """A person decides that a doctor's suggested question is a good prompt example."""
+    init_db()
+    db = connect()
+    try:
+        changed = db.execute(
+            "UPDATE diagnofast_feedback SET promoted_by = ?, promoted_at = datetime('now') WHERE id = ? AND good_question IS NOT NULL",
+            (args.operator, args.id),
+        ).rowcount
+        db.commit()
+    finally:
+        db.close()
+    if not changed:
+        print("No feedback with that ID and a suggested question.", file=sys.stderr)
+        return 1
+    print(f"Feedback {args.id} is now a prompt example for the doctor-like interview.")
+    return 0
+
+
 def graph_rebuild(args) -> int:
     """Empties the Neo4j copy and queues every finished DiagnoFast visit again. SQLite is the record."""
     from backend.diagnofast import graph_sync
@@ -637,6 +656,7 @@ def parser() -> argparse.ArgumentParser:
         (("--operator",), required),
     )
     command("graph-rebuild", graph_rebuild)
+    command("feedback-promote", feedback_promote, (("--id",), {"required": True, "type": int}), (("--operator",), required))
     command("revoke-signoff", revoke_signoff, (("--item",), required), (("--operator",), required))
     command("readiness", readiness)
     command("ai-usage", ai_usage, (("--days",), {"type": int, "default": 7}))
