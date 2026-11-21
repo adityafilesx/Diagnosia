@@ -33,8 +33,8 @@ from pydantic import BaseModel, Field
 from backend import llm, ratelimit, settings_store, speech
 from backend.auth import require_doctor
 from backend.careflow import events
-from backend.config import neural_tts_allowed, settings
-from backend.db import connect, get_db
+from backend.config import settings
+from backend.db import connect, get_db, release
 from backend.diagnofast import abha, agent, recordings, validate
 from backend.patient_pack import sync as pack
 from backend.records import audit, care, consent
@@ -107,19 +107,13 @@ def _hash(token: str) -> str:
 
 
 def _spoken(text: str, language: speech.Language) -> Optional[str]:
-    """The question as audio. Without it, the page reads the words in the browser's voice."""
-    if neural_tts_allowed():
-        try:
-            return "data:audio/mpeg;base64," + base64.b64encode(speech.speak_neural(text, language)).decode()
-        except (speech.SpeechUnavailable, speech.SpeechRejected):
-            pass
-    if language not in speech.VOICED_LANGUAGES:
+    """The text as audio: Sarvam when it is on, then Edge, then Groq for English. Without any, the
+    page reads the words in the browser's voice."""
+    audio = speech.question_audio(text, language)
+    if audio is None:
         return None
-    try:
-        return "data:audio/wav;base64," + base64.b64encode(speech.speak(text, language)).decode()
-    except (speech.SpeechUnavailable, speech.SpeechRejected) as error:
-        logger.warning("Couldn't speak a question: %s", error)
-        return None
+    data, media_type = audio
+    return f"data:{media_type};base64," + base64.b64encode(data).decode()
 
 
 def _intake_by_token(token: str, db: sqlite3.Connection) -> Optional[sqlite3.Row]:
@@ -525,7 +519,9 @@ def preview_transcript(token: str, audio: UploadFile = File(...), db: sqlite3.Co
     if row["status"] != "in_progress":
         raise HTTPException(status.HTTP_409_CONFLICT, "Please start the interview first.")
     data, content_type = _read_audio(audio)
-    said = speech.transcribe(data, content_type, row["language"]).strip()
+    language = row["language"]
+    release(db)  # no lock held while the speech service listens
+    said = speech.transcribe(data, content_type, language).strip()
     if not said:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "We couldn't hear that. Please try again, or type your answer.")
     if len(said) > MAX_TYPED_ANSWER:
@@ -596,6 +592,8 @@ def answer(
     if audio is not None:
         data, content_type = _read_audio(audio)
         # Explicitly confirmed/edited text wins over automatic speech recognition.
+        if text is None:
+            release(db)  # no lock held while the speech service listens
         said = text.strip() if text is not None else speech.transcribe(data, content_type, language).strip()
         if not said:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "We couldn't hear that. Please try again, or type your answer.")

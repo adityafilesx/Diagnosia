@@ -33,6 +33,8 @@ TOOL_MODULES = {
     "diagnofast_turn": "DiagnoFast",
     "diagnofast_report": "DiagnoFast",
     "speech_to_text": "Speech",
+    "text_to_speech": "Speech",
+    "translation": "DiagnoFast",
 }
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS agent_runs (
