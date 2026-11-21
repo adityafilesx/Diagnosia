@@ -61,7 +61,7 @@ GATES = (
     "_editable", "_side", "_change", "_decide", "_is_receiver", "_require_admin",
 
     "_readable_intake", "_open_intake", "_open_workflow", "_allowed", "gate_staff", "open_pack",
-    "_kiosk_doctor",
+    "_kiosk_doctor", "_managed_slot", "_managed_booking", "_managed_doctors",
 )
 NEEDS_NO_RECORD = {
     "register", "login", "logout", "me", "my_status", "accept_invitation", "system_status", "system_readiness",

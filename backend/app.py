@@ -28,6 +28,7 @@ from backend.clinscribe import routes as clinscribe
 from backend.config import WEB_DIR, settings
 from backend.db import connect, init_db
 from backend.diagnofast import routes as diagnofast
+from backend.opd import routes as opd
 from backend.dischargecare import routes as dischargecare
 from backend.integrations import execution
 from backend.lablens import extract as lablens_jobs
@@ -209,6 +210,7 @@ _tool(lablens.router, "lablens")
 _tool(dischargecare.router, "discharge")
 _tool(referralloop.router, "referrals")
 _tool(diagnofast.router, "diagnofast")
+_tool(opd.router, "diagnofast")  # OPD bookings are part of DiagnoFast
 _tool(prescription.router, "prescription")
 app.include_router(reminders.router)
 

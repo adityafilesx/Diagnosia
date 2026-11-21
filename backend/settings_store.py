@@ -283,6 +283,7 @@ def public_config(user=Depends(require_user), db: sqlite3.Connection = Depends(g
             "clinscribe_custom_headings": get("clinscribe.custom_headings", db),
         },
         "features": {key.split(".", 1)[1]: bool(get(key, db)) for key in HELD_FEATURES},
+        "addons": {key: bool(get(key, db)) for key in ADDON_SWITCHES},
         "can_administer": user["role"] == "doctor" and user["account_status"] == "verified" and is_platform_admin(db, user),
     }
 

@@ -1,6 +1,7 @@
 // DiagnoFast: reception sends a link for one interview, and the doctor reads the report.
 import { act, api, form, h, show, when } from './ui.js';
 import { packPanel } from './pack.js';
+import { renderBookings } from './opd.js';
 
 const STATUS_TEXT = {
     waiting: 'Not started',
@@ -272,6 +273,10 @@ export async function renderDiagnoFast(container, context) {
         show(container, h('h1', {}, 'DiagnoFast'), h('p', { class: 'empty' }, 'Your clinic sends you a link for this interview. You need no account to answer it.'));
         return;
     }
+    if (route === 'bookings') {
+        await renderBookings(container, context);
+        return;
+    }
     if (route) {
         await renderReport(container, route, context);
         return;
@@ -322,6 +327,8 @@ export async function renderDiagnoFast(container, context) {
         h('div', { class: 'columns' },
             h('div', { class: 'sheet' }, h('h2', {}, patient ? `New link for ${patient.first_name}` : 'New patient link'), sendLink, created),
             h('div', { class: 'sheet' }, h('h2', {}, patient ? `${patient.first_name}'s interviews` : 'Queue'), queue)),
-        h('p', { class: 'muted' }, h('a', { href: 'intake.html', target: '_blank', rel: 'noopener' }, 'Open self-service kiosk'), ' · ', h('a', { href: 'diagnofast_hiw.html' }, 'How it works')));
+        h('p', { class: 'muted' },
+            context.config?.addons?.['diagnofast.bookings'] && [h('a', { href: '#/diagnofast/bookings' }, 'OPD bookings and queue'), ' · '],
+            h('a', { href: 'intake.html', target: '_blank', rel: 'noopener' }, 'Open self-service kiosk'), ' · ', h('a', { href: 'diagnofast_hiw.html' }, 'How it works')));
     keepFresh(loadQueue);
 }
