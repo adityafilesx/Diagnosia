@@ -13,18 +13,19 @@ INTERVIEW = "diagnofast_interview"
 ABHA = "abha_records"
 PRESCRIPTION = "prescription_photo"
 
-VERSION = "2026-11-13"
+# 2026-11-21: the interview's second line names Sarvam AI, which may now receive answers (BUILD.md).
+VERSION = "2026-11-21"
 
 WORDS = {
     INTERVIEW: {
         "en-IN": [
             "Your answers are recorded and kept for your doctor.",
-            "To understand your answers, they are sent to outside AI services (Groq and Google, in the United States).",
+            "To understand your answers, they are sent to outside AI services: Sarvam AI, and Groq and Google in the United States.",
             "A doctor checks everything. This interview does not diagnose you.",
         ],
         "hi-IN": [
             "आपके जवाब रिकॉर्ड करके आपके डॉक्टर के लिए रखे जाते हैं।",
-            "आपके जवाब समझने के लिए उन्हें बाहरी AI सेवाओं (Groq और Google, अमेरिका में) को भेजा जाता है।",
+            "आपके जवाब समझने के लिए उन्हें बाहरी AI सेवाओं को भेजा जाता है: Sarvam AI, और अमेरिका में Groq और Google।",
             "डॉक्टर सब कुछ जाँचेंगे। यह बातचीत आपकी बीमारी नहीं बताती।",
         ],
     },
@@ -35,6 +36,12 @@ WORDS = {
     PRESCRIPTION: {
         "en-IN": ["I agree to my photo being sent to outside AI services to read it. Curai doesn't keep the photo."],
     },
+}
+
+# Lines a Hindi speaker must approve before any real use, by (kind, line number from 0). Every Hindi line
+# still waits on WI-101; these changed after the last review and must be read again.
+NEEDS_HINDI_APPROVAL = {
+    (INTERVIEW, 1): "WI-101: new Hindi wording naming Sarvam AI (21 Nov 2026), needs Hindi-speaker approval",
 }
 
 

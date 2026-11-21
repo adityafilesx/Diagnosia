@@ -17,6 +17,8 @@ from backend.tests.conftest import grant, linked_patient, verified_organization
 PUBLIC = {("POST", "/api/auth/register"), ("POST", "/api/auth/login"), ("POST", "/api/auth/logout")}
 # Explicit deployment configuration gates self-service visits; no existing chart is exposed.
 PUBLIC |= {("GET", "/api/diagnofast/kiosk"), ("POST", "/api/diagnofast/kiosk/intakes")}
+# Public like the kiosk itself: refused unless a kiosk doctor is configured, and rate-limited.
+PUBLIC |= {("POST", "/api/diagnofast/kiosk/consent-audio")}
 # Health checks for a host or load balancer. They say only ok, or which of two checks failed.
 PUBLIC |= {("GET", "/healthz"), ("GET", "/readyz")}
 # DiagnoFast's patient has no account. The one-interview link in the path is the credential.
@@ -26,6 +28,7 @@ LINK_ROUTES = {
     ("POST", "/api/diagnofast/patient/{token}/answer"),
     ("POST", "/api/diagnofast/patient/{token}/transcribe"),
     ("POST", "/api/diagnofast/patient/{token}/help"),
+    ("POST", "/api/diagnofast/patient/{token}/consent-audio"),
 }
 FAKE_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -93,6 +96,8 @@ def test_a_made_up_link_opens_nothing(client, method, path):
     body = {"json": {"language": "en-IN", "consent": True}} if path.endswith("start") else {"data": {"text": "hello"}}
     if path.endswith("transcribe"):
         body = {"files": {"audio": ("answer.webm", b"synthetic", "audio/webm")}}
+    if path.endswith("consent-audio"):
+        body = {"json": {"language": "en-IN", "kind": "interview"}}
     response = client.request(method, filled(path), **({} if method == "GET" else body))
     assert response.status_code == 404
 

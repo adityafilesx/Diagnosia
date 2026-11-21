@@ -71,6 +71,22 @@ class StartRequest(BaseModel):
     abha_consent: bool = False
 
 
+class ConsentAudio(BaseModel):
+    language: speech.Language
+    kind: Literal["interview", "abha"] = "interview"
+
+
+class KioskConsentAudio(BaseModel):
+    model_config = {"extra": "forbid"}
+    language: speech.Language
+
+
+def _consent_audio(kind: str, language: speech.Language) -> dict:
+    """The consent words read aloud, for patients who can't read them easily. The page reads them in
+    the browser's voice when this returns no audio."""
+    return {"audio": _spoken(" ".join(consent.WORDS[kind][language]), language)}
+
+
 class KioskIntake(BaseModel):
     # Public visits cannot claim an existing chart or choose their own reviewing doctor.
     model_config = {"extra": "forbid"}
@@ -236,6 +252,16 @@ def forms(_doctor=Depends(require_doctor)) -> List[dict]:
 def kiosk_config(db: sqlite3.Connection = Depends(get_db)) -> dict:
     _kiosk_doctor(db)
     return {"forms": agent.list_forms(), "consent": consent.words(consent.INTERVIEW)}
+
+
+@router.post(
+    "/kiosk/consent-audio",
+    dependencies=[Depends(ratelimit.per_client(ratelimit.CONSENT_AUDIO)), Depends(ratelimit.overall(ratelimit.KIOSK_OVERALL))],
+)
+def kiosk_consent_audio(request: KioskConsentAudio, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    _kiosk_doctor(db)
+    release(db)  # no lock held while a voice is made
+    return _consent_audio(consent.INTERVIEW, request.language)
 
 
 @router.post(
@@ -450,6 +476,15 @@ def patient_page(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
         page["questions_asked"] = row["questions_asked"]
         page["audio"] = _spoken(row["current_question"], row["language"])
     return page
+
+
+@router.post("/patient/{token}/consent-audio", dependencies=[Depends(ratelimit.per_path_value(ratelimit.CONSENT_AUDIO, "token"))])
+def consent_audio(token: str, request: ConsentAudio, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    row = _open_intake(token, db)
+    if request.kind == "abha" and not row["abha_id"]:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "There is no ABHA question for this visit.")
+    release(db)  # no lock held while a voice is made
+    return _consent_audio(consent.ABHA if request.kind == "abha" else consent.INTERVIEW, request.language)
 
 
 @router.post("/patient/{token}/help", dependencies=[Depends(ratelimit.per_path_value(ratelimit.INTERVIEW_HELP, "token"))])

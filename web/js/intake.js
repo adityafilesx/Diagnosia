@@ -12,7 +12,7 @@ const TEXT = {
         microphone: 'Microphone unavailable. You can type your answer below.',
         partial: 'We could not transcribe the full recording. Check that your answer is complete, or type it below.',
         name: 'Please enter your name and check your age.', placeholder: 'Your words will appear here. You can also type.',
-        agree: 'I agree, start my interview', consentTitle: 'Before we begin', decline: 'If you do not agree, please tell reception.',
+        listen: 'Read this aloud', agree: 'I agree, start my interview', consentTitle: 'Before we begin', decline: 'If you do not agree, please tell reception.',
         yes: 'Yes', no: 'No', abhaNeeded: 'Please choose yes or no for your past records.',
         failed: 'Something went wrong on our side. Please try again, or tell reception.',
         helpSent: 'Reception has been told. If nobody comes, please go to the desk.',
@@ -30,7 +30,7 @@ const TEXT = {
         microphone: 'माइक्रोफ़ोन उपलब्ध नहीं है। नीचे अपना जवाब लिख सकते हैं।',
         partial: 'पूरी रिकॉर्डिंग लिखी नहीं जा सकी। जवाब पूरा है या नहीं जाँचें, या नीचे लिखें।',
         name: 'कृपया नाम भरें और उम्र जाँचें।', placeholder: 'आपके शब्द यहाँ दिखेंगे। आप लिख भी सकते हैं।',
-        agree: 'मैं सहमत हूँ, बातचीत शुरू करें', consentTitle: 'शुरू करने से पहले', decline: 'सहमत नहीं हैं तो रिसेप्शन को बताएँ।',
+        listen: 'यह सुनकर समझें', agree: 'मैं सहमत हूँ, बातचीत शुरू करें', consentTitle: 'शुरू करने से पहले', decline: 'सहमत नहीं हैं तो रिसेप्शन को बताएँ।',
         yes: 'हाँ', no: 'नहीं', abhaNeeded: 'पुराने रिकॉर्ड के लिए हाँ या नहीं चुनें।',
         failed: 'हमारी तरफ़ से कुछ गड़बड़ हुई। दोबारा कोशिश करें, या रिसेप्शन को बताएँ।',
         helpSent: 'रिसेप्शन को बता दिया गया है। कोई न आए तो कृपया डेस्क पर जाएँ।',
@@ -89,6 +89,7 @@ function renderConsent() {
         $('abha-no').textContent = words().no;
     }
     $('consent-decline').textContent = words().decline;
+    $('consent-listen').textContent = `🔊 ${words().listen}`;
     $('consent').hidden = false;
     consentShown = true;
 }
@@ -176,6 +177,40 @@ function browserVoice(text, generation) {
     utterance.onstart = () => { if (generation === playbackGeneration) orb.classList.add('speaking'); };
     utterance.onend = utterance.onerror = () => { if (generation === playbackGeneration) orb.classList.remove('speaking'); };
     speechSynthesis.speak(utterance);
+}
+
+// For patients who can't read the consent easily: the server's voice when there is one, else the
+// browser's. Reading aloud never counts as agreeing; the patient still presses "I agree".
+async function readConsentAloud() {
+    const language = $('language').value;
+    if (!language || !consentWords) return;
+    const button = $('consent-listen');
+    button.disabled = true;
+    const path = token ? `/api/diagnofast/patient/${encodeURIComponent(token)}/consent-audio` : '/api/diagnofast/kiosk/consent-audio';
+    const fetchAudio = async (kind) => {
+        const body = token ? { language, kind } : { language };
+        try {
+            const response = await apiFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            return (await response.json()).audio;
+        } catch (_) {
+            return null;  // the browser's voice reads it instead
+        }
+    };
+    const parts = [{ text: consentWords.lines[language].join(' '), audio: await fetchAudio('interview') }];
+    if (abhaWords && token) parts.push({ text: abhaWords.lines[language][0], audio: await fetchAudio('abha') });
+    button.disabled = false;
+    if (parts.some((part) => !part.audio)) {
+        // One voice for everything: mixing a server voice and the browser's would sound broken.
+        play({ finished: true, message: parts.map((part) => part.text).join(' '), audio: null });
+        return;
+    }
+    play({ finished: true, message: parts[0].text, audio: parts[0].audio });
+    if (parts[1] && activeAudio) {
+        const generation = playbackGeneration;
+        activeAudio.addEventListener('ended', () => {
+            if (generation === playbackGeneration) play({ finished: true, message: parts[1].text, audio: parts[1].audio });
+        });
+    }
 }
 
 function play(reply) {
@@ -430,6 +465,7 @@ $('answer').addEventListener('input', () => {
     syncControls();
 });
 $('replay').addEventListener('click', () => currentReply && play(currentReply));
+$('consent-listen').addEventListener('click', readConsentAloud);
 document.querySelectorAll('.language-choice button').forEach((button) => {
     button.addEventListener('click', () => chooseLanguage(button.dataset.language));
 });
