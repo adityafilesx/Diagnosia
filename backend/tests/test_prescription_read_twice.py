@@ -140,4 +140,5 @@ def test_the_second_provider_goes_first_when_asked(monkeypatch):
 def test_the_page_shows_the_other_reading_and_never_sends_it_on():
     page = (WEB_DIR / "js" / "care" / "prescription.js").read_text(encoding="utf-8")
     assert "differs" in page and "only_in_one_reading" in page
-    assert "const { plain, match, differs, only_in_one_reading, ...fields } = medicine;" in page
+    # The page sends back only which cards were ticked (WI-211), so the other reading can't travel on.
+    assert "medicines:" not in page and "reading_id: reading.reading_id, confirmed: confirmed" in page

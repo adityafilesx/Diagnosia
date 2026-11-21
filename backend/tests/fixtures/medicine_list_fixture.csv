@@ -1,0 +1,6 @@
+id,name,price,Is_discontinued,manufacturer_name,type,pack_size_label,short_composition1,short_composition2
+1,Quorvex 250 Tablet,10,FALSE,Made-up Labs,allopathy,strip of 10 tablets,Fictamol (250mg),
+2,Balmyra-D Capsule,20,FALSE,Made-up Labs,allopathy,strip of 10 capsules,Demozine (30mg), Placebrin (40mg)
+3,Tessolin 500 Tablet,30,FALSE,Made-up Labs,allopathy,strip of 10 tablets,Inventamycin (500mg),
+4,Nurovane Syrup,40,FALSE,Made-up Labs,allopathy,bottle of 100 ml,Samplidine (5mg/5ml),
+5,Pelvadin Forte Tablet,50,FALSE,Made-up Labs,allopathy,strip of 15 tablets,Fictamol (650mg), Testaphen (50mg)

@@ -9,6 +9,7 @@ With both providers set up, a failed call moves on to the other one, or provider
 take turns, as Settings say. Any OpenAI-compatible service can stand in for Groq
 by setting AI_BASE_URL.
 """
+import contextvars
 import itertools
 import json
 import logging
@@ -27,6 +28,19 @@ from backend.config import settings
 from backend.integrations import execution
 
 logger = logging.getLogger("curai")
+# The provider and model that answered the last call in this request, for records that must name it.
+_answered_by: contextvars.ContextVar = contextvars.ContextVar("answered_by", default="")
+
+
+def last_model() -> str:
+    """ "provider/model" for the last successful call in this request, or "" if there was none."""
+    return _answered_by.get()
+
+
+def forget_last_model() -> None:
+    """Called before a step whose record must name its own model, so an earlier call's name can't stand in."""
+    _answered_by.set("")
+
 
 Schema = TypeVar("Schema", bound=BaseModel)
 
@@ -256,6 +270,7 @@ def ask(
             answer, usage = _ask_model(provider, model, system, content, schema, max_tokens, timeout, tries)
             run.tried(provider, model, "succeeded", usage)
             run.finish("succeeded")
+            _answered_by.set(f"{provider}/{model}")
             return answer
         except (AIUnavailable, AIDeclined) as error:
             failure = error

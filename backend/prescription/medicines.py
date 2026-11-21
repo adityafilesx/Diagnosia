@@ -14,11 +14,9 @@ from typing import Dict, List, Optional, Tuple
 
 from rapidfuzz import fuzz, process
 
-from backend.config import ROOT_DIR
+from backend.config import settings
 
-DATA_FILE = (
-    ROOT_DIR / "datasets" / "medicines" / "indian-medicine-dataset" / "DATA" / "indian_medicine_data.csv"
-)
+DATA_FILE = settings.medicine_list
 CLOSE_SCORE = 84  # out of 100, how alike two names must be to suggest one
 
 # Words that describe the form of a medicine rather than name it.
@@ -110,6 +108,11 @@ def _load() -> Optional[MedicineList]:
         return None
     with DATA_FILE.open(encoding="utf-8", errors="replace", newline="") as stream:
         return MedicineList.from_rows(csv.DictReader(stream))
+
+
+def installed() -> bool:
+    """Whether there is a list to check names against. Cheap: it doesn't load the list."""
+    return DATA_FILE.exists()
 
 
 def get_medicine_list() -> Optional[MedicineList]:

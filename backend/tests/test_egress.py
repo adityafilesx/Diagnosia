@@ -6,7 +6,9 @@ import pytest
 from backend import llm, speech
 from backend.config import ROOT_DIR, neural_tts_allowed, settings
 
-BROWSER_ONLY = {"calendar.google.com", "assets.website-files.com"}  # opened by the visitor's browser
+# Opened by the visitor's browser, never by the server. The last three are in the code only as
+# entries in the public pages' content-security-policy.
+BROWSER_ONLY = {"assets.website-files.com", "fonts.googleapis.com", "fonts.gstatic.com", "www.google.com"}
 
 
 def hosts_in_code():

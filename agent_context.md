@@ -121,11 +121,38 @@ Handwriting reading is the risky part, so **nothing is explained until the patie
    disagree with the written frequency, and SOS/PRN medicines never get a fixed time.
 3. `medicines.py` checks each name against a list of about 250,000 Indian medicines (rapidfuzz).
    Found, close ("Did you mean ...?") or not found. It only flags names. It **never changes** what
-   was read. A "clear" name that isn't in the list is downgraded to "unsure".
-4. The patient ticks each medicine that matches their prescription. Unticked or unreadable ones go
-   to "ask your pharmacist" and **never reach the explanation step**.
+   was read. A "clear" name that isn't in the list is downgraded to "unsure". With no list installed
+   (`CURAI_MEDICINE_LIST`, default under `datasets/`) every name is `unchecked`: the card says "We could
+   not check this name against a list", the tool shows a banner (`medicine_list_ready` in the config,
+   `names_checked` on the reading), and `/readyz` lists the warning `medicine_list_missing`. CI runs the
+   real checker on `backend/tests/fixtures/medicine_list_fixture.csv`, which holds invented names only.
+4. The patient ticks each medicine that matches their prescription, with their own photo beside each
+   card (a local object URL, never uploaded again). Unticked or unreadable ones go to "ask your
+   pharmacist" and **never reach the explanation step**.
 5. `/api/prescription/explain` explains only the confirmed medicines, in the patient's language.
    It never changes a dose or suggests a substitute.
+
+**The explanation is checked by rules** (`prescription/crosscheck.py`). Every number in the AI's "how to
+take" sentence (digits in either script, fractions, English and Hindi number words) must be one the
+prescription gives: an amount, a dose, times a day, or the course length. A sentence with any other
+number is replaced by the prescription's own words (`directions_rejected`), and the rule-decoded
+directions are shown beside every sentence. It compares numbers, not what each one counts, so it
+catches a number nobody wrote, not a right number in the wrong place. An explanation for a medicine
+nobody confirmed is dropped. **No course length is ever filled in:** with none written, the reminder
+repeats with no end and says "No end date written, ask your doctor".
+
+**One schedule.** `analyzer.build_schedule` is the only schedule: the explain response's `schedule` holds
+the times of day, the as-needed and unscheduled lists and a plain `.ics` built from the same stretches.
+`/calendar` returns the same thing for other reminder times. There are no links to a calendar site.
+
+**The server never trusts the page for what was read.** `/read` keeps the reading for 24 hours
+(`prescription_readings`, no photo, no doctor's notes) and returns a `reading_id` and, per medicine,
+`confirmable`: the one readability rule (`analyzer.is_explainable`), which the page uses instead of a
+rule of its own. `/explain`, `/save` and `/calendar` take `reading_id` and `confirmed` (the ticked
+positions) and rebuild the medicines from the stored reading (`analyzer.confirmed_from`); a tick on a
+medicine that isn't confirmable is a 422. Each explain and save stores the ticked set, `APP_VERSION`
+(`backend/version.py`) and the models in `prescription_confirmations`. Don't add a route that takes
+medicines from the browser.
 
 The photo isn't stored. A consent box says it goes to outside AI services, and each agreement is stored in
 `consent_records` with the version of the words (`backend/records/consent.py`).
@@ -217,6 +244,13 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
 
 **Security**
 - All SQL uses parameters. Passwords are Argon2. Session tokens are stored hashed.
+- Every answer carries a content-security-policy (`backend/app.py`): strict for `care.html` and
+  `intake.html`, and for the public pages each inline script is allowed by the hash of its text, worked
+  out at start-up. Don't add inline event handlers, `<object>` tags or scripts from other sites. HSTS is
+  sent when `CURAI_HTTPS=1`.
+- A session ends after 30 idle minutes (`CURAI_SESSION_IDLE_MINUTES`, sliding, migration 14). The
+  workspace marks requests made with no recent input as background (`X-Curai-Background`), so timed
+  refreshes don't keep a session alive; a new timed request that is real use passes `active: true` to `api()`.
 - Page text from patients and from the AI goes in with `textContent`, never `innerHTML`.
 - Only `web/` is served. Don't add routes that serve other folders.
 - Never log keys, patient text or full AI answers.
@@ -318,7 +352,7 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
 - **Live on both, lightly.** A Hindi interview and a synthetic prescription work on Groq and Gemini.
   Reading quality on real handwriting and real Hindi speech is untested. Run `backend/tests/live/`
   with `CURAI_LIVE_TESTS=1` after changing a model.
-- **Reading tools use Gemini first.** Prescription reading and explaining, and lab report reading, are pinned to Gemini (own settings), after a comparison on synthetic photos in `backend/tests/ai_eval/`. Re-run it when models change.
+- **Five tools use Gemini first** (`settings_store.READING_TOOLS`): prescription reading, explaining and planning the daily times, lab report reading, and the DiagnoFast interview turn, so patient interview answers go to Gemini first by default. Each has its own setting. The photo-reading choice came from a comparison on synthetic photos in `backend/tests/ai_eval/`. Re-run it when models change. `test_docs_match_code.py` fails if `docs/PLATFORM_SETUP.md` states a different count.
 - **Model choice.** Each tool's Groq model is a setting, and Gemini has one model for the other tools. A
   failed call goes to the other provider, or providers take turns (`ai.strategy`). With one provider,
   a failed call is retried once. A DiagnoFast question times out at 45 seconds per provider.

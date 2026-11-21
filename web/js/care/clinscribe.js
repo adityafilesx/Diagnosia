@@ -1,5 +1,5 @@
 // ClinScribe: capture a consultation, review the draft, sign the note.
-import { act, api, badge, form, h, plural, section, show, table, when } from './ui.js';
+import { act, api, badge, form, h, plural, section, show, table, toast, when } from './ui.js';
 import { needPatient } from './overview.js';
 
 const BASE = '/api/addons/clinscribe';
@@ -7,7 +7,9 @@ const CHUNK_MS = 25000; // the transcript updates about this often
 const VERDICT_WORDS = {
     supported: 'Matches the transcript',
     uncertain: 'Please check',
-    unsupported: 'Not found in the transcript',
+    unsupported: 'Does not match the transcript',
+    // The rules can't compare English with a transcript in another language. This is not a pass.
+    not_checked: 'Not checked: compare with the source line',
     clinician_entered: 'Written by you',
 };
 
@@ -69,7 +71,7 @@ async function startMicrophone(session, speakerControl, handlers, context) {
         const data = new FormData();
         data.append('audio', blob, 'chunk.webm');
         data.append('speaker', speakerControl.value);
-        const saved = await act(() => api(`${BASE}/sessions/${session.id}/transcribe`, { method: 'POST', form: data }), context);
+        const saved = await act(() => api(`${BASE}/sessions/${session.id}/transcribe`, { method: 'POST', form: data, active: true }), context);
         if (saved === undefined) handlers.onLost();
         else if (saved.segment) handlers.onSegment();
     };
@@ -116,11 +118,23 @@ async function renderSession(area, session, context, showNotes) {
         warning.textContent = message;
         warning.hidden = false;
     };
-    let lost = 0;
-    const lostChunk = () => {
-        lost += 1;
+    // Audio that never became text. The server keeps the count, so it survives a reload; a chunk
+    // that never reached the server (no network) is added here.
+    let lost = session.chunks_lost || 0;
+    const lostBadge = h('span', { id: 'chunks-lost', class: 'status bad', role: 'status', hidden: true });
+    const showLost = () => {
+        lostBadge.hidden = lost === 0;
+        lostBadge.textContent = `${plural(lost, 'chunk')} lost`;
+    };
+    showLost();
+    const lostChunk = async () => {
+        const counted = (await api(`${BASE}/sessions/${session.id}`).catch(() => null))?.chunks_lost ?? 0;
+        lost = Math.max(counted, lost + 1);
+        showLost();
         warn(`${plural(lost, 'part')} of this recording could not be transcribed. Type what was missed below.`);
     };
+    // Shows the session again from the server: after "Stop and finish" the record controls go.
+    const reopen = async () => renderSession(area, await api(`${BASE}/sessions/${session.id}`), context, showNotes);
 
     const state = h('div', { class: 'recording' }, h('span', { class: 'dot' }), h('span', {}));
     const paint = (name) => {
@@ -157,15 +171,19 @@ async function renderSession(area, session, context, showNotes) {
             },
         }, 'Start recording'),
         h('button', { type: 'button', class: 'quiet', onclick: async () => { await stopMicrophone(); await setState('paused'); } }, 'Pause'),
-        h('button', { type: 'button', class: 'danger', onclick: async () => { await stopMicrophone(); await setState('stopped'); await reload(); } }, 'Stop and finish'),
+        h('button', { type: 'button', class: 'danger', onclick: async () => { await stopMicrophone(); if (await setState('stopped')) await reopen(); } }, 'Stop and finish'),
         speaker,
         warning);
 
+    const ended = session.state === 'stopped';
     const typed = form(
-        [{ name: 'text', label: 'Type a line, for example if audio failed', type: 'textarea', required: true }],
-        'Add line',
+        [{ name: 'text', label: ended ? 'Something the recording missed' : 'Type a line, for example if audio failed', type: 'textarea', required: true }],
+        ended ? 'Add a missed line' : 'Add line',
         async ({ text }, element) => {
-            await act(() => api(`${BASE}/sessions/${session.id}/segments`, { method: 'POST', body: { text, speaker: speaker.value } }), context);
+            // The server takes a line for an ended session only when it is marked as a missed one.
+            const body = { text, speaker: speaker.value, missed_line: session.state === 'stopped' };
+            const added = await act(() => api(`${BASE}/sessions/${session.id}/segments`, { method: 'POST', body }), context);
+            if (!added) return;
             element.reset();
             reload();
         },
@@ -184,33 +202,74 @@ async function renderSession(area, session, context, showNotes) {
                 await stopMicrophone();
                 if (!(await setState('stopped'))) return;
             }
-            const note = await act(() => api(`${BASE}/sessions/${session.id}/draft-note`, { method: 'POST', body: values }), context, 'Draft ready');
-            if (note) showNotes(note.id);
+            try {
+                const note = await api(`${BASE}/sessions/${session.id}/draft-note`, { method: 'POST', body: values });
+                toast('Draft ready');
+                showNotes(note.id);
+            } catch (error) {
+                // A session has one draft at a time. Show the one that is already there.
+                if (error.detail?.code === 'draft_exists') {
+                    toast(error.detail.message);
+                    showNotes(error.detail.note_id);
+                } else {
+                    await act(() => { throw error; }, context);
+                }
+            }
         },
         { inline: true },
     );
     show(area,
         h('h2', {}, `Consultation started ${when(session.started_at)}`),
-        state,
-        session.state !== 'stopped' ? controls : null,
+        h('div', { class: 'row' }, state, lostBadge),
+        ended ? null : controls,
         list,
-        typed,
-        ...section('Draft a note', draft));
+        // Once the session has ended, the two things left to do: write the note, or add what was missed.
+        ...(ended
+            ? [...section('Draft the note', draft), h('div', { class: 'row', style: 'margin-top:12px' }, speaker), typed]
+            : [typed, ...section('Draft a note', draft)]));
+}
+
+const FLAGGED = ['uncertain', 'unsupported', 'not_checked'];
+// Lines the clinician has ticked as checked, kept while a note is re-drawn after a save.
+const ticked = new Set();
+
+// The words a statement rests on, shown beside it so the two can be compared, in their own language.
+function sourceLines(statement) {
+    if (!statement.sources?.length) return null;
+    return h('div', { class: 'source-lines' },
+        h('span', { class: 'muted' }, statement.sources.length === 1 ? 'Source line' : 'Source lines'),
+        statement.sources.map((source) => h('blockquote', { lang: source.language.slice(0, 2) },
+            h('span', { class: 'who', lang: 'en' }, `Line ${source.line}, ${source.speaker}`),
+            source.text)));
 }
 
 function statementEditor(statement, section_) {
     const check = statement.check || {};
-    const flagged = check.verdict === 'uncertain' || check.verdict === 'unsupported';
+    const flagged = FLAGGED.includes(check.verdict);
     const box = h('textarea', { 'aria-label': `Statement in ${section_}`, value: statement.text });
+    // One tick for each flagged line. Changing the words makes it a new line, so its tick goes.
+    const tick = flagged ? h('input', { type: 'checkbox', checked: ticked.has(statement.id), 'data-statement': statement.id }) : null;
+    tick?.addEventListener('change', () => (tick.checked ? ticked.add(statement.id) : ticked.delete(statement.id)));
+    box.addEventListener('input', () => {
+        if (!tick || box.value.trim() === statement.text) return;
+        tick.checked = false;
+        ticked.delete(statement.id);
+    });
     return {
         box,
-        element: h('div', { class: `verdict-${check.verdict}`, style: 'margin:8px 0' },
-            box,
-            h('div', { class: 'row muted' },
-                flagged ? h('mark', {}, VERDICT_WORDS[check.verdict]) : h('span', {}, VERDICT_WORDS[check.verdict]),
-                check.evidence?.length ? h('span', {}, `Transcript ${check.evidence.length === 1 ? 'line' : 'lines'} ${check.evidence.join(', ')}`) : null,
-                h('span', {}, statement.origin === 'patient_statement' ? 'Patient said' : statement.origin === 'ai_summary' ? 'AI summary' : 'Clinician said')),
-            check.reasons?.length ? h('ul', { class: 'reasons' }, check.reasons.map((reason) => h('li', {}, reason))) : null),
+        id: statement.id,
+        original: statement.text,
+        tick,
+        element: h('div', { class: `statement verdict-${check.verdict}`, style: 'margin:8px 0' },
+            h('div', {},
+                box,
+                h('div', { class: 'row muted' },
+                    flagged ? h('mark', {}, VERDICT_WORDS[check.verdict]) : h('span', {}, VERDICT_WORDS[check.verdict]),
+                    check.evidence?.length ? h('span', {}, `Transcript ${check.evidence.length === 1 ? 'line' : 'lines'} ${check.evidence.join(', ')}`) : null,
+                    h('span', {}, statement.origin === 'patient_statement' ? 'Patient said' : statement.origin === 'ai_summary' ? 'AI summary' : 'Clinician said')),
+                check.reasons?.length ? h('ul', { class: 'reasons' }, check.reasons.map((reason) => h('li', {}, reason))) : null,
+                tick ? h('label', { class: 'tick' }, tick, 'I have checked this line') : null),
+            sourceLines(statement)),
     };
 }
 
@@ -239,11 +298,12 @@ function renderNote(area, note, context, afterChange) {
         })),
     });
     const save = () => act(() => api(`${BASE}/notes/${note.id}`, { method: 'PATCH', body: collect() }), context, 'Saved');
-    const acknowledge = h('input', { type: 'checkbox' });
+    const flaggedIds = (content_) => content_.sections.flatMap((part) => part.statements).filter((line) => FLAGGED.includes(line.check?.verdict)).map((line) => line.id);
     show(area,
         h('h2', {}, 'Review the draft'),
         h('div', { class: 'banner' }, 'This is an AI draft and not part of the record until you sign it. Highlighted lines need your eye.'),
         h('p', { class: 'muted' }, `${plural(note.open_flags, 'line')} to check. Drafted by ${note.model}, prompt ${note.prompt_version}.`),
+        note.chunks_lost ? h('div', { class: 'banner danger' }, `${plural(note.chunks_lost, 'chunk')} lost: that much of the recording could not be transcribed, so this draft may be missing what was said then.`) : null,
         editors.map((part) => h('div', {},
             h('h3', {}, part.heading),
             part.lines.length ? part.lines.map((line) => line.element) : h('p', { class: 'muted' }, 'Nothing said on this.'),
@@ -260,7 +320,7 @@ function renderNote(area, note, context, afterChange) {
             ? h('div', {}, h('h3', {}, 'Not in the transcript'), h('ul', {}, content.missing_information.map((item) => h('li', {}, item))))
             : null,
         h('div', { class: 'sheet' },
-            note.open_flags ? h('label', { class: 'tick' }, acknowledge, 'I have checked every highlighted line') : null,
+            note.open_flags ? h('p', { class: 'muted' }, `Tick "I have checked this line" on each of the ${plural(note.open_flags, 'highlighted line')} before signing.`) : null,
             h('div', { class: 'row', style: 'margin-top:8px' },
                 h('button', {
                     type: 'button',
@@ -270,8 +330,18 @@ function renderNote(area, note, context, afterChange) {
                 h('button', {
                     type: 'button',
                     onclick: async () => {
-                        if (!(await save())) return;
-                        const signed = await act(() => api(`${BASE}/notes/${note.id}/approve`, { method: 'POST', body: { acknowledge_flags: acknowledge.checked } }), context, 'Note signed');
+                        const saved = await save();
+                        if (!saved) return;
+                        // Saving checks typed lines again, so the flags are read from what was saved. Each
+                        // one needs its own tick: a flag raised by this save is shown before anything is signed.
+                        const open = flaggedIds(saved.content).filter((id) => !ticked.has(id));
+                        if (open.length) {
+                            toast(`${plural(open.length, 'highlighted line')} still to check. Tick each one after comparing it, then sign.`, true);
+                            afterChange(note.id);
+                            return;
+                        }
+                        const acknowledged = flaggedIds(saved.content);
+                        const signed = await act(() => api(`${BASE}/notes/${note.id}/approve`, { method: 'POST', body: { acknowledged } }), context, 'Note signed');
                         if (signed) afterChange(note.id);
                     },
                 }, 'Sign note'),
@@ -336,6 +406,7 @@ export async function renderClinScribe(container, context) {
             [
                 { label: 'Started', cell: (row) => when(row.started_at) },
                 { label: 'Lines', number: true, cell: (row) => row.segments },
+                { label: 'Audio lost', cell: (row) => (row.chunks_lost ? badge(`${plural(row.chunks_lost, 'chunk')} lost`, 'bad') : '') },
                 { label: 'State', cell: (row) => badge(row.transcript_deleted_at ? 'transcript deleted' : row.state) },
                 { label: '', cell: (row) => h('button', { type: 'button', class: 'quiet', onclick: () => showSession(row.id) }, 'Open') },
             ],

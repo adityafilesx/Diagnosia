@@ -51,6 +51,30 @@ node backend/tests/browser/run_microphone.mjs <puppeteer node_modules> 8124 /tmp
 python -m backend.tests.lab_validation.score
 ```
 
+### Scanned reports (the AI reading path)
+
+A text PDF is read on our own server. A scan or a photo goes to the AI, and that path has its own
+scored set: 8 synthetic layouts, each as a clean scan and four spoiled ones (blurred, tilted, shaded
+and grainy, small and compressed), 40 scans and 150 results, with the right answers in `truth.json`.
+The set comes out identical every time it is made.
+
+```bash
+python -m backend.tests.lab_validation.scan_set /tmp/lab-scans
+python -m backend.tests.lab_validation.scan_score /tmp/lab-scans --out /tmp/lab-scans/score.json
+```
+
+The second command needs a real `GROQ_API_KEY` or `GEMINI_API_KEY` in `.env`. It sends the 40
+synthetic scans to the model set for "LabLens: reading scanned reports", in 40 requests, and prints
+the error rate for each field (test found, value, unit, range low and high, the printed high or low
+mark), by condition, with every wrong value listed. A value that is right for a different row of
+the same report is listed separately as a wrong row, the dangerous kind. Without a key, or if the
+provider's limit is reached part-way, it stops and prints no score, so a setup problem can't be
+recorded as a reading error. Paste the table it prints into `docs/BASELINES.md` with the date, the
+model names it reports and the commit.
+
+`backend/tests/test_lab_scan_scoring.py` checks the set and the scoring in the normal run with a
+stand-in reader. That proves the counting is right. It says nothing about any model.
+
 ## AI providers
 
 Marked `live`, excluded from the normal run, synthetic data only. They skip themselves without real

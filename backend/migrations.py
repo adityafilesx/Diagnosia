@@ -133,6 +133,44 @@ def _intake_review_stamp(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE intakes ADD COLUMN reviewed_at TEXT")
 
 
+def _session_last_seen(db: sqlite3.Connection) -> None:
+    """When a session was last used, for the idle timeout. Old sessions count from their next use."""
+    db.execute("ALTER TABLE sessions ADD COLUMN last_seen_at TEXT")
+
+
+def _barrier_target_date(db: sqlite3.Connection) -> None:
+    """When the team means to have a discharge barrier sorted. Empty for barriers recorded before this."""
+    db.execute("ALTER TABLE discharge_barriers ADD COLUMN target_date TEXT")
+
+
+def _scribe_chunks_lost(db: sqlite3.Connection) -> None:
+    """How many audio chunks of a ClinScribe session could not be transcribed."""
+    db.execute("ALTER TABLE scribe_sessions ADD COLUMN chunks_lost INTEGER NOT NULL DEFAULT 0")
+
+
+def _one_draft_per_session(db: sqlite3.Connection) -> None:
+    """A ClinScribe session has at most one unsigned draft. Where an older database has several, the
+    newest stays and the others are marked discarded (nothing is deleted)."""
+    db.execute(
+        """
+        UPDATE clinical_notes SET status = 'discarded'
+        WHERE status = 'draft' AND EXISTS (
+            SELECT 1 FROM clinical_notes AS newer
+            WHERE newer.session_id = clinical_notes.session_id AND newer.status = 'draft'
+              AND (newer.created_at > clinical_notes.created_at
+                   OR (newer.created_at = clinical_notes.created_at AND newer.rowid > clinical_notes.rowid))
+        )
+        """
+    )
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_draft_per_session ON clinical_notes (session_id) WHERE status = 'draft'")
+
+
+def _lab_lines_not_read(db: sqlite3.Connection) -> None:
+    """How many lines of a lab report could not be read, and the lines themselves, for the reviewer."""
+    db.execute("ALTER TABLE lab_reports ADD COLUMN lines_not_read INTEGER NOT NULL DEFAULT 0")
+    db.execute("ALTER TABLE lab_reports ADD COLUMN unread_lines TEXT NOT NULL DEFAULT '[]'")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -147,6 +185,11 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (11, "intake_help_requested_at", _intake_help_requested_at),
     (12, "notification_link", _notification_link),
     (13, "intake_review_stamp", _intake_review_stamp),
+    (14, "session_last_seen", _session_last_seen),
+    (15, "barrier_target_date", _barrier_target_date),
+    (16, "scribe_chunks_lost", _scribe_chunks_lost),
+    (17, "one_draft_per_session", _one_draft_per_session),
+    (18, "lab_lines_not_read", _lab_lines_not_read),
 ]
 
 

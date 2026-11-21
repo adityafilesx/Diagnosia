@@ -40,11 +40,17 @@ place, or as `GEMINI_API_KEY`. With both keys:
 | When both providers have a key | **fallback**: the other one answers only when the first fails. **round_robin**: they take turns, and a failure still falls back to the other |
 | Gemini model | One model for every tool. Default `gemini-3.5-flash-lite` |
 
-Three tools prefer Gemini whichever general setting is chosen, because it read photos better in
-our comparison (`backend/tests/ai_eval/README.md`): reading prescription photos, reading scanned lab
-reports, and explaining a prescription. Each has its own provider and Gemini model setting. The
-reading ones default to `gemini-3.5-flash`, which is often busy or over its free limit, so they back
-up to `gemini-3.5-flash-lite` and then to Groq. Round robin never moves these three.
+Five tools prefer Gemini whichever general setting is chosen (`READING_TOOLS` in
+`backend/settings_store.py`): reading prescription photos, explaining a prescription, planning a
+prescription's daily times, reading scanned lab reports, and understanding a patient's confirmed
+answer in a DiagnoFast interview. The photo-reading ones were chosen because Gemini read photos
+better in our comparison (`backend/tests/ai_eval/README.md`). Each has its own provider and Gemini
+model setting. The reading ones default to `gemini-3.5-flash`, which is often busy or over its free
+limit, so they back up to `gemini-3.5-flash-lite` and then to Groq. Round robin never moves these
+five.
+
+**Patient interview answers go to Gemini first by default**, and to Groq only when Gemini fails.
+Change "DiagnoFast: understanding confirmed answers" in Settings to send them to Groq first.
 
 Gemini carries text and images. Speech to text and the English voice stay on Groq. In demo mode,
 DiagnoFast questions use Microsoft Edge voices (question text only, never answers); outside demo mode

@@ -53,3 +53,11 @@ CREATE TABLE IF NOT EXISTS discharge_pending_results (
     finalised_by INTEGER,
     finalised_at TEXT
 );
+
+-- Family steps added after the plan was approved, so the checklist can mark them "New". Recorded when
+-- they are added, because times are kept to the second and can't order a step against the approval.
+CREATE TABLE IF NOT EXISTS discharge_late_steps (
+    task_id TEXT PRIMARY KEY REFERENCES tasks (id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL REFERENCES discharge_episodes (id) ON DELETE CASCADE,
+    added_at TEXT NOT NULL
+);

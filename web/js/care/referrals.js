@@ -1,5 +1,5 @@
 // ReferralLoop: send a referral and follow it until the outcome is reviewed.
-import { act, api, ask, badge, form, h, section, table, when, show } from './ui.js';
+import { act, api, ask, badge, form, h, section, table, toast, when, show } from './ui.js';
 import { packPanel } from './pack.js';
 
 const BASE = '/api/addons/referrals';
@@ -16,6 +16,49 @@ function daysFromNow(days) {
     const date = new Date();
     date.setDate(date.getDate() + days);
     return date.toISOString().slice(0, 10);
+}
+
+const destinationName = (link) => link.organization || link.manual_destination || 'a named clinician';
+
+// A declined or redirected referral: the referrer sends the same request somewhere else. The new
+// referral replaces this one, which then closes with a link to it.
+function replacement(referral, context, reload) {
+    const holder = h('div', {});
+    const { defaults } = context.config;
+    const days = referral.priority === 'urgent' ? defaults.referrals_urgent_days : defaults.referrals_routine_days;
+    api('/api/organizations').then((organizations) => {
+        const choices = organizations
+            .filter((item) => item.verification_status === 'verified' && item.id !== referral.receiving_organization_id)
+            .map((item) => [item.id, `${item.name} (${item.specialities || item.type})`]);
+        show(holder,
+            h('h3', {}, 'Send this referral somewhere else'),
+            h('p', { class: 'muted' }, 'The reason, question, priority and shared documents are copied. This referral then closes and links to the new one.'),
+            form(
+                [
+                    { name: 'organization', label: 'Send to', type: 'select', options: [['', 'Phone, fax or paper'], ...choices] },
+                    { name: 'manual_destination', label: 'If by phone, fax or paper: who' },
+                    { name: 'respond_by', label: 'Reply needed by', type: 'date', required: true, value: daysFromNow(days) },
+                ],
+                'Send the replacement referral',
+                async (values) => {
+                    const body = {
+                        patient_id: referral.patient_id,
+                        specialty: referral.specialty,
+                        priority: referral.priority,
+                        respond_by: values.respond_by,
+                        reason: referral.reason,
+                        clinical_question: referral.clinical_question || '',
+                        document_ids: (referral.documents || []).map((item) => item.id),
+                        receiving_organization_id: values.organization || null,
+                        manual_destination: values.organization ? '' : values.manual_destination || '',
+                        replaces_referral_id: referral.id,
+                    };
+                    const made = await act(() => api(BASE, { method: 'POST', body }), context, 'Replacement referral sent');
+                    if (made) reload(made.id);
+                },
+            ));
+    }).catch(() => show(holder, h('p', { class: 'muted' }, "The list of services isn't available. Use New referral below.")));
+    return holder;
 }
 
 function referralDetail(area, referral, context, reload) {
@@ -72,6 +115,10 @@ function referralDetail(area, referral, context, reload) {
                 referral.priority === 'urgent' ? badge('urgent', 'bad') : badge('routine'),
                 badge(referral.status)),
             (referral.exceptions || []).map((item) => h('div', { class: 'banner danger' }, item)),
+            referral.replaced_by ? h('p', {}, `Replaced by a referral to ${destinationName(referral.replaced_by)} (${referral.replaced_by.status.replaceAll('_', ' ')}). `,
+                h('button', { type: 'button', class: 'link-button', onclick: () => reload(referral.replaced_by.id) }, 'Open the new referral')) : null,
+            referral.replaces ? h('p', {}, `Follows an earlier referral to ${destinationName(referral.replaces)}. `,
+                h('button', { type: 'button', class: 'link-button', onclick: () => reload(referral.replaces.id) }, 'Open the earlier referral')) : null,
             h('p', {}, referral.reason),
             referral.clinical_question ? h('p', {}, h('strong', {}, 'Question: '), referral.clinical_question) : null,
             h('p', { class: 'muted' }, `From ${referral.referring_clinician}. Reply needed by ${when(referral.respond_by)}.${referral.manual_destination ? ` Sent to: ${referral.manual_destination}.` : ''}`),
@@ -100,6 +147,7 @@ function referralDetail(area, referral, context, reload) {
                     reload(referral.id);
                 },
             }, `Record a contact attempt (${referral.contact_attempts} so far)`) : null,
+            referral.side === 'referrer' && ['redirected', 'declined'].includes(referral.status) ? replacement(referral, context, reload) : null,
             referral.side === 'referrer' && referral.status === 'needs_information' ? h('button', { type: 'button', onclick: move('sent') }, 'Send again with the information') : null,
             referral.side === 'referrer' && referral.status === 'outcome_returned' ? h('button', {
                 type: 'button',
@@ -108,20 +156,22 @@ function referralDetail(area, referral, context, reload) {
                     reload(referral.id);
                 },
             }, 'I have reviewed this: close the referral') : null,
-            referral.side !== 'patient' && open ? h('button', {
-                type: 'button',
-                class: 'link-button',
-                style: 'margin-left:12px',
-                onclick: async () => {
-                    const body = await ask('New priority: routine or urgent');
-                    if (body !== 'routine' && body !== 'urgent') return;
-                    const reason = await ask('Why is the priority changing?');
-                    if (!reason) return;
-                    await act(() => api(`${BASE}/${referral.id}/priority`, { method: 'POST', body: { priority: body, reason } }), context, 'Priority changed');
-                    reload(referral.id);
-                },
-            }, 'Change priority') : null,
-            referral.side === 'referrer' && open ? h('button', {
+            referral.side !== 'patient' && open ? h('details', { class: 'inline-details' },
+                h('summary', {}, 'Change priority'),
+                form(
+                    [
+                        { name: 'priority', label: 'Priority, by your judgement', type: 'select', value: referral.priority === 'urgent' ? 'routine' : 'urgent', options: ['routine', 'urgent'] },
+                        { name: 'reason', label: 'Why is it changing?', required: true },
+                    ],
+                    'Save priority',
+                    async (values) => {
+                        const changed = await act(() => api(`${BASE}/${referral.id}/priority`, { method: 'POST', body: values }), context, 'Priority changed');
+                        if (changed) reload(referral.id);
+                    },
+                    { inline: true },
+                )) : null,
+            // A returned outcome is closed by reviewing it, never by cancelling: the server refuses that too.
+            referral.side === 'referrer' && open && referral.status !== 'outcome_returned' ? h('button', {
                 type: 'button',
                 class: 'link-button',
                 style: 'margin-left:12px',
@@ -159,60 +209,136 @@ function list(rows, open) {
     );
 }
 
-function newReferral(context, organizations, documents, duplicate) {
+// One field with its label and a place for its own error, wired up for screen readers.
+function field(label, control, { hint } = {}) {
+    const id = `referral-${control.name}`;
+    const error = h('p', { class: 'field-error', id: `${id}-error`, role: 'alert', hidden: true });
+    control.id = id;
+    control.setAttribute('aria-describedby', `${id}-error`);
+    return {
+        control,
+        element: h('div', { class: 'field' }, h('label', { for: id }, label), control, hint ? h('p', { class: 'muted' }, hint) : null, error),
+        fail(message) {
+            error.textContent = message;
+            error.hidden = false;
+            control.setAttribute('aria-invalid', 'true');
+        },
+        clear() {
+            error.hidden = true;
+            control.removeAttribute('aria-invalid');
+        },
+    };
+}
+
+function newReferral(context, organizations, documents) {
     const { patient, refresh } = context;
     const { defaults } = context.config;
+    const services = organizations.filter((item) => item.verification_status === 'verified');
     const picks = documents.map((item) => ({ item, box: h('input', { type: 'checkbox' }) }));
-    const fields = form(
-        [
-            { name: 'specialty', label: 'Specialty', required: true },
-            { name: 'priority', label: 'Priority, by your judgement', type: 'select', options: ['routine', 'urgent'] },
-            { name: 'respond_by', label: 'Reply needed by', type: 'date', required: true, value: daysFromNow(defaults.referrals_routine_days) },
-            { name: 'organization', label: 'Send to', type: 'select', options: [['', 'Phone, fax or paper'], ...organizations.filter((item) => item.verification_status === 'verified').map((item) => [item.id, `${item.name} (${item.specialities || item.type})`])] },
-            { name: 'manual_destination', label: 'If by phone, fax or paper: who' },
-            { name: 'reason', label: 'Reason', type: 'textarea', required: true },
-            { name: 'clinical_question', label: 'Your question for the specialist', type: 'textarea' },
-        ],
-        'Send referral',
-        async (values) => {
-            const body = {
-                patient_id: patient.id,
-                specialty: values.specialty,
-                priority: values.priority,
-                respond_by: values.respond_by,
-                reason: values.reason,
-                clinical_question: values.clinical_question || '',
-                document_ids: picks.filter((pick) => pick.box.checked).map((pick) => pick.item.id),
-                receiving_organization_id: values.organization || null,
-                manual_destination: values.organization ? '' : values.manual_destination || '',
-            };
+
+    const specialty = field('Specialty', h('input', { name: 'specialty', required: true, maxLength: 80 }));
+    const priority = field('Priority, by your judgement', h('select', { name: 'priority' }, ['routine', 'urgent'].map((value) => h('option', { value }, value))));
+    const respondBy = field('Reply needed by', h('input', { name: 'respond_by', type: 'date', required: true, value: daysFromNow(defaults.referrals_routine_days), min: daysFromNow(0) }));
+    const service = field('Which service', h('select', { name: 'service' }, [h('option', { value: '' }, 'Choose a service'), ...services.map((item) => h('option', { value: item.id }, `${item.name} (${item.specialities || item.type})`))]));
+    const manual = field('Who, and how to reach them', h('input', { name: 'manual_destination', maxLength: 200 }), { hint: 'For example: Dr Rao, City Heart Clinic, phone 011-555-0100' });
+    const reason = field('Reason', h('textarea', { name: 'reason', required: true, maxLength: 1000 }));
+    const question = field('Your question for the specialist', h('textarea', { name: 'clinical_question', maxLength: 1000 }));
+
+    // Where it goes is a choice the clinician makes, so nothing is picked for them.
+    const destinationError = h('p', { class: 'field-error', id: 'referral-destination-error', role: 'alert', hidden: true });
+    const choice = (value, label) => h('label', { class: 'tick' }, h('input', { type: 'radio', name: 'destination', value, required: true }), label);
+    const destination = h('fieldset', { class: 'choice', 'aria-describedby': 'referral-destination-error' },
+        h('legend', {}, 'Send to'),
+        choice('service', 'A service on Curai'),
+        choice('manual', 'By phone, fax or paper'),
+        destinationError);
+    service.element.hidden = true;
+    manual.element.hidden = true;
+    const chosen = () => destination.querySelector('input:checked')?.value;
+    destination.addEventListener('change', () => {
+        service.element.hidden = chosen() !== 'service';
+        manual.element.hidden = chosen() !== 'manual';
+        destinationError.hidden = true;
+    });
+    priority.control.addEventListener('change', () => {
+        respondBy.control.value = daysFromNow(priority.control.value === 'urgent' ? defaults.referrals_urgent_days : defaults.referrals_routine_days);
+    });
+
+    const all = [specialty, priority, respondBy, service, manual, reason, question];
+    // What is wrong, said beside the field it is wrong in. Returns the first one, to move focus to.
+    const check = () => {
+        all.forEach((item) => item.clear());
+        destinationError.hidden = true;
+        const problems = [];
+        if (!specialty.control.value.trim()) problems.push([specialty, 'Say which specialty this is for.']);
+        if (!respondBy.control.value) problems.push([respondBy, 'Give the date you need a reply by.']);
+        else if (respondBy.control.value < daysFromNow(0)) problems.push([respondBy, "The reply-by date can't be in the past."]);
+        if (!chosen()) {
+            destinationError.textContent = 'Choose where to send this referral.';
+            destinationError.hidden = false;
+            problems.push([{ control: destination.querySelector('input') }, '']);
+        } else if (chosen() === 'service' && !service.control.value) {
+            problems.push([service, services.length ? 'Choose the service.' : 'No verified service is set up yet. Send it by phone, fax or paper instead.']);
+        } else if (chosen() === 'manual' && !manual.control.value.trim()) {
+            problems.push([manual, 'Say who it is going to.']);
+        }
+        if (!reason.control.value.trim()) problems.push([reason, 'Give the reason for this referral.']);
+        problems.forEach(([item, message]) => message && item.fail(message));
+        return problems[0]?.[0];
+    };
+
+    const submit = h('button', { type: 'submit' }, 'Send referral');
+    const element = h('form', { class: 'stack', novalidate: true },
+        specialty.element, priority.element, respondBy.element, destination, service.element, manual.element, reason.element, question.element,
+        picks.length ? h('fieldset', { class: 'choice' }, h('legend', {}, 'Share these documents'), picks.map((pick) => h('label', { class: 'tick' }, pick.box, pick.item.filename))) : null,
+        submit);
+    element.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const first = check();
+        if (first) {
+            first.control.focus();
+            return;
+        }
+        const body = {
+            patient_id: patient.id,
+            specialty: specialty.control.value.trim(),
+            priority: priority.control.value,
+            respond_by: respondBy.control.value,
+            reason: reason.control.value.trim(),
+            clinical_question: question.control.value.trim(),
+            document_ids: picks.filter((pick) => pick.box.checked).map((pick) => pick.item.id),
+            receiving_organization_id: chosen() === 'service' ? service.control.value : null,
+            manual_destination: chosen() === 'manual' ? manual.control.value.trim() : '',
+        };
+        submit.disabled = true;
+        try {
             const send = () => api(BASE, { method: 'POST', body });
             try {
                 await send();
             } catch (error) {
-                if (error.detail?.code === 'possible_duplicate') {
-                    const reason = await ask(`${error.detail.message}\n\nReason:`);
-                    if (!reason) return;
-                    body.confirm_duplicate_reason = reason;
-                    await act(send, context, 'Referral sent');
-                    refresh();
-                    return;
-                }
-                await act(() => { throw error; }, context);
-                return;
+                if (error.detail?.code !== 'possible_duplicate') throw error;
+                const why = await ask(`${error.detail.message}\n\nReason:`);
+                if (!why) return;
+                body.confirm_duplicate_reason = why;
+                await send();
             }
+            toast('Referral sent');
             refresh();
-        },
-    );
-    fields.elements.priority.addEventListener('change', (event) => {
-        const days = event.target.value === 'urgent' ? defaults.referrals_urgent_days : defaults.referrals_routine_days;
-        fields.elements.respond_by.value = daysFromNow(days);
+        } catch (error) {
+            // What the server refuses is shown on the field it is about, where there is one.
+            const message = error.message || '';
+            const target = /respond-by|reply/i.test(message) ? respondBy : /service/i.test(message) ? service : null;
+            if (target) {
+                target.fail(message);
+                target.control.focus();
+            } else {
+                await act(() => { throw error; }, context);
+            }
+        } finally {
+            submit.disabled = false;
+        }
     });
-    return h('div', {},
-        fields,
-        picks.length ? h('div', { style: 'margin-top:8px' }, h('h3', {}, 'Share these documents'),
-            picks.map((pick) => h('label', { class: 'tick' }, pick.box, pick.item.filename))) : null,
-        duplicate);
+    return element;
 }
 
 export async function renderReferrals(container, context) {
@@ -237,8 +363,10 @@ export async function renderReferrals(container, context) {
         await loadLists();
         area.scrollIntoView({ block: 'start' });
     };
-    const organizations = isClinician ? await api('/api/organizations') : [];
-    const documents = isClinician ? await api(`/api/patients/${patient.id}/documents`) : [];
+    // With no patient open there is nobody to refer, so nothing here asks for one.
+    const writing = Boolean(patient) && isClinician;
+    const organizations = writing ? await api('/api/organizations') : [];
+    const documents = writing ? await api(`/api/patients/${patient.id}/documents`) : [];
 
     if (!isStaff) {
         const patientRows = patient ? await api(`${BASE}/patients/${patient.id}`) : [];
@@ -262,9 +390,12 @@ export async function renderReferrals(container, context) {
             container,
         h('h1', {}, 'ReferralLoop'),
         h('p', { class: 'lede' }, 'Follows a referral until the outcome is back and reviewed. Priority and timing stay your decision.'),
+        // Sending a referral is why most people open this, so it comes first.
+        writing
+            ? h('details', { class: 'sheet', id: 'new-referral', open: true }, h('summary', {}, h('h2', { style: 'display:inline' }, `New referral for ${patient.first_name}`)), newReferral(context, organizations, documents))
+            : h('p', { class: 'empty', id: 'new-referral-guard' }, patient ? 'Only a clinician on this patient\'s care team can send a referral.' : 'Open a patient to send a new referral. Referrals sent to you are listed below.'),
         area,
         lists,
-        isClinician ? h('details', { style: 'margin-top:12px' }, h('summary', {}, `New referral for ${patient.first_name}`), h('div', { class: 'sheet' }, newReferral(context, organizations, documents))) : null,
     );
     await loadLists();
     return undefined;

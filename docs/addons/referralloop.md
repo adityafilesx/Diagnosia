@@ -17,6 +17,30 @@ Moves are checked by side. The receiver moves most stages, the referrer resends 
 a request for information, reviews the outcome and closes. For phone, fax or paper
 referrals, the referrer records the receiver's steps, marked `manual`.
 
+**Overdue referrals are pushed, not only shown.** The five-minute sweep (`chase_overdue`) finds every
+referral still `sent`, `acknowledged` or `accepted` after its reply-by date and creates one
+high-priority task for the referrer, due in a day, with a notification and a line in the history
+marked `system`. It does this once for each referral. The task is marked done when the referral moves
+on (an appointment, a decline, an outcome) and cancelled when it closes. The tasks this tool creates
+itself are dated too, so the platform's escalation reaches them: "patient unreachable" is due in one
+day and "review the outcome" in three, both high priority.
+
+A `redirected` or `declined` referral is replaced, not edited: the referrer sends a new referral that
+names it in `replaces_referral_id` (the screen copies the reason, question, priority and documents and
+asks only where to send it). The old one then closes as `cancelled` with the reason "Replaced by a new
+referral", and each links to the other (`replaced_by` and `replaces`, shown to the referrer only). It
+skips the duplicate question, because it takes over from the open one. A referral still in progress is
+not closed this way.
+
+A referral whose outcome is back (`outcome_returned`) can't be closed without one: `POST /{id}/close`
+is refused with a 409, and reviewing the outcome is the only way to close it.
+
+A referral is `booked` only with an appointment: moving to `booked` marks the newest open
+appointment (offered, booked or rescheduled) as the booking, and is refused with a 409 when there is
+none, as after a missed visit. An appointment time must be a real date, or a date and time, within a
+year back and three years ahead; anything else is refused with a 422. It is stored as `YYYY-MM-DD` or
+`YYYY-MM-DDTHH:MM`.
+
 ## Scenario coverage
 
 Toolkit scenarios TS-01 and TS-03 to TS-08 are automated. TS-02 (prior authorization)

@@ -489,30 +489,42 @@ def test_an_xray_sends_its_description_and_never_the_file(server, doctor, patien
 
 
 def medicine(name="Azee 500", legibility="clear"):
+    from backend.prescription.analyzer import ConfirmedMedicine
+
     field = lambda value: {"value": value, "legibility": "clear"}  # noqa: E731
-    return {"name": {"value": name, "legibility": legibility}, "dose": field("500 mg"), "frequency": field("OD"), "duration": field("3 days"), "notes": field("")}
+    return ConfirmedMedicine.model_validate(
+        {"name": {"value": name, "legibility": legibility}, "dose": field("500 mg"), "frequency": field("OD"), "duration": field("3 days"), "notes": field("")}
+    )
 
 
-def test_a_saved_prescription_is_labelled_as_the_patients_own(server, client, doctor, person):
+def save(account, monkeypatch, *medicines, confirmed=(0,)):
+    """Saving works from a stored reading: read a photo with a fake AI, then save the ticked cards."""
+    from backend.tests.test_prescription import read_as
+
+    reading_id = read_as(account, monkeypatch, *medicines)
+    return account.post("/api/prescription/save", json={"reading_id": reading_id, "confirmed": list(confirmed)})
+
+
+def test_a_saved_prescription_is_labelled_as_the_patients_own(server, client, doctor, person, monkeypatch):
     from backend.tests.conftest import linked_patient
 
     account, record = linked_patient(doctor, person)
     grant(doctor, record["id"], "patient_pack")
-    assert account.post("/api/prescription/save", json={"medicines": [medicine()]}).status_code == 201
+    assert save(account, monkeypatch, medicine()).status_code == 201
     run_worker(server)
     text = stored_text(server)
     assert "Azee 500: 500 mg, OD, 3 days" in text and "not checked by a clinician" in text
 
 
-def test_an_unreadable_medicine_cant_be_saved(server, doctor, person):
+def test_an_unreadable_medicine_cant_be_saved(server, doctor, person, monkeypatch):
     from backend.tests.conftest import linked_patient
 
     account, _record = linked_patient(doctor, person)
-    assert account.post("/api/prescription/save", json={"medicines": [medicine(legibility="unreadable")]}).status_code == 422
+    assert save(account, monkeypatch, medicine(legibility="unreadable")).status_code == 422
 
 
-def test_saving_needs_a_patient_record(server, person):
-    assert person("patient").post("/api/prescription/save", json={"medicines": [medicine()]}).status_code == 409
+def test_saving_needs_a_patient_record(server, person, monkeypatch):
+    assert save(person("patient"), monkeypatch, medicine()).status_code == 409
 
 
 def test_a_note_reaches_the_pack_only_once_signed_and_without_its_transcript(server, doctor, patient, monkeypatch):
@@ -524,7 +536,9 @@ def test_a_note_reaches_the_pack_only_once_signed_and_without_its_transcript(ser
     run_worker(server)
     assert stored_text(server) == ""  # a draft is still only a draft
 
-    assert doctor.post(f"/api/addons/clinscribe/notes/{note['id']}/approve", json={"acknowledge_flags": True}).status_code == 200
+    from backend.tests.test_clinscribe import sign
+
+    assert sign(doctor, note).status_code == 200
     run_worker(server)
     text = stored_text(server)
     assert "Cough for three days" in text and "Signed consultation note" in text

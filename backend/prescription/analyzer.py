@@ -11,12 +11,12 @@ import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Literal, Optional, Tuple
-from urllib.parse import quote, urlencode
 
 from PIL import Image, ImageOps
 from pydantic import BaseModel
 
 from backend import llm, settings_store
+from backend.prescription import crosscheck
 from backend.prescription.compare import compare
 from backend.prescription.medicines import check_name
 from backend.prescription.shorthand import (
@@ -201,7 +201,44 @@ def read_prescription(images: List[Image.Image]) -> dict:
         # A clear reading of a name that isn't a known medicine may still be a misreading.
         if medicine["match"]["status"] in ("close", "not_found") and name["legibility"] == "clear":
             name["legibility"] = "unsure"
+        # The one readability rule. The page offers a tick only where this is true, and only a
+        # ticked medicine is explained, so both sides always agree on what can be confirmed.
+        medicine["confirmable"] = is_explainable(ConfirmedMedicine.model_validate(_fields(medicine)))
+    # False when a name went unchecked because no medicine list is installed. The page then says so:
+    # without the list, a confident misreading of a name gets no second look.
+    result["names_checked"] = not any(
+        medicine["match"]["status"] == "unchecked" and medicine["name"]["value"].strip() for medicine in result["medicines"]
+    )
     return result
+
+
+FIELDS = ("name", "dose", "frequency", "day_pattern", "duration", "notes")
+
+
+def _fields(medicine: dict) -> dict:
+    """The fields that were read, without what the server added for display."""
+    return {key: medicine[key] for key in FIELDS}
+
+
+def confirmed_from(reading: List[dict], ticked: List[int]) -> List[ConfirmedMedicine]:
+    """The medicines to explain, built from the server's own reading and the cards the patient ticked.
+
+    A medicine that wasn't ticked is passed on with an unreadable name, which sends it to the
+    "ask your pharmacist" list and keeps it out of the explanation. Nothing the browser says about
+    how legible a field was is used.
+    """
+    chosen = set(ticked)
+    medicines = []
+    for index, medicine in enumerate(reading):
+        fields = _fields(medicine)
+        if index in chosen:
+            match = medicine.get("match") or {}
+            # Ingredients are only trusted when the name was an exact match.
+            contains = match.get("contains") or "" if match.get("status") == "found" else ""
+            medicines.append(ConfirmedMedicine.model_validate({**fields, "contains": contains}))
+        else:
+            medicines.append(ConfirmedMedicine.model_validate({**fields, "name": {**fields["name"], "legibility": "unreadable"}}))
+    return medicines
 
 
 def is_explainable(medicine: ConfirmedMedicine) -> bool:
@@ -236,7 +273,11 @@ FOOD_HINDI = {
     "on an empty stomach": "खाली पेट",
 }
 # Length of a course when the prescription doesn't say. It's shown to the patient as a guess.
-UNKNOWN_DURATION_DAYS = 7
+# A course length nobody wrote is never filled in. The reminder then has no end, and says so.
+NO_END_DATE = {
+    "en-IN": "No end date written, ask your doctor how long to take it",
+    "hi-IN": "समाप्ति की तारीख नहीं लिखी है, अपने डॉक्टर से पूछें कि कब तक लेनी है",
+}
 AMOUNT_NUMBERS = {"one": "1", "half": "½", "two": "2", "three": "3"}
 FORMS = (
     (re.compile(r"^\s*(?:t|tab|tabs|tablet)\b\.?", re.IGNORECASE), "tablet"),
@@ -261,8 +302,18 @@ def _dose_text(name: str, dose: str) -> str:
     return "" if not dose.strip() or squeeze(dose) in squeeze(name) else dose.strip()
 
 
-def generate_ics_calendar(slots: List[dict]) -> str:
-    """Creates a standard RFC 5545 iCalendar payload for multi-slot reminders."""
+def _end(dtstart: str) -> str:
+    """A reminder is a 15-minute entry."""
+    return (datetime.strptime(dtstart, "%Y%m%dT%H%M%S") + timedelta(minutes=15)).strftime("%Y%m%dT%H%M%S")
+
+
+def _recur(days: Optional[int]) -> str:
+    """Daily for the written number of days, or daily with no end when no length was written."""
+    return f"FREQ=DAILY;COUNT={days}" if days else "FREQ=DAILY"
+
+
+def _ics(slots: List[dict]) -> str:
+    """A plain RFC 5545 calendar file: one repeating event for each stretch of each time of day."""
     now_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     events_str = []
     for item in slots:
@@ -282,8 +333,8 @@ def generate_ics_calendar(slots: List[dict]) -> str:
             f"UID:{uid}\r\n"
             f"DTSTAMP:{now_stamp}\r\n"
             f"DTSTART:{item['dtstart']}\r\n"
-            f"DTEND:{item['dtend']}\r\n"
-            f"RRULE:FREQ=DAILY;COUNT={item['duration_days']}\r\n"
+            f"DTEND:{_end(item['dtstart'])}\r\n"
+            f"RRULE:{_recur(item['duration_days'])}\r\n"
             f"SUMMARY:{clean_summary}\r\n"
             f"DESCRIPTION:{clean_desc}\r\n"
             "BEGIN:VALARM\r\n"
@@ -383,28 +434,21 @@ def plan_unresolved(medicines: List[ConfirmedMedicine], doctor_notes: str = "") 
     return plans
 
 
-def build_schedule(medicines: List[ConfirmedMedicine], plan: Optional[Dict[str, dict]] = None) -> Dict[str, List[dict]]:
-    schedule: Dict[str, List[dict]] = {"morning": [], "afternoon": [], "night": []}
-    for index, medicine in enumerate(medicines):
-        if _is_as_needed(medicine):
-            continue
-        resolved = resolve_slots(medicine, (plan or {}).get(str(index)))
-        for slot, amount in resolved["slots"].items():
-            schedule[slot].append({"name": medicine.name.value, "amount": amount, "assumed": resolved["assumed"]})
-    return schedule
-
-
 def _segments(meds: List[dict]) -> List[Tuple[int, int, List[dict]]]:
     """Splits a slot's course into stretches, so a medicine stops being listed once its course ends.
 
     Medicines for 5 and 15 days at the same time give days 1 to 5 with both, then days 6 to 15
     with only the longer one.
     """
-    ends = sorted({m["duration_days"] for m in meds})
+    ends = sorted({m["duration_days"] for m in meds if m["duration_days"]})
     result, first = [], 1
     for end in ends:
-        result.append((first, end, [m for m in meds if m["duration_days"] >= end]))
+        result.append((first, end, [m for m in meds if not m["duration_days"] or m["duration_days"] >= end]))
         first = end + 1
+    # Medicines with no written length carry on in a last stretch that has no end.
+    open_ended = [m for m in meds if not m["duration_days"]]
+    if open_ended:
+        result.append((first, None, open_ended))
     return result
 
 
@@ -416,10 +460,12 @@ def _line(item: dict, language: Language) -> str:
         text += f", {FOOD_HINDI.get(item['food'], item['food']) if language == 'hi-IN' else item['food']}"
     if item["purpose"]:
         text += f" ({'उद्देश्य' if language == 'hi-IN' else 'for'}: {item['purpose']})"
+    if item["no_end_date"]:
+        text += f". {NO_END_DATE.get(language, NO_END_DATE['en-IN'])}"
     return text
 
 
-def build_calendar_reminders(
+def build_schedule(
     medicines: List[ConfirmedMedicine],
     language: Language,
     guidance: Optional[dict] = None,
@@ -427,7 +473,10 @@ def build_calendar_reminders(
     custom_times: Optional[Dict[str, str]] = None,
     plan: Optional[Dict[str, dict]] = None,
 ) -> dict:
-    """Builds the daily reminders, with one calendar event for each stretch of each time of day.
+    """The one daily schedule: what to take at each time of day, and the same thing as a calendar file.
+
+    The page draws its table from this, and the .ics is built from the same stretches, so the two
+    can't disagree.
 
     Every readable medicine ends up somewhere: on a timed reminder, in the as-needed list, or in
     `unscheduled` with the reason, so none drops out of the plan without the patient seeing it.
@@ -469,8 +518,8 @@ def build_calendar_reminders(
                     "dose": medicine.dose.value,
                     "quantity": " ".join(part for part in (_amount_text(medicine.name.value, amount), _dose_text(medicine.name.value, medicine.dose.value)) if part),
                     "food": food_timing(medicine.frequency.value, medicine.day_pattern.value, medicine.notes.value),
-                    "duration_days": written_days or UNKNOWN_DURATION_DAYS,
-                    "duration_assumed": not written_days,
+                    "duration_days": written_days,
+                    "no_end_date": not written_days,
                     "assumed": resolved["assumed"],
                     "purpose": purposes.get(medicine.name.value.lower().strip(), ""),
                     "notes": medicine.notes.value,
@@ -491,33 +540,27 @@ def build_calendar_reminders(
             first_date = start + timedelta(days=first_day - 1)
             start_dt = datetime(first_date.year, first_date.month, first_date.day, hour, minute)
             dtstart_str = start_dt.strftime("%Y%m%dT%H%M%S")
-            dtend_str = (start_dt + timedelta(minutes=15)).strftime("%Y%m%dT%H%M%S")
             title = f"{titles[slot]} - Curai"
             if len(meds) and len({m["duration_days"] for m in meds}) > 1:
-                title += f" (days {first_day}-{last_day})" if language != "hi-IN" else f" (दिन {first_day}-{last_day})"
+                if last_day is None:
+                    title += f" (from day {first_day})" if language != "hi-IN" else f" (दिन {first_day} से)"
+                else:
+                    title += f" (days {first_day}-{last_day})" if language != "hi-IN" else f" (दिन {first_day}-{last_day})"
             lines = "\n".join(_line(item, language) for item in group)
             if language == "hi-IN":
                 details = "💊 डॉक्टर द्वारा लिखी गई दवाइयाँ:\n" + lines + "\n\n⚠️ निर्देश:\nडॉक्टर के निर्देशानुसार लें। किसी भी असुविधा पर डॉक्टर या फार्मासिस्ट से संपर्क करें।"
             else:
                 details = "💊 Prescribed Medicines:\n" + lines + "\n\n⚠️ Instructions:\nTake as directed by your doctor. Consult your doctor or pharmacist if unsure."
-            duration_days = last_day - first_day + 1
-            params = {
-                "action": "TEMPLATE",
-                "text": title,
-                "details": details,
-                "dates": f"{dtstart_str}/{dtend_str}",
-                "recur": f"RRULE:FREQ=DAILY;COUNT={duration_days}",
-            }
+            duration_days = last_day - first_day + 1 if last_day is not None else None
             segment = {
                 "title": title,
                 "first_day": first_day,
                 "last_day": last_day,
                 "duration_days": duration_days,
+                "no_end_date": last_day is None,
                 "medicines": group,
-                "google_url": f"https://calendar.google.com/calendar/render?{urlencode(params)}",
                 "description": details,
                 "dtstart": dtstart_str,
-                "dtend": dtend_str,
             }
             segments.append(segment)
             events.append(segment)
@@ -527,10 +570,6 @@ def build_calendar_reminders(
             "time": times[slot],
             "duration_days": segments[-1]["last_day"],
             "medicines": meds,
-            "google_url": segments[0]["google_url"],
-            "description": segments[0]["description"],
-            "dtstart": segments[0]["dtstart"],
-            "dtend": segments[0]["dtend"],
             "segments": segments,
         }
 
@@ -556,7 +595,7 @@ def build_calendar_reminders(
         "slots": slot_results,
         "as_needed": as_needed_meds,
         "unscheduled": unscheduled,
-        "ics_calendar": generate_ics_calendar(events) if events else "",
+        "ics": _ics(events) if events else "",
     }
 
 
@@ -568,6 +607,7 @@ def explain_prescription(medicines: List[ConfirmedMedicine], language: Language,
         if not is_explainable(medicine)
     ]
     guidance = None
+    explained_by = ""
     if explainable:
         details = [
             {
@@ -587,15 +627,18 @@ def explain_prescription(medicines: List[ConfirmedMedicine], language: Language,
             f"Language: {language}\n\nDoctor's notes: {doctor_notes or 'None'}\n\n"
             f"Medicines:\n{json.dumps(details, ensure_ascii=False, indent=2)}"
         )
+        llm.forget_last_model()
         guidance = llm.ask(EXPLAIN_SYSTEM, request, Guidance, tool="prescription_explain").model_dump()
+        explained_by = llm.last_model()  # before the planning call below, which may use another model
+        # Each sentence is checked against the prescription's own numbers, and shown beside the
+        # rule-decoded directions. A sentence with a number the prescription doesn't give is replaced.
+        guidance["medicines"] = crosscheck.check_guidance(guidance["medicines"], explainable, language)
     plan = plan_unresolved(explainable, doctor_notes)
-    reminders = build_calendar_reminders(explainable, language, guidance, plan=plan)
     return {
         "guidance": guidance,
-        "schedule": build_schedule(explainable, plan),
+        "explained_by": explained_by,
+        "schedule": build_schedule(explainable, language, guidance, plan=plan),
         "plan": plan,
-        "reminders": reminders,
-        "as_needed": reminders.get("as_needed", []),
         "ask_pharmacist": ask_pharmacist,
     }
 

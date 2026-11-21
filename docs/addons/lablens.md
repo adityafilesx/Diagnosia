@@ -45,6 +45,12 @@ Under `/api/addons/lablens`: `POST reports`, `GET patients/{id}/reports`,
 
 ## Limits
 
-Tested on synthetic PDFs, not real reports from Indian labs. Numeric results only in
-the local parser. Qualitative results need AI reading or manual entry. Lines holding two
-tests are split and always flagged for review. There is no virus scanning of uploads.
+Tested on synthetic PDFs, not real reports from Indian labs. The local parser reads numeric
+results, and results written in words (positive, negative, reactive, non reactive, trace, nil,
+present, absent, detected, not detected, 1+ to 4+). A word result gets no number, unit or range
+status and always goes to a person. Lines holding two tests are split and always flagged for review.
+
+The review screen says "N lines not read" and lists them: a test the parser knows with no value it
+could read, or a line holding a number between the results. It is a prompt to look at the original,
+not a measure of everything missed: a line outside the table that names no known test isn't counted.
+For a report read by AI, the count is the AI's own count of lines it left out, with no text. There is no virus scanning of uploads.

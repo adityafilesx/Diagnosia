@@ -160,7 +160,13 @@ mark, .unreviewed {
 .reasons { list-style: none; padding: 0; margin: 2px 0 0; font-size: .85rem; color: var(--ink-soft); }
 .verdict-unsupported textarea, .verdict-uncertain textarea, .verdict-supported textarea, .verdict-clinician_entered textarea { min-height: 44px; }
 .verdict-unsupported textarea { border: 2px solid var(--alert); }
-.verdict-uncertain textarea { background: var(--highlighter); color: var(--highlighter-ink); border-color: var(--highlighter); }
+.verdict-uncertain textarea, .verdict-not_checked textarea { background: var(--highlighter); color: var(--highlighter-ink); border-color: var(--highlighter); }
+.verdict-not_checked textarea { min-height: 44px; }
+/* A statement with the transcript lines it rests on beside it, where there is room. */
+.statement { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+@media (min-width: 900px) { .statement:has(.source-lines) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+.source-lines blockquote { margin: 4px 0 0; padding: 6px 10px; border-left: 3px solid var(--rule); font-size: .95rem; }
+.source-lines .who { display: block; font-size: .8rem; color: var(--ink-soft); }
 
 .sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; margin: 12px 0; }
 .alert-card { border-color: var(--alert); }
@@ -206,6 +212,26 @@ form.stack { display: grid; gap: 10px; max-width: 560px; }
 form.inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 label { display: grid; gap: 2px; font-size: .85rem; color: var(--ink-soft); }
 label.tick { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: .95rem; }
+/* A group of choices, and an error shown beside the field it is about. */
+fieldset.choice { border: 1px solid var(--edge); border-radius: 6px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 2px; }
+fieldset.choice legend { font-size: .85rem; color: var(--ink-soft); padding: 0 4px; }
+fieldset.choice label.tick { min-height: 44px; }
+/* The family's going-home checklist: large type for the number to call, one big button a step. */
+.who-to-call h2 { margin: 0 0 4px; }
+.who-to-call .call-line { font-size: 1.35rem; font-weight: 700; margin: 4px 0; overflow-wrap: anywhere; }
+ul.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+ul.steps .step { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper, #fff); }
+@media (min-width: 700px) { ul.steps .step { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } }
+ul.steps .step.done { opacity: .8; }
+ul.steps .step p { margin: 4px 0 0; }
+.step-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+button.big-done { min-height: 56px; min-width: 140px; font-size: 1.15rem; font-weight: 700; flex: 1 1 140px; }
+.field { display: grid; gap: 2px; }
+.field[hidden] { display: none; }
+.field-error { color: var(--alert); font-weight: 500; font-size: .9rem; margin: 2px 0 0; }
+[aria-invalid="true"] { border-color: var(--alert); outline: 2px solid var(--alert); outline-offset: 1px; }
+details.inline-details { display: inline-block; margin: 8px 12px 0 0; vertical-align: top; }
+details.inline-details > summary { cursor: pointer; color: var(--action); text-decoration: underline; }
 /* A consent a person can tap anywhere on, at least 44 px tall. */
 label.tick.consent-row { min-height: 44px; padding: 10px 14px; border: 1px solid var(--edge); border-radius: 6px; cursor: pointer; gap: 12px; }
 label.tick.consent-row input { width: 22px; height: 22px; flex: none; margin: 0; }
@@ -438,73 +464,23 @@ button:not(.quiet):not(.danger):not(.link-button):not(.patient-row),
 .medicine-card strong { display: block; }
 .medicine-card p { margin: .25rem 0; }
 .medicine-card audio { display: block; width: 100%; margin-top: 8px; }
-.schedule { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-.schedule p { margin: .2rem 0; font-size: .925rem; }
+/* The patient's own photo beside what was read from it. Side by side where there is room. */
+.medicine-card.with-photo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@media (min-width: 700px) { .medicine-card.with-photo { grid-template-columns: minmax(0, 1fr) minmax(0, 220px); } }
+.rx-photos { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; }
+.rx-photo { padding: 0; border: 1px solid var(--rule); border-radius: 4px; background: none; cursor: zoom-in; line-height: 0; min-width: 44px; min-height: 44px; }
+.rx-photo img { display: block; width: 100px; height: 100px; object-fit: cover; border-radius: 3px; }
+.rx-photo.large { cursor: zoom-out; flex-basis: 100%; }
+.rx-photo.large img { width: 100%; height: auto; object-fit: contain; }
+@media (min-width: 700px) { .medicine-card.with-photo:has(.rx-photo.large) { grid-template-columns: minmax(0, 1fr); } }
 
-.calendar-card {
-  padding: 12px 14px;
-  margin: 10px 0;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  background: var(--sheet);
-}
-.calendar-card .slot-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
-}
-.calendar-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 18px;
-  padding: 12px 14px;
-  margin: 10px 0 14px;
-  background: var(--band);
-  border-radius: 6px;
-}
-.calendar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-}
-.calendar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 4px;
-  font-size: .88rem;
-  font-weight: 500;
-  text-decoration: none;
-  background: var(--brand);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  transition: opacity .15s ease-out;
-}
-.calendar-btn:hover { opacity: .92; }
-.calendar-btn.secondary {
-  background: transparent;
-  color: var(--action);
-  border: 1px solid var(--action);
-}
-.calendar-btn.secondary:hover {
-  background: var(--sheet);
-}
-.calendar-import-note {
-  margin-top: 12px;
-  padding: 12px 14px;
-  background: var(--band);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  font-size: .9rem;
-}
-.calendar-import-note strong { display: block; margin-bottom: 4px; color: var(--brand); }
-.calendar-import-note p { margin: 0; }
-.calendar-link { color: var(--action); font-weight: 600; text-decoration: underline; }
+.schedule-table { width: 100%; border-collapse: collapse; }
+.schedule-table th, .schedule-table td { padding: 8px 10px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+.schedule-table ul.plain { list-style: none; margin: 0; padding: 0; }
+.schedule-table ul.plain li + li { margin-top: 4px; }
+.table-scroll { overflow-x: auto; }
+.schedule-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-top: 12px; }
+.schedule-controls label { display: flex; flex-direction: column; gap: 4px; }
 
 @media (max-width: 520px) {
   .brand img { width: 96px; height: auto; }

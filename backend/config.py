@@ -49,6 +49,13 @@ class Settings:
     documents_dir: Path = field(
         default_factory=lambda: Path(os.environ.get("CURAI_DOCUMENTS", STORAGE_DIR / "documents"))
     )
+    # The list medicine names are checked against. Never in git: see agent_context.md, Licences.
+    medicine_list: Path = field(
+        default_factory=lambda: Path(
+            os.environ.get("CURAI_MEDICINE_LIST")
+            or ROOT_DIR / "datasets" / "medicines" / "indian-medicine-dataset" / "DATA" / "indian_medicine_data.csv"
+        )
+    )
     # A JSON key ring kept outside the repository and away from the documents. See vault.py.
     document_key_file: str = field(default_factory=lambda: os.environ.get("CURAI_DOCUMENT_KEY_FILE", ""))
     # development, staging or production. Anything unknown counts as production.
@@ -61,6 +68,9 @@ class Settings:
     enable_external_messaging: bool = field(default_factory=lambda: os.environ.get("ENABLE_EXTERNAL_MESSAGING") == "1")
     # Set CURAI_HTTPS=1 in production so session cookies are HTTPS-only.
     cookie_secure: bool = field(default_factory=lambda: os.environ.get("CURAI_HTTPS") == "1")
+    # A signed-in session ends after this many minutes with no activity (background polling doesn't
+    # count). 0 turns the idle limit off; the absolute lifetime in auth.py still applies.
+    session_idle_minutes: int = field(default_factory=lambda: int(os.environ.get("CURAI_SESSION_IDLE_MINUTES", "30")))
     # A self-service kiosk sends new visits only to this verified doctor's queue.
     diagnofast_kiosk_doctor_id: str = field(default_factory=lambda: os.environ.get("DIAGNOFAST_KIOSK_DOCTOR_ID", ""))
     # An interview link that is never opened stops working after this. Once started, the patient has the

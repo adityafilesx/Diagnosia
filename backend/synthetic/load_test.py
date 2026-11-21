@@ -56,7 +56,7 @@ def run(staff: int, drafters: int, seconds: float, ai_seconds: float, pause: flo
     latencies: List[float] = []
     outcomes: Dict[str, int] = {"ok": 0, "busy": 0, "error": 0, "drafts": 0, "draft_errors": 0}
     lock = threading.Lock()
-    stop = time.monotonic() + seconds
+    stop = 0.0  # set once setup is done, so a slow start-up can't eat the measured window
 
     with ratelimit.suspended(), TestClient(app):
         doctors = [Person("doctor", "Load", f"Doctor{n}", f"load{n}@example.com") for n in range(staff + drafters)]
@@ -102,6 +102,7 @@ def run(staff: int, drafters: int, seconds: float, ai_seconds: float, pause: flo
                 with lock:
                     outcomes["drafts" if drafted else "draft_errors"] += 1
 
+        stop = time.monotonic() + seconds
         threads = [threading.Thread(target=writer, args=(n,)) for n in range(staff)]
         threads += [threading.Thread(target=drafter, args=(staff + n,)) for n in range(drafters)]
         for thread in threads:

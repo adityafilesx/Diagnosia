@@ -37,6 +37,8 @@ distinct from consent given in the app.
 | Transcripts | Database | No | Until signing, unless retention agreed |
 | Prescription photos | Not stored | n/a | None |
 | Medicines a patient saved from a prescription | Database | No | Not set |
+| What was read from a prescription photo (medicine fields only, no photo, no doctor's notes) | Database, `prescription_readings` | No | Removed by the sweep after 24 hours |
+| Which medicines a patient ticked, at each explanation and save, with the app version and the models used | Database, `prescription_confirmations` | No | Not set |
 | Patient packs: finished records as text | Meko, in one datapack per patient | Not stated by Meko | Until consent is revoked. Meko doesn't state whether deletion reaches its backups |
 | Audit events | Database | No | Not set |
 | CareFlow outbox and reference map | Database | No | Not set |
@@ -117,14 +119,24 @@ than sending patient text to an unnamed service.
 | `speech.platform.bing.com` | Edge voices, demo mode only (inside the `edge-tts` library) |
 | MongoDB Atlas and YugabyteDB | Only the addresses an operator configures, only when switched on |
 
-Two addresses appear in the code but are opened by the visitor's browser, not by the server:
-`calendar.google.com` (a link to add a reminder, which carries the medicine schedule the patient chose)
-and `assets.website-files.com` (fonts on the public pages).
+Some addresses appear in the code but are opened by the visitor's browser, not by the server:
+`assets.website-files.com` (fonts and one background image on the public pages and the workspace),
+`fonts.googleapis.com` and `fonts.gstatic.com` (a web font on the terms page), and `www.google.com`
+(the embedded map on the home page). The last three are named in `backend/app.py` only because the
+content-security-policy lists what the public pages may load; the workspace and the patient interview
+allow none of the Google addresses. Each of these sees the visitor's address and browser, never
+patient data.
 
 **The prescription consent tick.** The server refuses a photo without the agreement and the current
 wording's version, and stores that agreement. It cannot prove a person ticked the box: a client could
-send the same fields. That stays true until reading moves server-side behind a confirmed session
-(audit plan WI-211).
+send the same fields.
+
+**The "this matches my prescription" ticks.** Since WI-211 the server keeps its own copy of each
+reading for 24 hours and decides which medicines can be ticked. The page sends back only which cards
+were ticked, and the server explains or saves its own copy of those medicines, so a client can't have
+an unreadable medicine explained, change a name, or claim a field was clear. Each explanation and save
+stores the ticked set, the app version and the models. As with consent, the server cannot prove a
+person, not a program, made the ticks.
 
 Whether Groq may receive real patient data is covered in `CLINICAL_GOVERNANCE.md`. Today
 the answer is no.

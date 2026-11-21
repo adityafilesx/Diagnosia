@@ -10,7 +10,7 @@ function board(rows, open) {
             { label: 'Patient', cell: (row) => [row.flagged ? '⚑ ' : '', `${row.first_name} ${row.last_name}`] },
             { label: 'Discharge', cell: (row) => when(row.discharge_date) },
             { label: 'To', cell: (row) => row.destination },
-            { label: 'Barriers', number: true, cell: (row) => row.barriers_open },
+            { label: 'Barriers', number: true, cell: (row) => (row.barriers_overdue ? badge(`${row.barriers_open}, ${row.barriers_overdue} past target`, 'bad') : row.barriers_open) },
             { label: 'Open tasks', number: true, cell: (row) => row.tasks_open },
             { label: 'Overdue', number: true, cell: (row) => (row.tasks_overdue ? badge(String(row.tasks_overdue), 'bad') : 0) },
             { label: 'Results due', number: true, cell: (row) => row.results_pending },
@@ -27,6 +27,7 @@ function episodeEditor(area, episode, context, open) {
     const reload = () => open(episode.id);
     const post = (path, body, message) => act(() => api(`${url}/${path}`, { method: 'POST', body }), context, message);
     const draft = episode.status === 'draft';
+    const responsible = episode.responsible_clinician_id === context.me.id;
     const live = episode.status !== 'closed';
 
     const summary = draft ? form(
@@ -55,6 +56,7 @@ function episodeEditor(area, episode, context, open) {
         [
             { name: 'description', label: 'What is in the way', required: true },
             { name: 'owner', label: 'Who is on it' },
+            { name: 'target_date', label: 'Sorted by', type: 'date' },
         ],
         'Add barrier',
         async (values) => { await post('barriers', values, 'Added'); reload(); },
@@ -110,6 +112,7 @@ function episodeEditor(area, episode, context, open) {
             [
                 { label: 'Barrier', cell: (row) => row.description },
                 { label: 'Owner', cell: (row) => row.owner },
+                { label: 'Sorted by', cell: (row) => (row.target_date ? when(row.target_date) : 'No date') },
                 {
                     label: '',
                     cell: (row) => (row.status === 'open' ? h('button', {
@@ -158,7 +161,8 @@ function episodeEditor(area, episode, context, open) {
         }, 'Approve discharge plan') : null,
         episode.status === 'active' ? h('div', { class: 'sheet', style: 'margin-top:16px' },
             (episode.close_blockers || []).map((item) => h('div', { class: 'banner' }, item)),
-            h('button', {
+            // The server refuses anyone else too. Saying so here saves a click that can only fail.
+            responsible ? h('button', {
                 type: 'button',
                 onclick: async () => {
                     const needsReason = episode.close_blockers?.length;
@@ -167,22 +171,69 @@ function episodeEditor(area, episode, context, open) {
                     const done = await post('close', { exception_reason: reason || '' }, 'Discharge closed');
                     if (done) context.refresh();
                 },
-            }, 'Close discharge')) : null));
+            }, 'Close discharge') : h('p', { class: 'muted' }, 'Only the responsible clinician can close this discharge.')) : null,
+        episode.status === 'closed' ? h('div', { class: 'sheet', style: 'margin-top:16px' },
+            h('p', {}, `Closed ${when(episode.closed_at)}.${episode.close_exception ? ` Closed with work outstanding: ${episode.close_exception}` : ''}`),
+            h('button', {
+                type: 'button',
+                class: 'quiet',
+                onclick: async () => {
+                    const reason = await ask('Why does this discharge need reopening?');
+                    if (!reason) return;
+                    const done = await post('reopen', { reason }, 'Discharge reopened');
+                    if (done) reload();
+                },
+            }, 'Reopen this discharge')) : null));
 }
 
+// The family's view. Plain words, the phone number first, one large button for each step.
 function checklist(data, context, onChange) {
-    return h('div', {},
-        h('div', { class: 'banner danger' }, `If you are worried, contact ${data.emergency_contact}. In an emergency call 112.`),
-        ...section('What to do', taskList(data.tasks, context, onChange)),
-        ...section('Your instructions', data.instructions.map((item) => h('div', {}, h('h3', {}, item.topic), h('p', {}, item.text)))),
-        data.pending_results.length ? h('div', {}, ...section('Test results still to come', table(
-            [
-                { label: 'Test', cell: (row) => row.test_name },
-                { label: 'Expected', cell: (row) => when(row.expected_by) },
-                { label: 'Status', cell: (row) => (row.status === 'pending' ? 'Not back yet' : 'Back') },
-            ],
-            data.pending_results,
-        ))) : null);
+    const setStatus = async (step, status, note = '') => {
+        await act(() => api(`/api/tasks/${step.id}/status`, { method: 'POST', body: { status, note } }), context);
+        onChange();
+    };
+    const steps = data.tasks.map((step) => {
+        const done = step.status === 'done';
+        const stuck = step.status === 'blocked' || step.status === 'missed';
+        return h('li', { class: `step ${done ? 'done' : ''}` },
+            h('div', {},
+                h('strong', {}, step.title),
+                step.added_after_approval ? [' ', badge('New', 'bad')] : null,
+                step.detail ? h('p', {}, step.detail) : null,
+                step.due_at ? h('p', { class: 'muted' }, `${step.overdue && !done ? 'This was due by' : 'Do this by'} ${when(step.due_at)}`) : null,
+                stuck ? h('p', {}, h('mark', {}, 'You told us you could not do this. Your care team has been told.')) : null),
+            done
+                ? h('div', { class: 'step-actions' }, h('span', { class: 'status good' }, 'Done'), h('button', { type: 'button', class: 'link-button', onclick: () => setStatus(step, 'open') }, 'Not done yet'))
+                : h('div', { class: 'step-actions' },
+                    h('button', { type: 'button', class: 'big-done', onclick: () => setStatus(step, 'done') }, 'Done'),
+                    stuck ? null : h('button', {
+                        type: 'button',
+                        class: 'link-button',
+                        onclick: async () => {
+                            const why = await ask('What stopped you? Your care team will see this.');
+                            if (why) setStatus(step, 'blocked', why);
+                        },
+                    }, "I couldn't do this")));
+    });
+    const waiting = data.pending_results.filter((row) => row.status !== 'final');
+    return h('div', { class: 'family-checklist' },
+        h('div', { class: 'banner danger who-to-call' },
+            h('h2', {}, 'Who to call'),
+            h('p', { class: 'call-line' }, data.emergency_contact),
+            h('p', {}, 'Call them if you are worried. In an emergency, call 112.')),
+        h('div', { class: 'sheet' },
+            h('h2', {}, 'Your going-home plan'),
+            h('p', {}, `Going home on ${when(data.discharge_date)}, to: ${data.destination}.`),
+            data.approved_by ? h('p', { class: 'muted' }, `${data.approved_by} checked this plan on ${when(data.approved_at)}.`) : null),
+        ...section('What to do', steps.length ? h('ul', { class: 'steps' }, steps) : h('p', { class: 'empty' }, 'Nothing to do right now.')),
+        ...section('Your instructions', data.instructions.length
+            ? data.instructions.map((item) => h('div', { class: 'sheet', lang: item.language.slice(0, 2) }, h('h3', {}, item.topic), h('p', {}, item.text)))
+            : h('p', { class: 'empty' }, 'No instructions were written.')),
+        data.pending_results.length ? h('div', {}, ...section('Test results still to come',
+            h('ul', {}, data.pending_results.map((row) => h('li', {},
+                h('strong', {}, row.test_name), ': ',
+                row.status === 'final' ? 'Back. Your care team has it.' : `Not back yet${row.expected_by ? `. Expected by ${when(row.expected_by)}` : ''}.`))),
+            waiting.length ? h('p', { class: 'muted' }, 'Your care team will tell you when these are back. You do not need to do anything.') : null)) : null);
 }
 
 export async function renderDischarge(container, context) {
@@ -210,6 +261,9 @@ export async function renderDischarge(container, context) {
     }
 
     const rows = await api(`${BASE}/board`);
+    // The board holds open discharges only. Closed ones for the open patient are listed below it,
+    // so a colleague can look one over and reopen it.
+    const closed = isClinician ? (await api(`${BASE}/patients/${patient.id}/episodes`)).filter((item) => item.status === 'closed') : [];
     const start = isClinician ? form(
         [
             { name: 'discharge_date', label: 'Discharge date', type: 'date', required: true },
@@ -228,6 +282,15 @@ export async function renderDischarge(container, context) {
         start,
         area,
         ...section('Discharge board', board(rows, open)),
+        ...(closed.length ? section(`Closed discharges for ${patient.first_name}`, table(
+            [
+                { label: 'Discharge', cell: (row) => when(row.discharge_date) },
+                { label: 'To', cell: (row) => row.destination },
+                { label: 'Closed', cell: (row) => when(row.closed_at) },
+                { label: '', cell: (row) => h('button', { type: 'button', class: 'quiet', onclick: () => open(row.id) }, 'Open') },
+            ],
+            closed,
+        )) : []),
     );
     return undefined;
 }
