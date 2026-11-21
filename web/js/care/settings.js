@@ -37,6 +37,8 @@ function control(setting, canEdit, context) {
 const KEY_HELP = {
     groq: 'A free key from console.groq.com. It also runs speech to text and the English voice.',
     gemini: 'A free key from aistudio.google.com. It answers when Groq fails, or takes turns with it. It has no speech.',
+    sarvam: 'A key from dashboard.sarvam.ai, for Hindi and English speech, voice and translation. Used only with the Sarvam switch on and its sign-off recorded.',
+    neo4j: 'The password of the local Neo4j server, for DiagnoFast graphs. Used only with the Neo4j switch on.',
 };
 
 function keyPanel(provider, key, canEdit, context) {

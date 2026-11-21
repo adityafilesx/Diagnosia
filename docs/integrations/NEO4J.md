@@ -94,8 +94,8 @@ It wasn't on the driver pages we read, so check it against the server version on
 Running locally means no patient data, even made-up, goes to another company. Neo4j Aura would be a new
 vendor and would need the same review as any other.
 
-Settings: `NEO4J_URI` (default `neo4j://127.0.0.1:7687`), `NEO4J_USER` and `NEO4J_PASSWORD`, from `.env`
-or Settings, never from code.
+Settings: `NEO4J_URI` (for example `neo4j://127.0.0.1:7687`; empty means Neo4j is off), `NEO4J_USER` and
+`NEO4J_PASSWORD`, from `.env`. The password can also be saved in Settings. Never in code.
 
 ## Tests
 

@@ -26,6 +26,9 @@ def no_real_ai_keys(request, monkeypatch, tmp_path):
         monkeypatch.setattr(settings, switch, False)  # nor a service switched on in a developer's .env
     monkeypatch.setattr(settings, "groq_api_key", "")
     monkeypatch.setattr(settings, "gemini_api_key", "")
+    monkeypatch.setattr(settings, "sarvam_api_key", "")
+    monkeypatch.setattr(settings, "neo4j_uri", "")
+    monkeypatch.setattr(settings, "neo4j_api_key", "")
     monkeypatch.setattr(settings, "neural_tts_enabled", False)
     monkeypatch.setattr(settings, "diagnofast_kiosk_doctor_id", "")
 

@@ -281,13 +281,15 @@ def test_setup_local_never_approves_clinical_content(client, tmp_path_factory):
 
 
 def test_nothing_mentions_the_old_providers_in_code():
+    # Sarvam was removed on 31 October 2026 and deliberately brought back on 21 November 2026 for the
+    # hackathon build (BUILD.md, docs/integrations/SARVAM.md), behind a switch and a sign-off. Anthropic
+    # stays out.
     root = Path(__file__).parents[1]
     for path in root.rglob("*.py"):
         if "tests" in path.parts or "training" in path.parts:
             continue
         text = path.read_text(encoding="utf-8").lower()
         assert "anthropic" not in text, path
-        assert "sarvam" not in text, path
 
 
 def test_requirements_hold_no_anthropic_client():

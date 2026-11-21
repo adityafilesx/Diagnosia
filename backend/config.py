@@ -89,7 +89,7 @@ class Settings:
     allowed_ai_hosts: tuple = field(default_factory=lambda: tuple(
         host.strip().lower()
         for host in os.environ.get(
-            "CURAI_ALLOWED_AI_HOSTS", "api.groq.com,generativelanguage.googleapis.com,localhost,127.0.0.1"
+            "CURAI_ALLOWED_AI_HOSTS", "api.groq.com,generativelanguage.googleapis.com,api.sarvam.ai,localhost,127.0.0.1"
         ).split(",")
         if host.strip()
     ))
@@ -102,6 +102,15 @@ class Settings:
             "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai"
         ).rstrip("/")
     )
+    # Sarvam AI, for Hindi and English speech and translation (docs/integrations/SARVAM.md). Used only when
+    # the Settings switch is on, the sarvam_terms sign-off is recorded, and real patient data is not allowed.
+    sarvam_api_key: str = field(default_factory=lambda: _real_key(os.environ.get("SARVAM_API_KEY", "")))
+    sarvam_base_url: str = field(default_factory=lambda: os.environ.get("SARVAM_BASE_URL", "https://api.sarvam.ai").rstrip("/"))
+    # Neo4j, a read-only copy for DiagnoFast's graphs (docs/integrations/NEO4J.md). SQLite stays the record.
+    neo4j_uri: str = field(default_factory=lambda: os.environ.get("NEO4J_URI", "").strip())
+    neo4j_user: str = field(default_factory=lambda: os.environ.get("NEO4J_USER", "neo4j").strip())
+    neo4j_api_key: str = field(default_factory=lambda: _real_key(os.environ.get("NEO4J_PASSWORD", "")))  # the password
+    neo4j_database: str = field(default_factory=lambda: os.environ.get("NEO4J_DATABASE", "neo4j").strip())
     # Optional integrations. Each is off unless set to exactly 1, and none is needed to run the app.
     # Demo mode is on by default only for development. Anywhere else it needs CURAI_DEMO_MODE=1 and also
     # CURAI_DEMO_OUTSIDE_DEVELOPMENT=1, or the app refuses to start (safety.assert_safe_to_start).

@@ -47,12 +47,34 @@ TEXT_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
 VISION_MODELS = ["qwen/qwen3.8-27b", "meta-models/muse-spark-open"]
 SPEECH_MODELS = ["whisper-large-v3", "whisper-large-v3-turbo"]
 
+# Keys kept in platform_secrets besides the AI providers': Sarvam's key and the Neo4j password.
+OTHER_SECRETS = {"sarvam": "Sarvam AI", "neo4j": "Neo4j password"}
+SECRET_PROVIDERS = Literal["groq", "gemini", "sarvam", "neo4j"]
+
+# The hackathon add-ons (BUILD.md). Each starts off, and off means the app behaves exactly as before.
+ADDON_SWITCHES = {
+    "sarvam.enabled": ("Sarvam AI", "Use Sarvam for Hindi and English speech, voice and translation (needs the sarvam_terms sign-off; made-up patients only)"),
+    "neo4j.enabled": ("Neo4j", "Keep a read-only Neo4j copy for DiagnoFast's graphs (made-up patients only)"),
+    "diagnofast.graph_followups": ("DiagnoFast add-ons", "Follow-up questions guided by the question graph"),
+    "diagnofast.doctor_like_interview": ("DiagnoFast add-ons", "Doctor-like interview: known context, probing vague answers, a warmer tone"),
+    "diagnofast.bookings": ("DiagnoFast add-ons", "OPD bookings, queue numbers, the demo SMS outbox and the patient's status page"),
+    "diagnofast.slot_login": ("DiagnoFast add-ons", "Slot QR login with a phone number and a one-time code"),
+    "diagnofast.walkin_suggestion": ("DiagnoFast add-ons", "Department suggestion for walk-ins, shown to staff only"),
+    "diagnofast.review_feedback": ("DiagnoFast add-ons", "Ask the reviewing doctor what they wish had been asked"),
+}
+
 HELD_FEATURES = {
     "features.diagnofast_investigations": "DiagnoFast: investigations to consider",
     "features.patient_pack_brief": "Patient packs: AI brief and questions",
 }
 
 SETTINGS: Dict[str, dict] = {
+    **{key: {"section": section, "label": label, "type": "bool", "default": False} for key, (section, label) in ADDON_SWITCHES.items()},
+    "sarvam.stt_model": {"section": "Sarvam AI", "label": "Speech to text model", "type": "model", "choices": ["saaras:v4", "saaras:v3"], "default": "saaras:v4"},
+    "sarvam.tts_model": {"section": "Sarvam AI", "label": "Voice model", "type": "model", "choices": ["bulbul:v4-flash", "bulbul:v3"], "default": "bulbul:v4-flash"},
+    "sarvam.voice_hi": {"section": "Sarvam AI", "label": "Hindi voice", "type": "text", "max_length": 60, "default": "ritu_hi_customer"},
+    "sarvam.voice_en": {"section": "Sarvam AI", "label": "English voice", "type": "text", "max_length": 60, "default": "neha_en_customer"},
+    "sarvam.translate_model": {"section": "Sarvam AI", "label": "Translation model", "type": "model", "choices": ["mayura:v1", "sarvam-translate:v1"], "default": "mayura:v1"},
     "ai.model.clinscribe_note": {"section": "AI models", "label": "ClinScribe: drafting notes", "type": "model", "choices": TEXT_MODELS, "default": "openai/gpt-oss-120b"},
     "ai.model.prescription_explain": {"section": "AI models", "label": "Prescription: explaining to patients", "type": "model", "choices": TEXT_MODELS, "default": "openai/gpt-oss-20b"},
     "ai.model.prescription_plan": {"section": "AI models", "label": "Prescription: planning the daily times", "type": "model", "choices": TEXT_MODELS, "default": "openai/gpt-oss-120b"},
@@ -269,10 +291,10 @@ def public_config(user=Depends(require_user), db: sqlite3.Connection = Depends(g
 def list_settings(user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
     stored = _stored(db)
     keys = {}
-    for provider in PROVIDERS:
+    for provider, label in {**PROVIDERS, **OTHER_SECRETS}.items():
         row = db.execute("SELECT last_four FROM platform_secrets WHERE name = ?", (f"{provider}_api_key",)).fetchone()
         keys[provider] = {
-            "label": PROVIDERS[provider],
+            "label": label,
             "configured": bool(api_key(db, provider)),
             "source": "environment" if getattr(settings, f"{provider}_api_key") else ("settings" if row else None),
             "last_four": row["last_four"] if row else None,
@@ -306,7 +328,7 @@ def save_setting(
 @router.put("/ai-key")
 def save_ai_key(
     request: ApiKey,
-    provider: Literal["groq", "gemini"] = Query("groq"),
+    provider: SECRET_PROVIDERS = Query("groq"),
     user=Depends(require_doctor),
     db: sqlite3.Connection = Depends(get_db),
 ) -> dict:
@@ -328,7 +350,7 @@ def save_ai_key(
 
 @router.delete("/ai-key", status_code=status.HTTP_204_NO_CONTENT)
 def delete_ai_key(
-    provider: Literal["groq", "gemini"] = Query("groq"),
+    provider: SECRET_PROVIDERS = Query("groq"),
     user=Depends(require_doctor),
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:

@@ -105,19 +105,22 @@ copy is re-proved before deletion. Failures are listed and leave that document u
 | MongoDB Atlas, YugabyteDB and Meko, only if switched on | Activity events, technical AI timings and handoff notes. No names, results, notes or images | Synthetic data only. CareFlow stops recording if real patient data is allowed |
 | Meko, only if packs are switched on, hosted by Yugabyte | Finished records as text, including results and notes. No names, contact details, images or files | Synthetic data only, with `patient_pack` consent. Packs stop if real patient data is allowed. See `integrations/PATIENT_PACKS.md` |
 | Microsoft Edge voices (`speech.platform.bing.com`, through the `edge-tts` library) | The text of each DiagnoFast question, in English or Hindi. Never the patient's answers | Demo mode only. Off outside demo mode, with real patient data allowed, or with `CURAI_NEURAL_TTS=0`. No agreement exists |
+| Sarvam AI, location unconfirmed (see `CLINICAL_GOVERNANCE.md` C2b) | DiagnoFast answer audio, the patient's confirmed Hindi answers (for translation), and text read aloud: questions, consent lines, queue number, department, the urgent message | Only with the Settings switch on, a key, and the `sarvam_terms` sign-off. Made-up patients only: off when real patient data is allowed |
+| Neo4j, on this machine (Docker) | IDs and coded terms from finished DiagnoFast records. No names, contact details or free text | Only with the Settings switch on and `NEO4J_URI` set. Made-up patients only: off when real patient data is allowed |
 
 The hosts the server itself can call are listed below. `backend/tests/test_egress.py` fails if the code
 names a host that isn't here. AI and speech calls also refuse any host outside `CURAI_ALLOWED_AI_HOSTS`
-(by default Groq, Gemini and this machine), so pointing `AI_BASE_URL` elsewhere stops the tools rather
+(by default Groq, Gemini, Sarvam and this machine), so pointing `AI_BASE_URL` elsewhere stops the tools rather
 than sending patient text to an unnamed service.
 
 | Host | Why |
 |---|---|
 | `api.groq.com` | Groq AI and speech |
 | `generativelanguage.googleapis.com` | Gemini AI |
+| `api.sarvam.ai` | Sarvam speech to text, voice and translation, only when switched on and signed off |
 | `mcp.mekodata.ai` | Meko, only when switched on |
 | `speech.platform.bing.com` | Edge voices, demo mode only (inside the `edge-tts` library) |
-| MongoDB Atlas and YugabyteDB | Only the addresses an operator configures, only when switched on |
+| MongoDB Atlas, YugabyteDB and Neo4j | Only the addresses an operator configures, only when switched on |
 
 Some addresses appear in the code but are opened by the visitor's browser, not by the server:
 `assets.website-files.com` (fonts and one background image on the public pages and the workspace),

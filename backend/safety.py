@@ -33,6 +33,16 @@ REQUIRED_SIGNOFFS = {
     "meko_agreement": "Signed data agreement with Meko and Yugabyte before patient packs hold any real record",
 }
 
+# Approvals that gate one optional feature, even with made-up patients. They aren't needed for real
+# patients, because those features stop completely when real patient data is allowed.
+FEATURE_SIGNOFFS = {
+    "sarvam_terms": "Sarvam account set to zero retention and opted out of model training (its default is to train)",
+}
+
+
+def signed_off(db: sqlite3.Connection, item: str) -> bool:
+    return db.execute("SELECT 1 FROM governance_signoffs WHERE item = ? AND revoked_at IS NULL", (item,)).fetchone() is not None
+
 
 @dataclass
 class Check:

@@ -272,8 +272,9 @@ def bootstrap_organization(args) -> int:
 
 
 def signoff(args) -> int:
-    if args.item not in safety.REQUIRED_SIGNOFFS:
-        print(f"Unknown item. Choose from: {', '.join(safety.REQUIRED_SIGNOFFS)}", file=sys.stderr)
+    known = {**safety.REQUIRED_SIGNOFFS, **safety.FEATURE_SIGNOFFS}
+    if args.item not in known:
+        print(f"Unknown item. Choose from: {', '.join(known)}", file=sys.stderr)
         return 1
     db = connect()
     insert(
