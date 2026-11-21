@@ -81,6 +81,9 @@ says what is missing.
 | LabLens | Whether AI reads reports we can't read locally |
 | ReferralLoop | Suggested reply times |
 | Reminders | Hours a patient has to confirm |
+| Sarvam AI | On or off, the speech-to-text and voice models, the Hindi and English voices, the translation model. Needs a key and the `sarvam_terms` sign-off |
+| Neo4j | On or off. Needs `NEO4J_URI` and a password |
+| DiagnoFast add-ons | Graph follow-ups, the doctor-like interview, OPD bookings (with the status page and demo outbox), slot QR login, walk-in suggestions, review feedback. Each starts off |
 
 Only an administrator of a verified organization can change these, and each change is audited.
 Safety switches, such as allowing real patient data, are deliberately not settings.
@@ -113,6 +116,46 @@ exceed that, and the app then reports the limit rather than failing silently. Sp
 
 Any OpenAI-compatible service can replace Groq by setting `AI_BASE_URL`, such as a local model
 server. Choose models in Settings. This route hasn't been tested with a real alternative.
+
+## The hackathon add-ons (Sarvam AI, Neo4j, bookings)
+
+Everything below is for made-up patients only, starts switched off, and stops completely when
+`ALLOW_REAL_PATIENT_DATA` is on. With each one off, the app behaves exactly as before. The plan is in
+`BUILD.md`; the sources are in `integrations/SARVAM.md` and `integrations/NEO4J.md`.
+
+**Sarvam AI** (Hindi and English speech to text, voice and translation):
+
+1. In the Sarvam dashboard, set the workspace's data retention to "No retention (0 days)" and opt out of
+   model training. Sarvam's own terms train on API data unless you opt out.
+2. Record that you did it: `python -m backend.operator_cli signoff --item sarvam_terms --signed-by "<name>" --role "Account owner" --document-reference "<where it's written down>" --operator "<you>"`.
+3. Put `SARVAM_API_KEY` in `.env`, or save it in Settings, AI keys.
+4. Turn on Settings, Sarvam AI. Speech to text then tries Saaras v4 first (its mixed-language mode),
+   questions are read by Bulbul, and confirmed Hindi answers get an English machine translation for
+   the doctor. Any Sarvam failure falls back to Groq, Edge and the browser.
+
+**Neo4j** (the question graph, history and evidence graphs, walk-in suggestions):
+
+1. `pip install -r backend/requirements-integrations.txt` (the `neo4j` driver).
+2. Set `NEO4J_PASSWORD` (8 characters or more) and `NEO4J_URI=neo4j://127.0.0.1:7687` in `.env`.
+3. `docker compose -f docker-compose.integrations.yml up neo4j`. It listens on this machine only.
+4. Turn on Settings, Neo4j, then the DiagnoFast add-ons you want. The question graph loads itself from
+   `backend/diagnofast/graph/questions_v1.json` (not clinically reviewed). Finished visits are copied by
+   the app's sweep; `python -m backend.operator_cli graph-rebuild` empties the copy and sends them again.
+
+**OPD bookings and the slot QR login**: turn on DiagnoFast add-ons, OPD bookings (and slot QR login),
+then open DiagnoFast, "OPD bookings and queue". Nothing is sent to a phone: the demo outbox shows the
+message. One-time codes are shown on the screen, and only in demo mode.
+
+**A phone's microphone needs HTTPS.** Browsers only allow the microphone on HTTPS or `localhost`, and a
+LAN address such as `http://192.168.1.20:8000` doesn't count. Two ways:
+
+- A tunnel, for example `cloudflared tunnel --url http://localhost:8000`. Easiest, but every request,
+  made-up data included, passes through Cloudflare, and the address changes each run. Run uvicorn with
+  `--proxy-headers` so rate limits see real visitors.
+- A local certificate with `mkcert` for your LAN address. Nothing goes to a third party, but each phone
+  must install and trust mkcert's `rootCA.pem` by hand. Never share `rootCA-key.pem`.
+
+Typing always works without a microphone.
 
 ## Moving beyond a local demo
 

@@ -77,7 +77,8 @@ MERGE (p:Patient {id: row.patient_id})
 MERGE (p)-[:HAD]->(v)
 ```
 
-The constraint syntax is from the Cypher manual (<https://neo4j.com/docs/cypher-manual/current/constraints/>).
+The next-question query uses a scoped subquery, `CALL (c) { ... }`, which needs Neo4j 5.23 or later
+(the 5.26 image has it). The constraint syntax is from the Cypher manual (<https://neo4j.com/docs/cypher-manual/current/constraints/>).
 It wasn't on the driver pages we read, so check it against the server version on first start.
 
 ## Running it locally

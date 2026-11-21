@@ -134,3 +134,22 @@ busy. The pilot load now passes (125 ms, none refused), so SQLite stays for a si
 fails the threshold and shows where the limit is: one writer at a time, with Python's own lock between threads.
 Re-run before adding a second worker process or a second clinic, and on the real host.
 
+
+
+## Hinglish phrasings, urgent-symptom rules (21 November 2026, dev only)
+
+`python -m backend.synthetic.diagnofast_eval --hinglish`, on the new hand-written, dev-only, not-frozen set
+`backend/tests/ai_eval/diagnofast/hinglish_dev/` (34 answers; v1 untouched). The rules were not changed.
+
+| Check | Result |
+|---|---|
+| Urgent answers, exact flags | 4/20 (20.0%) |
+| Negated, no flag | 5/5 |
+| History, no flag | 2/2 |
+| Ordinary, no flag | 7/7 |
+| By script | romanised Hinglish 10/19, mixed script (Saaras `codemix` style) 8/15 |
+
+The rules match whole English, Devanagari or romanised-Hindi phrases, so mixed phrases such as "chest
+mein bahut pain hai" or "मुझे chest में pain है" pass unflagged. The AI's `urgent_symptoms` is the
+second check. The frozen v1 test split still scores 68/68 urgent interviews caught and 0 of 175 calm ones
+stopped.

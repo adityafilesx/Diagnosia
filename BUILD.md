@@ -68,6 +68,22 @@ check in the load test, which a commit on an open branch already fixes.
 | **Platform** | The shared patient record, access checks, audit log, CareFlow event outbox (no free text), rate limits, a daily AI budget and FHIR export. | **ABHA is simulated:** every patient gets the same made-up records. The app isn't hosted. There's no Neo4j. **Sarvam was removed from the code on 31 Oct 2026**, and a test (`test_platform.py`) fails if the name comes back. No tool is clinically validated, and the "demo data" labels were taken off the screens for the demo. |
 | **Other tools** | Prescription Analyzer is built and tested live. ClinScribe, LabLens, ReferralLoop and DischargeCare are at pilot stage. | They aren't part of the finale build (see the appendix). |
 
+### Built since, on the `iiitd` branch (21 Nov)
+
+The `iiitd` branch now holds the open feature branch's 19 commits and every core add-on below. Each one is
+switched off by default, and with it off the app behaves exactly as before. With no keys and no network,
+1,984 tests pass, and `pip-audit` finds no known vulnerabilities.
+
+| Now built (made-up patients only) | Still faked, missing or open |
+|---|---|
+| OPD bookings with a queue number per doctor per day, a reception screen, and a demo SMS/WhatsApp outbox | Nothing is sent to a phone: no SMS provider is connected |
+| Slot QR login: a server-drawn QR, the patient's phone number and a one-time code, then their own masked name, then a normal one-interview link | The code is shown on screen in demo mode, because there's no SMS |
+| The patient's status page: queue number and department read aloud, "What you told us", the AI summary only after review, and the urgent message spoken | — |
+| Sarvam: Saaras v4 speech to text, Bulbul voices, Mayura translation beside Hindi answers; consent names Sarvam and can be read aloud | Not yet run live (no key here). Its training default and data location need the owner's sign-off. The new Hindi consent line needs a Hindi speaker |
+| Neo4j: the question graph guides follow-ups; history and evidence graphs on the report; a copy fed from SQLite; walk-in department suggestions for staff | Not yet run against a live server. The question graph isn't clinically reviewed |
+| A doctor-like interview: known context, probes for vague answers, a warmer tone; the doctor's feedback question at review, scored in the evaluation | — |
+| | **Hinglish urgent symptoms:** the plain rules catch 4 of 20 urgent Hinglish answers on a new dev-only set. The AI's own urgent check still runs. Changing the rules needs a decision |
+
 ---
 
 ## 2. Where we will be at 12 PM on 22 Nov
@@ -228,6 +244,7 @@ passing without keys.
 | Risk | Fallback |
 |---|---|
 | Sarvam is down, out of quota or slow | Hindi and English carry on with today's voices (Edge in demo mode, Groq English, the browser) and Groq Whisper. No translation line, and the doctor reads the patient's own words. Keep the backup video ready. |
+| An urgent symptom said in Hinglish isn't caught by the plain rules (4 of 20 on our dev set) | The AI's own urgent check reads every answer. Demo urgent stops in Hindi or English, and say plainly that Hinglish rules are open work |
 | Sarvam's recognition of Hinglish is worse than expected | The patient still edits and confirms every answer, and the Settings switch puts Groq Whisper back first. |
 | Neo4j is down | The AI chooses follow-ups alone, as it does today. The evidence view is drawn straight from SQLite. |
 | The phone microphone needs HTTPS | Serve the demo over HTTPS through a tunnel. Typing and the tablet still work. |

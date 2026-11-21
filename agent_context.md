@@ -59,15 +59,18 @@ backend/    One FastAPI app: accounts and one folder per tool.
   speech.py         Groq transcription/WAV speech; Edge neural question playback
   images.py         Upload checks (JPG/PNG, size)
   ratelimit.py      Limits on the public and costly routes, counted in SQLite
+  addons.py         Whether each hackathon add-on may run (switch, key, sign-off, made-up patients only)
+  opd/              OPD bookings, queue numbers, demo SMS outbox, slot QR login (behind DiagnoFast add-on switches)
   synthetic/        Made-up test data: seed_accounts.py (logins), diagnofast_data.py and diagnofast_eval.py (labelled
                     interviews and a scorer), diagnofast_links.py (waiting interview links for manual testing)
   config.py         Settings from environment / .env
   prescription/     analyzer.py, shorthand.py, medicines.py, routes.py
-  diagnofast/       agent.py, red_flags.py, abha.py, recordings.py, routes.py, forms/*.json
+  diagnofast/       agent.py, red_flags.py, abha.py, recordings.py, routes.py, forms/*.json,
+                    guidance.py + graph/ (question graph seed, prompt examples), graph_sync.py (Neo4j copy)
   records/          The shared patient record, access gate, audit, encrypted documents
   clinscribe/ lablens/ referralloop/ dischargecare/ reminders/   One folder per tool, each with its schema.sql
   careflow/         Activity timeline: event contract, outbox, delivery, routes
-  integrations/     Optional Meko and YugabyteDB adapters, and AI run records
+  integrations/     Optional Meko, YugabyteDB and Neo4j (graph.py) adapters, and AI run records
   patient_pack/     One searchable view of a patient's records, on Meko: render, sync, access, brief, routes
   tests/            pytest suite (no API keys needed)
 pitch/      Pitch material.
@@ -234,6 +237,10 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
   `backend/storage/` and `*.db`. Check before you `git add`.
 - Groq receives this data in the United States, with no signed agreement yet. Keep personal details
   out of test photos. See `docs/CLINICAL_GOVERNANCE.md`.
+- Sarvam AI (optional, off) receives DiagnoFast audio, confirmed Hindi answers and text read aloud. Where
+  it keeps data is unconfirmed (its pages conflict) and its terms train on API data by default. It runs
+  only with its switch, a key and the `sarvam_terms` sign-off, and never with real patient data allowed.
+  Say "may keep data in India, to be confirmed", never "stays in India".
 - Meko has no signed agreement either, and states nothing about compliance. Patient packs stop when
   `ALLOW_REAL_PATIENT_DATA` is on. Don't remove that.
 
@@ -277,6 +284,46 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
 - Code and tests must work on both Windows and Linux. Protect sensitive files with
   `private_files.py`, because `chmod` does nothing on Windows. Pass `encoding="utf-8"` when reading
   text, because Windows otherwise uses cp1252.
+
+## Hackathon add-ons (IIITD, `iiitd` branch)
+
+`BUILD.md` is the plan; `docs/integrations/SARVAM.md` and `NEO4J.md` hold the sources. Hindi and English
+(with Hinglish) stay the only languages. Every add-on is a Settings switch that starts off
+(`settings_store.ADDON_SWITCHES`); off means the app behaves exactly as before, and the tests check that
+the interview's AI request is byte-for-byte unchanged. Sarvam and Neo4j stop completely when
+`ALLOW_REAL_PATIENT_DATA` is on (`addons.py`).
+
+- **Sarvam** (`speech.py`): Saaras v4 speech to text in its `codemix` mode, never `translate` (the
+  confirmed text is the record), then Groq Whisper. `question_audio` is Sarvam Bulbul, then Edge (demo
+  only), Groq English, the browser. `translate_to_english` is Mayura on confirmed Hindi, run in the
+  report job and shown beside the original, labelled "machine translation". Consent names Sarvam
+  (version 2026-11-21) and can be read aloud; the new Hindi line still needs a Hindi speaker (WI-101).
+- **Neo4j** (`integrations/graph.py`): one shared driver, named methods only, a fake in
+  `backend/tests/fake_graph.py`. SQLite stays the record. `graph_sync.py` queues a reference with the
+  change and re-reads SQLite; Neo4j gets IDs and coded terms only, and every word shown is re-read from
+  SQLite after the access gate. With Neo4j off or down, the views come from SQLite.
+- **Question graph** (`diagnofast/graph/questions_v1.json`, NOT clinically reviewed): offered to the AI
+  after `red_flags.screen`, only while room remains for the form's required questions. Red-flag nodes
+  only add screening questions. `apply_turn`'s rules are unchanged.
+- **Doctor-like interview**: known context with its source (ABHA is simulated and only ever confirmed),
+  probes for vague answers, a Hinglish-aware tone, and examples. A doctor's suggested question becomes an
+  example only after `operator_cli feedback-promote`. No fine-tuning until there is reviewed real data.
+- **OPD** (`backend/opd/`): bookings with a queue number per doctor per day; a demo outbox that sends
+  nothing and stores "[link hidden]"; a slot QR login (segno SVG) where a phone and a one-time code,
+  shown on screen only in demo mode, list ONLY that slot's bookings with that number, masked. A name and
+  a phone number are never a login. A finished booked link becomes a read-only status page for the day;
+  the AI summary appears only after "Mark as reviewed".
+- **Walk-ins**: Neo4j suggests a department to staff only; a person confirms before the patient sees one.
+
+Known gaps of the add-ons:
+- **Hinglish urgent symptoms.** On the new dev-only Hinglish set the rules catch 4 of 20 urgent answers
+  (negated, history and ordinary answers are all right). Saaras's `codemix` output mixes scripts, which
+  the rules don't read. The AI's own urgent list is the second check. Fixing this means changing
+  `red_flags.py`, which needs the owner's decision.
+- Sarvam and Neo4j have not been run live here (no key, no server). The Cypher is unit-tested against a
+  recording driver only; run a live check before the demo.
+- `test_patient_pack.py` fails now and then in a full run (it races the app's background loop), passing
+  alone. It isn't caused by the add-ons.
 
 ## Features held for regulatory review
 
