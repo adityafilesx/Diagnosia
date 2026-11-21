@@ -72,15 +72,16 @@ check in the load test, which a commit on an open branch already fixes.
 
 The `iiitd` branch now holds the open feature branch's 19 commits and every core add-on below. Each one is
 switched off by default, and with it off the app behaves exactly as before. With no keys and no network,
-1,984 tests pass, and `pip-audit` finds no known vulnerabilities.
+2,019 tests pass, and `pip-audit` finds no known vulnerabilities. The whole flow was walked through end to end in a browser at phone, tablet and desktop widths.
 
 | Now built (made-up patients only) | Still faked, missing or open |
 |---|---|
 | OPD bookings with a queue number per doctor per day, a reception screen, and a demo SMS/WhatsApp outbox | Nothing is sent to a phone: no SMS provider is connected |
 | Slot QR login: a server-drawn QR, the patient's phone number and a one-time code, then their own masked name, then a normal one-interview link | The code is shown on screen in demo mode, because there's no SMS |
 | The patient's status page: queue number and department read aloud, "What you told us", the AI summary only after review, and the urgent message spoken | — |
-| Sarvam: Saaras v4 speech to text, Bulbul voices, Mayura translation beside Hindi answers; consent names Sarvam and can be read aloud | A live smoke test with made-up text passed (22 Nov). Its training default and data location need the owner's sign-off. The new Hindi consent line needs a Hindi speaker |
-| Neo4j: the question graph guides follow-ups; history and evidence graphs on the report; a copy fed from SQLite; walk-in department suggestions for staff | Not yet run against a live server. The question graph isn't clinically reviewed |
+| Sarvam: Saaras v4 speech to text, Bulbul voices, Mayura translation beside Hindi answers; consent names Sarvam and can be read aloud | A live interview on Sarvam passed, and so did the fallback with it off (22 Nov). Its training default and data location need the owner's sign-off. The new Hindi consent line needs a Hindi speaker |
+| Neo4j: the question graph guides follow-ups; history and evidence graphs on the report; a copy fed from SQLite; walk-in department suggestions for staff | A live check on Neo4j 5.26 passed 13 of 13 (22 Nov). The question graph isn't clinically reviewed |
+| Stretch: Sarvam as a third AI provider; the referral network view for staff; possible medicine and allergy conflicts across doctors, for staff | Medicine checks compare exact names only: matching shared ingredients (salts) needs a licensed drug database |
 | A doctor-like interview: known context, probes for vague answers, a warmer tone; the doctor's feedback question at review, scored in the evaluation | — |
 | | **Hinglish urgent symptoms:** the plain rules catch 4 of 20 urgent Hinglish answers on a new dev-only set. The AI's own urgent check still runs. Changing the rules needs a decision |
 
@@ -144,7 +145,7 @@ switched off by default, and with it off the app behaves exactly as before. With
 graph, and **only staff see it**. Staff confirm it before the patient sees anything, because sending
 patients to a department by AI is close to triage, where CDSCO rules may apply.
 
-### Stretch (only if the core flow passes all its tests by 6 AM)
+### Stretch (only if the core flow passes all its tests by 6 AM; all three are now built)
 
 - Sarvam as an optional third AI provider in `llm.py`, inside the existing fallback.
 - ReferralLoop network view: referral paths, overdue loops, specialist load.
@@ -243,6 +244,7 @@ passing without keys.
 
 | Risk | Fallback |
 |---|---|
+| The AI wrongly stops a calm interview as urgent (seen twice when Gemini was rate-limited and the fallback answered) | The patient goes to reception, which is safe. Use a paid plan or a higher limit for the demo, and review the urgent prompt with a clinician |
 | Sarvam is down, out of quota or slow | Hindi and English carry on with today's voices (Edge in demo mode, Groq English, the browser) and Groq Whisper. No translation line, and the doctor reads the patient's own words. Keep the backup video ready. |
 | An urgent symptom said in Hinglish isn't caught by the plain rules (4 of 20 on our dev set) | The AI's own urgent check reads every answer. Demo urgent stops in Hindi or English, and say plainly that Hinglish rules are open work |
 | Sarvam's recognition of Hinglish is worse than expected | The patient still edits and confirms every answer, and the Settings switch puts Groq Whisper back first. |

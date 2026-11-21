@@ -8,6 +8,7 @@ can be thrown away and rebuilt at any time. Nothing flows back from Neo4j to SQL
 | Question graph | Complaint → follow-up questions → associated symptoms → red-flag screening questions | Choosing the next interview question |
 | History graph | Patient → visits → coded symptoms, medicines, allergies → doctors | Known context for the interview, and a picture on the doctor's report |
 | Evidence graph | Report row → cited answer (turn) → recording | Showing the doctor where each row of the report came from |
+| Referral network | Doctor → referral (specialty code, priority, status, dates) → destination | Staff view of paths, overdue loops and specialist load |
 
 It is optional and off by default. With the switch off, Neo4j unreachable, or `ALLOW_REAL_PATIENT_DATA`
 on, the interview chooses follow-ups with the AI alone (as before) and the evidence view is drawn
@@ -101,7 +102,7 @@ Settings: `NEO4J_URI` (for example `neo4j://127.0.0.1:7687`; empty means Neo4j i
 ## Live check (22 November 2026)
 
 `CURAI_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_neo4j.py -s`, against
-`neo4j:5.26-community` in Docker on this machine, with made-up data only: 12 of 12 passed.
+`neo4j:5.26-community` in Docker on this machine, with made-up data only: 13 of 13 passed (the referral check was added with the network view).
 
 - Loading the question graph twice leaves the node and relationship counts unchanged.
 - For every complaint, the real next-question order and wording match the in-memory fake exactly:
@@ -118,6 +119,12 @@ under one ID, and the fake now keeps one question per ID, as `MERGE` does.
 Timings, local Docker: the first query of each kind took 1.5 to 1.8 s while the server planned it.
 After that, each next-question step took about 2 to 6 ms, merging a visit 157 ms, history 62 ms,
 evidence 47 ms and department votes 35 ms.
+
+## When copies happen
+
+Finished visits and every referral change are queued in the same SQLite transaction as the change. The
+app's 5-second delivery loop sends them (`graph_sync.background_pass`), so the graphs are current within
+seconds. It was first on the 5-minute sweep; the end-to-end run showed that was too slow.
 
 ## Tests
 

@@ -171,6 +171,13 @@ On 22 November 2026 a smoke test with made-up text passed: Bulbul v4-flash read 
 question (MP3), Saaras v4 in `codemix` mode wrote each back word for word, and Mayura translated a Hindi
 sentence to English. No patient data was sent.
 
+The same day, with the owner's `sarvam_terms` sign-off and Sarvam switched on in a scratch database, a
+made-up Hindi interview ran end to end: every question and the status page were read by Bulbul, a spoken
+(WAV) answer was transcribed by Saaras v4, and each Hindi answer got a Mayura translation (about 2.2 to
+2.5 s per answer). With Sarvam switched off again, the same voice answer went to Groq Whisper and the
+question audio came from Edge (demo mode), as designed. Browsers record WebM or MP4; MP3 uploads are
+refused by DiagnoFast, as before.
+
 ## Tests
 
 Tests never call Sarvam. They patch the HTTP call in `speech.py`, as the Groq tests do, and check the

@@ -157,6 +157,39 @@ LAN address such as `http://192.168.1.20:8000` doesn't count. Two ways:
 
 Typing always works without a microphone.
 
+## Running the hackathon demo, step by step
+
+Made-up patients only. Commands are for macOS or Linux from the repository folder.
+
+1. **Keys.** `.env` needs `GROQ_API_KEY` and/or `GEMINI_API_KEY`, `SARVAM_API_KEY`, and the three `NEO4J_*`
+   lines (see above). Never commit `.env`.
+2. **Neo4j.** Start Docker (with Colima: `colima start`), then
+   `set -a; . ./.env; set +a; docker compose -f docker-compose.integrations.yml up -d neo4j`.
+   Install the driver once: `.venv/bin/python -m pip install -r backend/requirements-integrations.txt`.
+3. **A fresh demo database**, so your own data is untouched:
+   ```bash
+   export CURAI_DB=$PWD/backend/storage/demo/curai.db CURAI_DOCUMENTS_DIR=$PWD/backend/storage/demo/documents CURAI_DEMO_MODE=1
+   .venv/bin/python -m backend.synthetic.seed_accounts
+   ```
+4. **The Sarvam sign-off**, only if the Sarvam workspace really is on zero retention with training opted
+   out: `.venv/bin/python -m backend.operator_cli signoff --item sarvam_terms --signed-by "<you>" --role "Account owner" --document-reference "<where noted>" --operator "<you>"`.
+5. **Start it:** `.venv/bin/python -m backend.synthetic.serve --port 8000`. Keep the same `CURAI_*` exports in
+   that terminal.
+6. **Switch the add-ons on.** Sign in as `doctor01@example.com` (password `Synthetic-demo-only-1`), the hospital's
+   administrator, open Settings, and turn on: Sarvam AI, Neo4j,
+   and every switch under DiagnoFast add-ons, ReferralLoop add-ons and Medicine checks.
+7. **The phone's microphone needs HTTPS.** In a second terminal:
+   `cloudflared tunnel --url http://localhost:8000` (install with `brew install cloudflared`). Open the
+   `https://...trycloudflare.com` address it prints on the phone. Everything, made-up data included, then
+   passes through Cloudflare. Restart uvicorn with `--proxy-headers` if rate limits matter. Typing works
+   without HTTPS.
+8. **The flow.** DiagnoFast, "OPD bookings and queue": add a slot, book a made-up patient with a phone
+   number, and press "Show QR". On the phone, scan the QR, enter the number and the code shown on screen,
+   pick the masked name, choose Hindi or English and answer. The phone then shows the queue number and
+   department and reads them aloud. Add a walk-in with "Not sure", press "Suggest (staff only)" and
+   "Confirm". Open the report: translation, graphs, "Mark as reviewed", feedback and medicine checks.
+   ReferralLoop shows the referral network for staff.
+
 ## Moving beyond a local demo
 
 `setup-local` is for synthetic data on your own machine. For anything else, follow

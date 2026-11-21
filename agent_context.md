@@ -302,7 +302,7 @@ the interview's AI request is byte-for-byte unchanged. Sarvam and Neo4j stop com
   `backend/tests/fake_graph.py`. SQLite stays the record. `graph_sync.py` queues a reference with the
   change and re-reads SQLite; Neo4j gets IDs and coded terms only, and every word shown is re-read from
   SQLite after the access gate. With Neo4j off or down, the views come from SQLite.
-- **Question graph** (`diagnofast/graph/questions_v2.json`, NOT clinically reviewed): offered to the AI
+- **Question graph** (`diagnofast/graph/questions_v2.json`, NOT clinically reviewed; one wording per question ID, because Neo4j merges on it): offered to the AI
   after `red_flags.screen`, only while room remains for the form's required questions. Red-flag nodes
   only add screening questions. `apply_turn`'s rules are unchanged.
 - **Doctor-like interview**: known context with its source (ABHA is simulated and only ever confirmed),
@@ -315,16 +315,24 @@ the interview's AI request is byte-for-byte unchanged. Sarvam and Neo4j stop com
   the AI summary appears only after "Mark as reviewed".
 - **Walk-ins**: Neo4j suggests a department to staff only; a person confirms before the patient sees one.
 
+- **Referral network** (`referralloop/network.py`, `referrals.network_view`): referral changes queue a
+  reference in `graph_items`; SQLite's `_network_scope` decides what is in scope; Neo4j only narrows it.
+- **Medicine checks** (`backend/conflicts/`, `conflicts.medicine_checks`): reviewed DiagnoFast reports,
+  saved (patient-ticked) prescriptions and active allergies only; exact names; "Possible conflict:
+  check", never advice or another medicine. No salt matching: it needs a licensed drug database.
+- The Neo4j copy runs on the 5-second delivery loop (`graph_sync.background_pass`); tests replace it.
+
 Known gaps of the add-ons:
-- **Hinglish urgent symptoms.** On the new dev-only Hinglish set the rules catch 4 of 20 urgent answers
-  (negated, history and ordinary answers are all right). Saaras's `codemix` output mixes scripts, which
-  the rules don't read. The AI's own urgent list is the second check. Fixing this means changing
-  `red_flags.py`, which needs the owner's decision.
-- Sarvam speech to text (Saaras v4 codemix), Bulbul voices and Mayura translation passed a live smoke test
-  on 22 Nov 2026 with made-up text. Neo4j hasn't been run live (no server); the Cypher is unit-tested
-  against a recording driver only, so run a live check before the demo.
-- `test_patient_pack.py` fails now and then in a full run (it races the app's background loop), passing
-  alone. It isn't caused by the add-ons.
+- **Hinglish urgent symptoms.** On the dev-only Hinglish set the rules catch 4 of 20 urgent answers.
+  The AI's own urgent list is the second check. Fixing it means changing `red_flags.py`: owner decision.
+- **A false urgent stop from the AI.** In two end-to-end runs (22 Nov) a calm fever interview was stopped
+  as urgent ("fever") on the turn where Gemini was rate-limited and Groq's `gpt-oss-20b` answered. Six
+  replays on Gemini, with and without the add-on guidance, never flagged it. Likely the fallback model;
+  unconfirmed (Groq was then rate-limited too). It errs safe but interrupts the patient.
+- Live checks done: Neo4j 13/13 (`backend/tests/live/test_live_neo4j.py`), Sarvam smoke test and one
+  interview (speech, voices, translation, and the fallback with Sarvam off).
+- `test_patient_pack.py` used to fail now and then in a full run (a race with the app's loop); it hasn't
+  since the Neo4j pass was moved, but watch it.
 
 ## Features held for regulatory review
 
