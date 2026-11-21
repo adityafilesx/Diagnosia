@@ -14,6 +14,7 @@
 <p align="center">
   <a href="#overview">Overview</a> ·
   <a href="#the-four-add-ons">Four Add-ons</a> ·
+  <a href="#iiitd-hackathon-iteration">IIITD Iteration</a> ·
   <a href="#integrations">Integrations</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#getting-started">Getting Started</a> ·
@@ -32,6 +33,7 @@
 - [Product scope](#product-scope)
 - [Core Curai tools](#core-curai-tools)
 - [The four add-ons](#the-four-add-ons)
+- [IIITD hackathon iteration](#iiitd-hackathon-iteration)
 - [Integrations](#integrations)
 - [How the technologies work together](#how-the-technologies-work-together)
 - [Architecture](#architecture)
@@ -72,7 +74,7 @@ The goal is not to create a collection of disconnected AI demos. Curai is design
 | **Primary users** | Doctors, specialists, patients and care teams |
 | **Core tools** | DiagnoFast (before the visit), Prescription Analyzer (after it) |
 | **Add-on modules** | ClinScribe and LabLens (during the visit), ReferralLoop and DischargeCare (after it) |
-| **Integrations** | Gemini API, YugabyteDB, Meko, MongoDB Atlas |
+| **Integrations** | Gemini, Groq, optional Sarvam and Neo4j, YugabyteDB, Meko, MongoDB Atlas |
 | **Backend foundation** | Python, FastAPI and the existing Curai data/authentication layer |
 | **Frontend** | HTML, CSS and JavaScript served by FastAPI |
 | **Demo data policy** | Synthetic data only |
@@ -204,6 +206,29 @@ ReferralLoop tracks a referral from request through routing, scheduling, special
 **Guardrail:** referral urgency and clinical appropriateness remain decisions for qualified clinicians. Workflow analytics must not silently prioritize or deprioritize patients.
 </details>
 
+## IIITD hackathon iteration
+
+The `iiitd` branch adds a synthetic-data-only DiagnoFast demonstration flow. Every addition is behind a Settings switch that starts off, so the established workflow remains unchanged until an administrator deliberately enables an add-on. Sarvam and Neo4j also stop entirely when real-patient data is allowed.
+
+### Added patient and staff flow
+
+1. **OPD booking:** reception books a patient into a doctor's slot, assigns a per-doctor queue number and department, and places a neutral interview-link message in a demo SMS/WhatsApp outbox. Nothing is sent to a phone.
+2. **Slot QR login:** a server-generated QR code starts a short-lived, rate-limited phone-and-OTP flow. In demo mode the OTP is displayed on screen; after verification the patient chooses from only their masked bookings and receives a normal one-interview link.
+3. **Patient status:** after a booked interview, the link becomes a read-only status page for the day. It shows the queue number, department and the patient's own answers; an AI summary remains hidden until a doctor reviews it.
+4. **Guided interview and report:** the optional question graph supplies follow-up and red-flag screening prompts, while the existing controlled interview rules still enforce the 12-question limit and always ask about medicines and allergies. The report can show an evidence graph and machine-labelled English translations of confirmed Hindi answers.
+5. **Staff-only assistance:** a graph can suggest a walk-in department for staff confirmation. Referral-network views and medicine/allergy conflict flags are likewise staff-facing aids, not patient advice or automated decisions.
+
+### Add-on status and guardrails
+
+| Add-on | Current implementation | Remaining boundary or evidence need |
+|---|---|---|
+| Sarvam AI | Optional Saaras v4 transcription, Bulbul question/status playback and Mayura translation; it may also be selected as a third text-provider fallback. A synthetic live smoke test has passed. | Requires its feature switch, API key and recorded `sarvam_terms` sign-off; its data location and training terms need owner approval. |
+| Neo4j | Optional read-only question, history and evidence graphs. SQLite remains authoritative; Neo4j receives only IDs and coded terms. The local Neo4j 5.26 live check passed 12/12 with made-up data. | The question graph is not clinically reviewed. With Neo4j off or unavailable, the app falls back to existing SQLite/AI behaviour. |
+| Hinglish urgent screening | English, Hindi and romanised-Hindi deterministic screening remains in front of the AI check. | The new Hinglish development set has only 4/20 deterministic urgent matches. Any rule expansion needs an explicit safety decision and clinician-labelled evaluation. |
+| Messaging and OTP | A demo outbox, QR and OTP workflow are implemented. | No SMS or WhatsApp provider is connected; no real message is sent. |
+
+This iteration does not change the clinical boundary: AI never diagnoses, chooses a department for a patient, changes a dose, or decides whether a symptom is serious. Use made-up patients only.
+
 ## Integrations
 
 Each has one job, and none replaces the Curai database. All are optional, and off by default. [TESTING.md](docs/integrations/TESTING.md) explains how each is tested. Local stand-ins are never reported as these services.
@@ -222,11 +247,19 @@ Neither is a clinical record, and neither proves identity, consent or approval. 
 
 Atlas stores one safe event for each workflow step and a prepared summary for each workflow. Events are written to a local outbox in the same transaction as the change they describe, then delivered, retried and deduplicated. Change Streams update open screens straight away, with a 15-second refresh as the fallback.
 
+### 4. Sarvam AI: optional Indian-language speech and translation
+
+The IIITD iteration can use Sarvam's speech-to-text, text-to-speech and translation services for DiagnoFast. The patient still confirms text before it becomes the record; translation is shown to clinicians beside the original and labelled as machine translation. It is optional, disabled by default and blocked unless a configured key, the `sarvam_terms` sign-off and made-up-patient mode are all present. See [the Sarvam integration notes](docs/integrations/SARVAM.md).
+
+### 5. Neo4j: optional read-only DiagnoFast graphs
+
+Neo4j can project completed SQLite records into question, history and evidence graphs. It never becomes the patient-record authority and never writes back to SQLite. The projection holds IDs and coded terms only; text shown to a user is re-read from SQLite after the normal access check. See [the Neo4j integration notes](docs/integrations/NEO4J.md).
+
 ### Which tool uses what
 
 | Tool | AI | CareFlow events | Handoff |
 |---|---|---|---|
-| DiagnoFast | Gemini first for confirmed-answer extraction; configurable fallback | Yes | None |
+| DiagnoFast | Gemini first for confirmed-answer extraction; optional Sarvam speech/translation and configurable fallback | Yes | None |
 | Prescription Analyzer | Gemini, then Groq | Yes | None |
 | ClinScribe | Groq, then Gemini | Yes | None |
 | LabLens | Gemini, then Groq, for scans | Yes | None |
@@ -237,12 +270,13 @@ Atlas stores one safe event for each workflow step and a prepared summary for ea
 
 Each layer does one job:
 
-1. **AI reads and drafts:** Gemini or Groq returns structured candidates, checked against a schema.
+1. **AI reads and drafts:** Gemini or Groq returns structured candidates, checked against a schema. The optional Sarvam add-on handles speech and translation for DiagnoFast.
 2. **Curai validates:** permissions, consent and workflow rules are applied, and the result is saved as a draft.
 3. **A person reviews:** clinical content stays pending until an authorized person approves it.
 4. **The outbox records it:** an event commits in the same transaction as the change.
 5. **MongoDB shows the journey:** the worker delivers the event, and CareFlow's timeline updates.
 6. **YugabyteDB and Meko keep the rest:** technical AI and handoff records go to YugabyteDB, and handoff notes to Meko.
+7. **Neo4j projects completed records only:** its optional graphs guide questions and show provenance, while SQLite remains authoritative.
 
 ## Architecture
 
@@ -258,6 +292,8 @@ flowchart TD
     API --> DOCS[(Encrypted Document Storage)]
 
     API <--> GEM[Gemini and Groq<br/>Reading / Drafts]
+    API <--> SARVAM[Sarvam, optional<br/>Speech / Translation]
+    API --> NEO4J[(Neo4j, optional<br/>Read-only Graph Projection)]
     API --> OUTBOX[Workflow Event Outbox<br/>Same transaction as the change]
     API --> RUNS[(Local AI Run Records)]
     OUTBOX --> WORKER[Delivery Worker]
@@ -284,6 +320,8 @@ flowchart TD
 | Workflow timeline | MongoDB Atlas projection | Flexible event persistence and Change Streams |
 | AI run, attempt and handoff records | Local run records, copied to YugabyteDB | Technical metadata only |
 | AI inference | Gemini API | Inference only; no authority to approve clinical records |
+| DiagnoFast speech and translation | Sarvam, when explicitly enabled | Optional inference only; confirmed text and SQLite remain authoritative |
+| DiagnoFast graph projection | Neo4j, when explicitly enabled | Read-only IDs and coded terms; SQLite is always authoritative |
 
 ### Why the separation matters
 
@@ -343,8 +381,9 @@ The stack as implemented.
 | Existing database | SQLite in the documented development setup; configured through `CURAI_DB` | Existing accounts, sessions and patient/workflow records |
 | Data access | Plain `sqlite3` with parameterised SQL | Persistence |
 | Frontend | HTML, CSS, JavaScript | Landing pages, auth, dashboards and care workspace |
-| Language models | Google Gemini and Groq, with fallback | Structured extraction, drafting and reading |
-| Speech | Edge neural questions, Groq Whisper/Orpheus, browser speech | Voice interview, transcript preview and read-aloud |
+| Language models | Google Gemini and Groq, with optional Sarvam fallback | Structured extraction, drafting and reading |
+| Speech | Optional Sarvam, Edge neural questions, Groq Whisper/Orpheus, browser speech | Voice interview, transcript preview and read-aloud |
+| Graph projection | Optional Neo4j | Read-only question, history and evidence graphs for DiagnoFast |
 | Shared context | Meko, through MCP | Approved knowledge, memory and handoff notes |
 | Execution records | YugabyteDB, through YSQL | AI runs, attempts and handoffs |
 | Workflow event store | MongoDB Atlas | Events and CareFlow timeline projections |
@@ -469,6 +508,8 @@ Run the repository's normal automated test suite from the project root:
 
 The suite needs no API keys and no network: every AI and speech call is replaced by a fake. Live tests against the real AI providers and integrations are marked `live`, skipped by default, and described in [docs/integrations/TESTING.md](docs/integrations/TESTING.md), along with the browser microphone check and the synthetic lab report layouts.
 
+The IIITD additions have unit tests using fakes. A Sarvam synthetic smoke test and a local Neo4j 5.26 live check have been run with made-up data; rerun live checks after changing models, credentials, graph content or driver versions. The exact commands and what each test proves are in [the integration testing guide](docs/integrations/TESTING.md).
+
 Not yet demonstrated:
 
 - Real microphone recording and real speech on real devices.
@@ -509,6 +550,8 @@ These controls reduce risk but do not establish regulatory compliance or product
 | Patient rights workflows | Whole-record export and erasure workflows remain open in the latest reported review |
 | Security assurance | Independent penetration test remains outstanding |
 | Vendors | Groq, Gemini, Atlas and Meko data terms require approval before any real data |
+| IIITD add-ons | Sarvam and Neo4j are optional, disabled by default and limited to made-up patients; Sarvam requires a sign-off before it can run |
+| Hinglish safety | Deterministic urgent screening needs clinician-led improvement and evaluation before any reliance beyond its current development evidence |
 | Privacy/regulation | DPDP and CDSCO assessments, notices and legal review remain open; generic FHIR is not ABDM compliance |
 | Lab validation | Synthetic report layouts only; real Indian lab formats have not been validated |
 
