@@ -1,6 +1,6 @@
-# Curai: hackathon build plan
+# Diagnosia: hackathon build plan
 
-**Curai** is an AI healthcare platform for Indian hospitals. Six tools share one patient record. For
+**Diagnosia** is an AI healthcare platform for Indian hospitals. Six tools share one patient record. For
 this hackathon we build on **DiagnoFast**, the tool that takes the patient's history before they see
 the doctor. We add two partner technologies: **Sarvam AI** for Indian-language speech and **Neo4j**
 for graphs.
@@ -71,7 +71,7 @@ check in the load test, which a commit on an open branch already fixes.
 ### The core flow (all six steps working end to end, on made-up patients)
 
 1. **Booking and link.** Reception books a patient into a doctor's slot, and the department comes from
-   the booking. Curai shows the interview link as an SMS or WhatsApp message in a **demo outbox**, to
+   the booking. Diagnosia shows the interview link as an SMS or WhatsApp message in a **demo outbox**, to
    arrive at booking time or the evening before. No real message is sent, because no SMS provider is
    connected. The message holds only the link and nothing clinical. The kiosk and reception tablet
    stay as the fallback for patients without smartphones, elderly patients and walk-ins.
@@ -145,7 +145,7 @@ The buyer is the hospital or clinic.
 
 ## 4. Partner technology: Sarvam AI and Neo4j
 
-We are not using Arduino. Curai is software that runs on the phones and tablets hospitals and patients
+We are not using Arduino. Diagnosia is software that runs on the phones and tablets hospitals and patients
 already have.
 
 | Tech | The product need it solves | Where it goes |
