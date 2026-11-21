@@ -102,6 +102,7 @@ check in the load test, which a commit on an open branch already fixes.
 
    The code's rules don't change: the 12-question limit, medicines and allergies always asked, and
    urgent-symptom rules checked first. Tamil gets urgent-symptom rules written natively in Tamil.
+
 5. **The patient sees their queue number and department.** Sarvam Bulbul reads them aloud in the
    patient's language. The patient sees "What you told us" (their own words) straight away, and the AI
    summary only after the doctor presses "Mark as reviewed". An urgent stop works as it does today: "Go
