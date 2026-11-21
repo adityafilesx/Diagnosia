@@ -171,6 +171,11 @@ def _lab_lines_not_read(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE lab_reports ADD COLUMN unread_lines TEXT NOT NULL DEFAULT '[]'")
 
 
+def _intake_graph_state(db: sqlite3.Connection) -> None:
+    """Which complaints the question graph matched, and which graph questions were already offered."""
+    db.execute("ALTER TABLE intakes ADD COLUMN graph_state TEXT")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -190,6 +195,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (16, "scribe_chunks_lost", _scribe_chunks_lost),
     (17, "one_draft_per_session", _one_draft_per_session),
     (18, "lab_lines_not_read", _lab_lines_not_read),
+    (19, "intake_graph_state", _intake_graph_state),
 ]
 
 

@@ -489,6 +489,39 @@ WAIT_FOR_DEPARTMENT = {
 }
 
 
+def _guidance(
+    db: sqlite3.Connection, row: sqlite3.Row, form: dict, answers: dict, conversation: list, language: speech.Language, graph_state: dict
+) -> Optional[dict]:
+    """Advice for the next question (guidance.py), or None with both switches off: then the request to
+    the AI is exactly what it always was. It only runs after red_flags.screen found nothing urgent."""
+    from backend import addons
+    from backend.diagnofast import guidance
+
+    graph_on = addons.enabled("diagnofast.graph_followups", db)
+    doctor_like = addons.enabled("diagnofast.doctor_like_interview", db)
+    if not graph_on and not doctor_like:
+        return None
+    advice: dict = {}
+    if doctor_like:
+        advice.update(
+            doctor_like=True,
+            known_context=guidance.known_context(db, row),
+            vague_answer=guidance.vague_probe(conversation[-1]["answer"]) if conversation else None,
+            examples=guidance.examples(),
+        )
+    if graph_on:
+        graph_state["complaints"] = guidance.match_complaints([turn["answer"] for turn in conversation])
+        # Room is kept for the form's required questions, so the graph never crowds them out.
+        room = agent.MAX_QUESTIONS - row["questions_asked"] - len(agent.missing_required(form, answers))
+        if graph_state["complaints"] and room > 0:
+            release(db)  # no lock held while Neo4j answers
+            suggestion = guidance.graph_suggestion(db, graph_state["complaints"], graph_state.get("asked", []), language)
+            if suggestion:
+                graph_state.setdefault("asked", []).append(suggestion["id"])
+                advice["graph_suggestion"] = suggestion
+    return advice or None
+
+
 def _has_status_page(db: sqlite3.Connection, row: sqlite3.Row) -> bool:
     from backend import addons
     from backend.opd import routes as opd
@@ -726,8 +759,12 @@ def answer(
     form = agent.load_form(row["form_id"])
     answers = json.loads(row["answers"])
     conversation = [{"question": turn["question"], "answer": turn["answer"]} for turn in transcript]
+    graph_state = json.loads(row["graph_state"] or "{}")
     try:
-        step = agent.advance(form, answers, conversation, row["questions_asked"], language)
+        step = agent.advance(
+            form, answers, conversation, row["questions_asked"], language,
+            guide=lambda: _guidance(db, row, form, answers, conversation, language, graph_state),
+        )
     except (llm.AIUnavailable, llm.AIDeclined) as error:
         events.emit_separately(MODULE, "intake.failed", lambda connection: _workflow(connection, row), "failed", metadata={"error_category": events.category_of(error)})
         raise
@@ -746,7 +783,7 @@ def answer(
     saved = db.execute(
         """
         UPDATE intakes SET answers = ?, transcript = ?, urgent = ?, current_question = ?,
-            questions_asked = ?, status = ?, last_answer_key = ?, last_answer_reply = ?
+            questions_asked = ?, status = ?, last_answer_key = ?, last_answer_reply = ?, graph_state = ?
         WHERE id = ? AND status = 'in_progress' AND questions_asked = ?
         """,
         (
@@ -758,6 +795,7 @@ def answer(
             "preparing_report" if finished else "in_progress",
             answer_key,
             json.dumps(reply, ensure_ascii=False),
+            json.dumps(graph_state) if graph_state else row["graph_state"],
             row["id"],
             row["questions_asked"],
         ),

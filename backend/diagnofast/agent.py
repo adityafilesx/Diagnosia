@@ -8,7 +8,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Callable, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -221,25 +221,46 @@ def apply_turn(
     return Step(updated, question=question, suggested_chips=chips)
 
 
-def next_turn(form: dict, answers: Dict[str, str], conversation: List[dict], language: Language) -> Turn:
-    request = json.dumps(
-        {
-            "patient_language": language,
-            "form_fields": [
-                {"key": item["key"], "label": item["label"], "required": item["required"]}
-                for item in form["fields"]
-            ],
-            "answers_so_far": answers,
-            "conversation": conversation,
-        },
-        ensure_ascii=False,
-        indent=2,
-    )
+def next_turn(
+    form: dict, answers: Dict[str, str], conversation: List[dict], language: Language, guidance: Optional[dict] = None
+) -> Turn:
+    """With no guidance this is exactly the request it always was. Guidance (guidance.py) only adds
+    advice: a question from the graph, known context, a probe for a vague answer, and examples."""
+    body = {
+        "patient_language": language,
+        "form_fields": [
+            {"key": item["key"], "label": item["label"], "required": item["required"]}
+            for item in form["fields"]
+        ],
+        "answers_so_far": answers,
+        "conversation": conversation,
+    }
+    system = TURN_SYSTEM
+    if guidance:
+        from backend.diagnofast import guidance as advice
+
+        if guidance.get("graph_suggestion"):
+            body["graph_suggestion"] = guidance["graph_suggestion"]
+            system += advice.GRAPH_RULES
+        if guidance.get("doctor_like"):
+            body["known_context"] = guidance.get("known_context", [])
+            if guidance.get("vague_answer"):
+                body["vague_answer"] = guidance["vague_answer"]
+            body["examples"] = guidance.get("examples", [])
+            system += advice.DOCTOR_LIKE_RULES
+    request = json.dumps(body, ensure_ascii=False, indent=2)
     # Patients are waiting on this between questions, so keep it quick.
-    return llm.ask(TURN_SYSTEM, request, Turn, tool="diagnofast_turn", timeout=PATIENT_WAIT_SECONDS)
+    return llm.ask(system, request, Turn, tool="diagnofast_turn", timeout=PATIENT_WAIT_SECONDS)
 
 
-def advance(form: dict, answers: Dict[str, str], conversation: List[dict], questions_asked: int, language: Language) -> Step:
+def advance(
+    form: dict,
+    answers: Dict[str, str],
+    conversation: List[dict],
+    questions_asked: int,
+    language: Language,
+    guide: Optional[Callable[[], Optional[dict]]] = None,
+) -> Step:
     """Takes the patient's latest answer and decides what the interview does next.
 
     The rules check the answer first, so an urgent symptom stops the interview
@@ -251,8 +272,10 @@ def advance(form: dict, answers: Dict[str, str], conversation: List[dict], quest
         return Step(dict(answers), urgent=flags)
     last = conversation[-1] if conversation else {"question": "", "answer": ""}
     asked = field_asked(form, last["question"], language)
+    # Asked only now, after the rules found nothing urgent: guidance never delays an urgent stop.
+    guidance = guide() if guide is not None else None
     try:
-        turn = next_turn(form, answers, conversation, language)
+        turn = next_turn(form, answers, conversation, language, guidance) if guidance else next_turn(form, answers, conversation, language)
         ai_down = False
     except (llm.AIUnavailable, llm.AIDeclined) as error:
         # The form carries on by itself: its own questions in order, the patient's own words kept.
