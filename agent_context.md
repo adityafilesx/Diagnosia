@@ -320,8 +320,9 @@ Known gaps of the add-ons:
   (negated, history and ordinary answers are all right). Saaras's `codemix` output mixes scripts, which
   the rules don't read. The AI's own urgent list is the second check. Fixing this means changing
   `red_flags.py`, which needs the owner's decision.
-- Sarvam and Neo4j have not been run live here (no key, no server). The Cypher is unit-tested against a
-  recording driver only; run a live check before the demo.
+- Sarvam speech to text (Saaras v4 codemix), Bulbul voices and Mayura translation passed a live smoke test
+  on 22 Nov 2026 with made-up text. Neo4j hasn't been run live (no server); the Cypher is unit-tested
+  against a recording driver only, so run a live check before the demo.
 - `test_patient_pack.py` fails now and then in a full run (it races the app's background loop), passing
   alone. It isn't caused by the add-ons.
 

@@ -165,6 +165,12 @@ confirmed in writing", never "stays in India".
 Each attempt is recorded with `execution.AgentRun`, as the Groq calls are. No key, patient text or full
 answer is ever logged.
 
+## Live check
+
+On 22 November 2026 a smoke test with made-up text passed: Bulbul v4-flash read a Hindi and an English
+question (MP3), Saaras v4 in `codemix` mode wrote each back word for word, and Mayura translated a Hindi
+sentence to English. No patient data was sent.
+
 ## Tests
 
 Tests never call Sarvam. They patch the HTTP call in `speech.py`, as the Groq tests do, and check the
