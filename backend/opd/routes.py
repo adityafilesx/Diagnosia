@@ -55,6 +55,22 @@ def mask_phone(phone: str) -> str:
     return "******" + phone[-4:]
 
 
+# The department names a patient hears and reads, as on the intake page's department grid.
+DEPARTMENTS_HI = {
+    "general_physician": "सामान्य चिकित्सा", "dermatologist": "त्वचा विभाग", "cardiology": "हृदय विभाग",
+    "orthopedics": "हड्डी एवं जोड़", "ent": "कान, नाक और गला", "pediatrics": "बाल चिकित्सा",
+}
+
+
+def department_names(form_id: Optional[str]) -> Optional[dict]:
+    english = department(form_id)
+    return {"en-IN": english, "hi-IN": DEPARTMENTS_HI.get(form_id, english)} if english else None
+
+
+def booking_for_intake(db: sqlite3.Connection, intake_id: int) -> Optional[sqlite3.Row]:
+    return db.execute("SELECT * FROM opd_bookings WHERE intake_id = ?", (intake_id,)).fetchone()
+
+
 def department(form_id: Optional[str]) -> Optional[str]:
     form = agent.load_form(form_id) if form_id else None
     return form["title"] if form else None

@@ -32,6 +32,8 @@ LINK_ROUTES = {
     ("POST", "/api/diagnofast/patient/{token}/transcribe"),
     ("POST", "/api/diagnofast/patient/{token}/help"),
     ("POST", "/api/diagnofast/patient/{token}/consent-audio"),
+    ("GET", "/api/diagnofast/patient/{token}/status"),
+    ("POST", "/api/diagnofast/patient/{token}/status-audio"),
 }
 FAKE_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -64,7 +66,7 @@ GATES = (
     "_editable", "_side", "_change", "_decide", "_is_receiver", "_require_admin",
 
     "_readable_intake", "_open_intake", "_open_workflow", "_allowed", "gate_staff", "open_pack",
-    "_kiosk_doctor", "_managed_slot", "_managed_booking", "_managed_doctors", "_open_slot",
+    "_kiosk_doctor", "_managed_slot", "_managed_booking", "_managed_doctors", "_open_slot", "_finished_intake",
 )
 NEEDS_NO_RECORD = {
     "register", "login", "logout", "me", "my_status", "accept_invitation", "system_status", "system_readiness",

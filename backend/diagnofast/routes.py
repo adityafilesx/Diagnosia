@@ -478,6 +478,89 @@ def patient_page(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
     return page
 
 
+FINISHED_STATUSES = ("preparing_report", "done", "report_failed")
+STATUS_TEXT = {
+    "en-IN": "Your queue number is {number}. Please go to {department}.",
+    "hi-IN": "आपका नंबर {number} है। कृपया {department} विभाग में जाइए।",
+}
+WAIT_FOR_DEPARTMENT = {
+    "en-IN": "Your queue number is {number}. Reception will tell you which department to go to.",
+    "hi-IN": "आपका नंबर {number} है। रिसेप्शन आपको बताएगा कि किस विभाग में जाना है।",
+}
+
+
+def _has_status_page(db: sqlite3.Connection, row: sqlite3.Row) -> bool:
+    from backend import addons
+    from backend.opd import routes as opd
+
+    return addons.enabled("diagnofast.bookings", db) and opd.booking_for_intake(db, row["id"]) is not None
+
+
+def _finished_intake(token: str, db: sqlite3.Connection) -> tuple:
+    """The gate for the status page: a finished, booked interview, on the day it finished, with bookings on.
+    It is read-only: nothing here can answer a question or change the visit."""
+    from backend.opd import routes as opd
+
+    row = db.execute(
+        """
+        SELECT * FROM intakes WHERE token_hash = ? AND status IN (?, ?, ?)
+            AND date(COALESCE(report_requested_at, created_at), 'localtime') = date('now', 'localtime')
+        """,
+        (_hash(token), *FINISHED_STATUSES),
+    ).fetchone()
+    booking = opd.booking_for_intake(db, row["id"]) if row is not None else None
+    if booking is None or not _has_status_page(db, row):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This page isn't available. Please ask reception.")
+    return row, booking
+
+
+def _status_words(row: sqlite3.Row, booking: sqlite3.Row) -> str:
+    from backend.opd import routes as opd
+
+    language = row["language"] or "en-IN"
+    names = opd.department_names(booking["form_id"])
+    if names is None:
+        return WAIT_FOR_DEPARTMENT[language].format(number=booking["queue_number"])
+    return STATUS_TEXT[language].format(number=booking["queue_number"], department=names[language])
+
+
+@router.get("/patient/{token}/status")
+def patient_status(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """What the patient sees after the interview. The AI summary only after a doctor's review."""
+    from backend.opd import routes as opd
+
+    row, booking = _finished_intake(token, db)
+    language = row["language"] or "en-IN"
+    urgent = json.loads(row["urgent"])
+    if urgent:
+        # The urgent stop is unchanged: where to go, nothing about seriousness, and nothing else.
+        return {"urgent": True, "language": language, "message": agent.URGENT_MESSAGE[language]}
+    summary = None
+    if row["reviewed_at"] and row["report"]:
+        report = json.loads(row["report"])
+        summary = {key: report.get(key) for key in ("chief_complaint", "present_illness", "current_medicines", "allergies")}
+    return {
+        "urgent": False,
+        "language": language,
+        "patient_name": row["patient_name"],
+        "queue_number": booking["queue_number"],
+        "department": opd.department_names(booking["form_id"]),
+        "words": _status_words(row, booking),
+        "told": [{"question": turn["question"], "answer": turn["answer"]} for turn in json.loads(row["transcript"])],
+        "reviewed": bool(row["reviewed_at"]),
+        "summary": summary,
+    }
+
+
+@router.post("/patient/{token}/status-audio", dependencies=[Depends(ratelimit.per_path_value(ratelimit.CONSENT_AUDIO, "token"))])
+def patient_status_audio(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    row, booking = _finished_intake(token, db)
+    language = row["language"] or "en-IN"
+    words = agent.URGENT_MESSAGE[language] if json.loads(row["urgent"]) else _status_words(row, booking)
+    release(db)  # no lock held while a voice is made
+    return {"audio": _spoken(words, language)}
+
+
 @router.post("/patient/{token}/consent-audio", dependencies=[Depends(ratelimit.per_path_value(ratelimit.CONSENT_AUDIO, "token"))])
 def consent_audio(token: str, request: ConsentAudio, db: sqlite3.Connection = Depends(get_db)) -> dict:
     row = _open_intake(token, db)
@@ -655,7 +738,7 @@ def answer(
     finished = step.question is None
     if finished:
         message = agent.URGENT_MESSAGE[language] if step.urgent else agent.THANK_YOU[language]
-        reply = {"finished": True, "urgent": bool(step.urgent), "message": message}
+        reply = {"finished": True, "urgent": bool(step.urgent), "message": message, "status_page": _has_status_page(db, row)}
     else:
         reply = {"finished": False, "question": step.question, "suggested_chips": [chip.model_dump() for chip in step.suggested_chips]}
     # Only saved if nothing else answered this question while the AI was thinking: two tabs, or a

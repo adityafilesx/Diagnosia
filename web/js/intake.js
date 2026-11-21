@@ -12,6 +12,9 @@ const TEXT = {
         microphone: 'Microphone unavailable. You can type your answer below.',
         partial: 'We could not transcribe the full recording. Check that your answer is complete, or type it below.',
         name: 'Please enter your name and check your age.', placeholder: 'Your words will appear here. You can also type.',
+        statusTitle: 'Your queue number', toldTitle: 'What you told us', summaryTitle: 'Summary checked by your doctor',
+        summaryWaiting: 'The doctor will add a summary here after reading your answers.', hearAgain: 'Hear it again',
+        complaint: 'Main problem', history: 'Details', medicines: 'Medicines', allergies: 'Allergies', none: 'None stated',
         listen: 'Read this aloud', agree: 'I agree, start my interview', consentTitle: 'Before we begin', decline: 'If you do not agree, please tell reception.',
         yes: 'Yes', no: 'No', abhaNeeded: 'Please choose yes or no for your past records.',
         failed: 'Something went wrong on our side. Please try again, or tell reception.',
@@ -30,6 +33,9 @@ const TEXT = {
         microphone: 'माइक्रोफ़ोन उपलब्ध नहीं है। नीचे अपना जवाब लिख सकते हैं।',
         partial: 'पूरी रिकॉर्डिंग लिखी नहीं जा सकी। जवाब पूरा है या नहीं जाँचें, या नीचे लिखें।',
         name: 'कृपया नाम भरें और उम्र जाँचें।', placeholder: 'आपके शब्द यहाँ दिखेंगे। आप लिख भी सकते हैं।',
+        statusTitle: 'आपका नंबर', toldTitle: 'आपने हमें यह बताया', summaryTitle: 'डॉक्टर द्वारा जाँचा गया सारांश',
+        summaryWaiting: 'डॉक्टर आपके जवाब पढ़ने के बाद यहाँ सारांश जोड़ेंगे।', hearAgain: 'फिर से सुनें',
+        complaint: 'मुख्य परेशानी', history: 'विवरण', medicines: 'दवाइयाँ', allergies: 'एलर्जी', none: 'कुछ नहीं बताया',
         listen: 'यह सुनकर समझें', agree: 'मैं सहमत हूँ, बातचीत शुरू करें', consentTitle: 'शुरू करने से पहले', decline: 'सहमत नहीं हैं तो रिसेप्शन को बताएँ।',
         yes: 'हाँ', no: 'नहीं', abhaNeeded: 'पुराने रिकॉर्ड के लिए हाँ या नहीं चुनें।',
         failed: 'हमारी तरफ़ से कुछ गड़बड़ हुई। दोबारा कोशिश करें, या रिसेप्शन को बताएँ।',
@@ -247,6 +253,78 @@ function renderChips(chips = []) {
 const newAnswerKey = () => (window.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 let answerKey = newAnswerKey();
 
+// After a booked interview, the link becomes a read-only status page for the rest of the day: the
+// queue number and department (read aloud), the patient's own words, and the AI summary only once a
+// doctor has marked it reviewed. An urgent stop shows only "go to reception now".
+const STATUS_POLL_MS = 30000;
+let statusTimer = null;
+
+function summaryList(summary) {
+    const list = element('dl', 'status-summary');
+    const add = (label, value) => {
+        const text = Array.isArray(value) ? value.join(', ') : value;
+        list.append(element('dt', '', label), element('dd', '', text && String(text).trim() ? text : words().none));
+    };
+    add(words().complaint, summary.chief_complaint);
+    add(words().history, summary.present_illness);
+    add(words().medicines, summary.current_medicines);
+    add(words().allergies, summary.allergies);
+    return list;
+}
+
+async function speakStatus() {
+    $('status-listen').disabled = true;
+    let audio = null;
+    try {
+        const response = await apiFetch(`/api/diagnofast/patient/${encodeURIComponent(token)}/status-audio`, { method: 'POST' });
+        audio = (await response.json()).audio;
+    } catch (_) {
+        audio = null;
+    }
+    play({ finished: true, message: $('status-listen').dataset.words || '', audio });
+    $('status-listen').disabled = false;
+}
+
+async function showStatus(speak) {
+    const response = await apiFetch(`/api/diagnofast/patient/${encodeURIComponent(token)}/status`);
+    const status = await response.json();
+    if (status.language) chooseLanguageQuietly(status.language);
+    ['welcome', 'interview', 'finish', 'inactive'].forEach((id) => { $(id).hidden = true; });
+    $('status').hidden = false;
+    $('status-listen').textContent = `🔊 ${words().hearAgain}`;
+    if (status.urgent) {
+        $('status-title').textContent = '';
+        $('status-number').textContent = '';
+        $('status-department').textContent = status.message;
+        $('status-department').className = 'urgent-banner';
+        $('status-listen').dataset.words = status.message;
+        ['status-told-title', 'status-told', 'status-summary-title', 'status-summary'].forEach((id) => { $(id).hidden = true; });
+        if (speak) speakStatus();
+        return status;
+    }
+    $('status-title').textContent = words().statusTitle;
+    $('status-number').textContent = String(status.queue_number);
+    $('status-department').textContent = status.words;
+    $('status-listen').dataset.words = status.words;
+    $('status-told-title').textContent = words().toldTitle;
+    $('status-told').replaceChildren(...status.told.map((turn) => {
+        const item = element('li', '');
+        item.append(element('span', 'status-question', turn.question), element('strong', '', turn.answer));
+        return item;
+    }));
+    $('status-summary-title').textContent = words().summaryTitle;
+    $('status-summary').replaceChildren(status.summary ? summaryList(status.summary) : element('p', 'intake-hint', words().summaryWaiting));
+    if (speak) speakStatus();
+    clearTimeout(statusTimer);
+    if (!status.reviewed) statusTimer = setTimeout(() => showStatus(false).catch(() => {}), STATUS_POLL_MS);
+    return status;
+}
+
+function chooseLanguageQuietly(language) {
+    $('language').value = language;
+    document.documentElement.lang = language.startsWith('hi') ? 'hi' : 'en';
+}
+
 function showNext(reply) {
     currentReply = reply;
     answerKey = newAnswerKey();
@@ -256,6 +334,20 @@ function showNext(reply) {
     $('record-status').textContent = words().ready;
     renderChips(reply.suggested_chips);
     $('help-box').hidden = true;
+    if (reply.finished && reply.status_page && !kiosk) {
+        // The patient's own phone keeps its link, so a reload shows the status again today.
+        $('interview').hidden = true;
+        // The status page reads the queue number and department aloud (or the urgent message). If it
+        // can't be loaded, the patient still hears and sees the usual finishing message.
+        showStatus(true).catch(() => {
+            $('finish').hidden = false;
+            $('finish-message').textContent = reply.message;
+            $('finish-message').className = reply.urgent ? 'urgent-banner' : 'intake-question';
+            play(reply);
+        });
+        syncControls();
+        return;
+    }
     if (reply.finished) {
         $('interview').hidden = true;
         $('finish').hidden = false;
@@ -466,6 +558,7 @@ $('answer').addEventListener('input', () => {
 });
 $('replay').addEventListener('click', () => currentReply && play(currentReply));
 $('consent-listen').addEventListener('click', readConsentAloud);
+$('status-listen').addEventListener('click', speakStatus);
 document.querySelectorAll('.language-choice button').forEach((button) => {
     button.addEventListener('click', () => chooseLanguage(button.dataset.language));
 });
@@ -569,6 +662,8 @@ async function initialize() {
             $('specialties').hidden = false;
         }
     } catch (failure) {
+        // A finished, booked interview shows its status page instead, for the rest of the day.
+        if (token && (await showStatus(true).then(() => true).catch(() => false))) return;
         $('inactive-message').textContent = failure.message;
         $('inactive').hidden = false;
     }

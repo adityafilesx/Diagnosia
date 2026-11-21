@@ -339,3 +339,13 @@ body.body {
 @media (max-width: 800px) { .specialty-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .intake-columns { gap: 14px; } .intake-page .tool-panel { padding: 22px; } }
 @media (max-width: 620px) { .intake-columns, .demographics { grid-template-columns: 1fr; } .intake-shell { padding: 0 14px 24px; } .intake-header { padding: 20px 14px; } .specialty-card { padding: 16px; } .assistant-orb { margin: 12px 0 20px; width: 60px; height: 60px; } }
 @media (prefers-reduced-motion: reduce) { .assistant-orb.speaking { animation: none; } }
+
+/* The patient's status page after a booked interview (BUILD.md step 6). */
+.intake-page .intake-queue-number { font-size: clamp(3.5rem, 18vw, 6rem); font-weight: 800; line-height: 1; margin: 8px 0 12px; }
+.intake-page .status-told { list-style: none; padding: 0; display: grid; gap: 10px; }
+.intake-page .status-told li { display: grid; gap: 4px; padding: 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); }
+.intake-page .status-question { opacity: 0.75; font-size: 0.95rem; }
+.intake-page .status-summary { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr); gap: 6px 14px; }
+.intake-page .status-summary dt { opacity: 0.75; }
+.intake-page .status-summary dd { margin: 0; overflow-wrap: anywhere; }
+.intake-page #intake-status h2 { font-size: 1.1rem; margin-top: 22px; }
