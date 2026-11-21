@@ -61,6 +61,7 @@ ADDON_SWITCHES = {
     "diagnofast.slot_login": ("DiagnoFast add-ons", "Slot QR login with a phone number and a one-time code"),
     "diagnofast.walkin_suggestion": ("DiagnoFast add-ons", "Department suggestion for walk-ins, shown to staff only"),
     "diagnofast.review_feedback": ("DiagnoFast add-ons", "Ask the reviewing doctor what they wish had been asked"),
+    "sarvam.llm": ("Sarvam AI", "Also try Sarvam's chat model as a third AI provider, last, for text only (stretch)"),
 }
 
 HELD_FEATURES = {
@@ -74,6 +75,7 @@ SETTINGS: Dict[str, dict] = {
     "sarvam.tts_model": {"section": "Sarvam AI", "label": "Voice model", "type": "model", "choices": ["bulbul:v4-flash", "bulbul:v3"], "default": "bulbul:v4-flash"},
     "sarvam.voice_hi": {"section": "Sarvam AI", "label": "Hindi voice", "type": "text", "max_length": 60, "default": "ritu_hi_customer"},
     "sarvam.voice_en": {"section": "Sarvam AI", "label": "English voice", "type": "text", "max_length": 60, "default": "neha_en_customer"},
+    "sarvam.chat_model": {"section": "Sarvam AI", "label": "Chat model (third provider)", "type": "model", "choices": ["sarvam-105b", "sarvam-105b-conversations"], "default": "sarvam-105b"},
     "sarvam.translate_model": {"section": "Sarvam AI", "label": "Translation model", "type": "model", "choices": ["mayura:v1", "sarvam-translate:v1"], "default": "mayura:v1"},
     "ai.model.clinscribe_note": {"section": "AI models", "label": "ClinScribe: drafting notes", "type": "model", "choices": TEXT_MODELS, "default": "openai/gpt-oss-120b"},
     "ai.model.prescription_explain": {"section": "AI models", "label": "Prescription: explaining to patients", "type": "model", "choices": TEXT_MODELS, "default": "openai/gpt-oss-20b"},

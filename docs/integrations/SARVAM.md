@@ -108,8 +108,12 @@ patient's words. A translation that fails is simply missing: the doctor reads th
 `POST https://api.sarvam.ai/v1/chat/completions` with `sarvam-105b` or `sarvam-105b-conversations`
 (CHAT). It is OpenAI-shaped and supports `response_format` `json_schema`. The page lists both
 `api-subscription-key` and `Authorization: Bearer` (examples use Bearer). Reasoning is on by default and
-billed as output tokens. No Sarvam-M model is listed. This is a stretch item: a third provider in
-`llm.py`, inside the existing fallback.
+billed as output tokens. No Sarvam-M model is listed.
+
+**Built as a stretch item** (Settings, Sarvam AI, "Also try Sarvam's chat model", off): `llm.py` adds
+`sarvam-105b` as a third provider, always tried last, for text only (never photos), with `max_tokens`
+in place of `max_completion_tokens`. It needs Sarvam's own switch, key and sign-off too, and stops with
+real patient data allowed. Not run live.
 
 ## Limits and prices
 
