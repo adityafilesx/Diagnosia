@@ -93,7 +93,7 @@ check in the load test, which a commit on an open branch already fixes.
    consent line can be read aloud by Sarvam Bulbul for patients who can't read well. ABHA records stay
    behind their own separate yes or no, which the new login doesn't touch.
 4. **A voice interview on the patient's own phone, with follow-up questions guided by a graph.** Sarvam
-   Saarika turns speech into text, with better recognition of Hindi, English and Hinglish. Sarvam Bulbul
+   Saaras v4 turns speech into text (its mixed-language mode), with better recognition of Hindi, English and Hinglish. Sarvam Bulbul
    reads each question aloud in a natural Hindi or English voice, including outside demo mode. A Neo4j
    graph links each complaint to its follow-up questions, associated symptoms and red-flag screening
    questions, and the interview walks the graph to pick the next question. The AI only words the
@@ -158,9 +158,9 @@ patients already have.
 
 | Tech | The product need it solves | Where it goes |
 |---|---|---|
-| **Sarvam Saarika** (speech to text) | Better recognition of Hindi, English and Hinglish speech | A new provider in `speech.py`, tried first. Groq Whisper stays as the fallback, with its no-speech filtering, and the patient still confirms the text |
+| **Sarvam Saaras v4** (speech to text; Sarvam's docs no longer list Saarika) | Better recognition of Hindi, English and Hinglish speech | A new provider in `speech.py`, tried first. Groq Whisper stays as the fallback, with its no-speech filtering, and the patient still confirms the text |
 | **Sarvam Bulbul** (text to speech) | A natural Hindi voice that also works outside demo mode (today Edge runs only in demo mode, and Groq has no Hindi voice). Reads questions, consent lines, the queue number, the department and the urgent message | `speech.py`, tried first. Edge (Neerja, Swara, demo mode only), Groq English, the browser's voice and typing stay as fallbacks, in today's order |
-| **Sarvam Mayura** (translation) | The doctor reads English beside the patient's own Hindi words | Runs on the text the patient confirmed. We don't use Saaras, which translates straight from audio, for the record, because the patient's confirmed text takes priority over audio |
+| **Sarvam Mayura** (translation) | The doctor reads English beside the patient's own Hindi words | Runs on the text the patient confirmed. We never use Saaras's translate mode, which goes straight from audio to English, for the record, because the patient's confirmed text takes priority over audio |
 | **Sarvam as a vendor** | An Indian provider that may keep data in India, unlike Groq (US, no agreement). **To be confirmed in writing** | `docs/CLINICAL_GOVERNANCE.md` vendor section, and the consent words |
 | **Neo4j: question graph** | Follow-up questions that fit the complaint, with the red-flag screening questions to ask | Loaded from a versioned seed file in git, marked "not clinically reviewed", and read by `agent.advance` inside the existing controlled loop |
 | **Neo4j: history graph** | Personal context, so the interview confirms what we know instead of re-asking | A read-only copy of finished records, used for the interview and the doctor's report |
@@ -181,6 +181,7 @@ patients already have.
 - **Hindi and English must not get worse.** The urgent-symptom rules for English, Hindi and romanised
   Hindi stay as they are and must still score 100% on the frozen v1 set, which is never edited. New
   Hinglish phrasings go into the dev split only.
+- **Sarvam can't be switched on until an administrator records a sign-off** that the Sarvam account is set to zero retention and has opted out of model training. Its own pages say training is on by default.
 - **Made-up patients only, in Neo4j and in Sarvam.** Both stop completely when `ALLOW_REAL_PATIENT_DATA`
   is on, just as patient packs do. Neo4j runs locally in Docker, so nothing leaves the laptop.
 - **Every new feature sits behind a Settings switch that starts off**, and falls back to today's
