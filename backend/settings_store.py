@@ -62,6 +62,7 @@ ADDON_SWITCHES = {
     "diagnofast.walkin_suggestion": ("DiagnoFast add-ons", "Department suggestion for walk-ins, shown to staff only"),
     "diagnofast.review_feedback": ("DiagnoFast add-ons", "Ask the reviewing doctor what they wish had been asked"),
     "referrals.network_view": ("ReferralLoop add-ons", "Referral network view for staff: paths, overdue loops, specialist load (uses Neo4j when on)"),
+    "conflicts.medicine_checks": ("Medicine checks", "Possible medicine and allergy conflicts across doctors, for staff only (exact names; no salt matching)"),
     "sarvam.llm": ("Sarvam AI", "Also try Sarvam's chat model as a third AI provider, last, for text only (stretch)"),
 }
 

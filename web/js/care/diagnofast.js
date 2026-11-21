@@ -85,6 +85,17 @@ function problemList(detail) {
         h('ul', {}, detail.report_problems.map((item) => h('li', {}, `${PROBLEM_FIELD[item.field] || item.field}, ${label(item)}: ${item.problem}`))));
 }
 
+// Possible medicine and allergy conflicts across doctors, for staff only. Each is "check", never advice.
+function conflictsPanel(found) {
+    return h('section', { class: 'no-print conflicts-panel' },
+        h('h3', {}, 'Medicine checks (staff only)'),
+        found.flags.length
+            ? h('ul', {}, found.flags.map((flag) => h('li', {}, h('strong', {}, flag.message),
+                h('ul', {}, flag.records.map((entry) => h('li', { class: 'muted' }, `${entry.text} · ${entry.where}${entry.doctor ? ` · ${entry.doctor}` : ''}`))))))
+            : h('p', { class: 'muted' }, `No possible conflicts in ${found.checked.medicines} confirmed medicines and ${found.checked.allergies} allergies.`),
+        h('p', { class: 'muted' }, found.salt_check.reason));
+}
+
 // "Anything you wish had been asked?" It changes nothing in the report; it helps the questions improve.
 function feedbackPanel(detail, context) {
     const done = ['done', 'report_failed'].includes(detail.status);
@@ -183,6 +194,7 @@ export function reportView(detail, context) {
             h('div', { class: 'signoff' }, h('p', {}, 'Doctor signature: ____________________'), h('p', {}, 'Date: ____________________'))),
         detail.graphs && graphsPanel(detail.graphs),
         detail.feedback && feedbackPanel(detail, context),
+        detail.conflicts && conflictsPanel(detail.conflicts),
         h('details', { class: 'no-print requisition-original', open: !report },
             h('summary', {}, 'Original form answers & patient transcript'),
             h('h3', {}, `${detail.form_title} form`),
@@ -282,6 +294,9 @@ async function renderReport(container, id, context) {
     const load = async () => {
         const detail = await api(`/api/diagnofast/intakes/${id}`);
         if (detail.status === 'done') detail.graphs = await api(`/api/diagnofast/intakes/${id}/graph`).catch(() => null);
+        if (detail.patient.record_id && context.config?.addons?.['conflicts.medicine_checks']) {
+            detail.conflicts = await api(`/api/conflicts/patients/${detail.patient.record_id}`).catch(() => null);
+        }
         show(container, h('h1', { class: 'no-print' }, 'DiagnoFast'), reportView(detail, context));
         preparePrintReport(container, detail);
         return detail;

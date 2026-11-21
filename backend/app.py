@@ -30,6 +30,7 @@ from backend.db import connect, init_db
 from backend.diagnofast import routes as diagnofast
 from backend.diagnofast import graph_sync
 from backend.opd import routes as opd
+from backend.conflicts import routes as conflicts
 from backend.opd import slot_login
 from backend.dischargecare import routes as dischargecare
 from backend.integrations import execution
@@ -202,6 +203,7 @@ app.include_router(lablens_mappings.router)
 app.include_router(settings_store.router)
 app.include_router(careflow.router)
 app.include_router(patient_pack.router)
+app.include_router(conflicts.router)  # staff-only medicine checks, off by default
 
 
 def _tool(router, name: str) -> None:
