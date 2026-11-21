@@ -51,7 +51,7 @@ export async function renderBookings(container, context) {
         show(bookingsBox, table([
             { label: 'Queue', cell: (row) => h('strong', {}, String(row.queue_number)), number: true },
             { label: 'Patient', cell: (row) => [row.patient_name, row.urgent && h('span', {}, ' ', badge('urgent', 'bad'))] },
-            { label: 'Department', cell: (row) => row.department || badge('to confirm', 'warn') },
+            { label: 'Department', cell: (row) => (row.department_confirmed ? row.department : departmentPicker(row)) },
             { label: 'Phone', cell: (row) => row.phone },
             { label: 'Interview', cell: (row) => row.intake_id
                 ? h('a', { href: `#/diagnofast/${row.intake_id}` }, STATUS[row.interview_status] || row.interview_status)
@@ -70,6 +70,56 @@ export async function renderBookings(container, context) {
             { label: 'Message', cell: (row) => row.text },
         ], outbox.slice(0, 20), 'Nothing in the demo outbox yet.'));
     };
+
+    // Walk-ins with no department: staff choose one. The graph's suggestion is advice for staff only and
+    // never reaches the patient; the patient sees a department only after a person confirms it.
+    function departmentPicker(row) {
+        const choice = h('select', { 'aria-label': `Department for ${row.patient_name}` },
+            h('option', { value: '' }, 'Choose…'), forms.map((item) => h('option', { value: item.id }, item.title)));
+        const advice = h('p', { class: 'muted', 'aria-live': 'polite' });
+        const suggestionsOn = context.config?.addons?.['diagnofast.walkin_suggestion'];
+        return h('div', { class: 'department-picker' },
+            badge('to confirm', 'warn'),
+            suggestionsOn && h('button', {
+                type: 'button', class: 'quiet',
+                onclick: async () => {
+                    const found = await act(() => api(`/api/opd/bookings/${row.id}/suggestion`), context);
+                    if (!found) return;
+                    if (found.form_id) choice.value = found.form_id;
+                    advice.textContent = found.form_id ? `Suggested for staff: ${found.department}. ${found.note}` : found.note;
+                },
+            }, 'Suggest (staff only)'),
+            choice,
+            h('button', {
+                type: 'button',
+                onclick: async () => {
+                    if (!choice.value) { advice.textContent = 'Choose a department first.'; return; }
+                    const done = await act(() => api(`/api/opd/bookings/${row.id}/department`, { method: 'POST', body: { form_id: choice.value } }), context, 'Department confirmed');
+                    if (done) await load();
+                },
+            }, 'Confirm'),
+            advice);
+    }
+
+    const walkInForm = form(
+        [
+            { name: 'patient_name', label: 'Patient name (made up)', required: true, maxlength: 120 },
+            { name: 'patient_age', label: 'Age', type: 'number', min: 0, max: 130 },
+            { name: 'phone', label: 'Mobile number', required: true, maxlength: 20, placeholder: '98765 43210' },
+            { name: 'form_id', label: 'Department', type: 'select', options: [['', 'Not sure: staff confirm after the interview'], ...forms.map((item) => [item.id, item.title])] },
+        ],
+        'Add walk-in and send link',
+        async (values, element) => {
+            const made = await act(() => api('/api/opd/walk-ins', {
+                method: 'POST',
+                body: { patient_name: values.patient_name, phone: values.phone, form_id: values.form_id || null, patient_age: values.patient_age === '' ? null : Number(values.patient_age) },
+            }), context, 'Walk-in added');
+            if (!made) return;
+            show(lastMessage, h('p', {}, h('strong', {}, `Queue number ${made.queue_number}`), ` · ${made.department || 'department to confirm'}`), messageBox(made.message));
+            element.reset();
+            await load();
+        },
+    );
 
     const dayPicker = h('input', { type: 'date', value: day, 'aria-label': 'Day' });
     dayPicker.addEventListener('change', async () => { day = dayPicker.value || today(); await load(); });
@@ -120,7 +170,8 @@ export async function renderBookings(container, context) {
         h('p', { class: 'lede' }, 'Book a patient into a slot. They get a queue number, and their interview link goes to the demo outbox. Nothing is sent to a real phone.'),
         h('p', {}, h('a', { href: '#/diagnofast' }, '← Back to DiagnoFast')), h('label', {}, 'Day', dayPicker),
         h('div', { class: 'columns' },
-            h('div', { class: 'sheet' }, h('h2', {}, 'Book a patient'), bookForm, lastMessage),
+            h('div', { class: 'sheet' }, h('h2', {}, 'Book a patient'), bookForm, lastMessage,
+                h('h3', {}, 'Walk-in, no booking'), walkInForm),
             h('div', { class: 'sheet' }, h('h2', {}, 'Slots'), slotsBox, h('h3', {}, 'Add a slot'), addSlot)),
         h('div', { class: 'sheet' }, h('h2', {}, 'Queue for the day'), bookingsBox),
         h('div', { class: 'sheet' }, h('h2', {}, 'Demo SMS / WhatsApp outbox'), outboxBox));

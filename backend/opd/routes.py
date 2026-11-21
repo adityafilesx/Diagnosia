@@ -34,6 +34,8 @@ MOBILE = re.compile(r"^[6-9]\d{9}$")
 LOCAL_TIME = "%Y-%m-%dT%H:%M"
 EVENING_BEFORE = "18:00"
 LINK_HIDDEN = "[link hidden]"
+# A walk-in who isn't sure of their department still needs a form for the interview: the general one.
+WALK_IN_FORM = "general_physician"
 # Neutral on purpose: an outside carrier must never see anything clinical, not even the department.
 MESSAGE = "Your clinic asks you to answer a few questions before your visit. / अपनी विज़िट से पहले कुछ सवालों के जवाब दें: {link}"
 
@@ -161,6 +163,24 @@ class NewBooking(BaseModel):
         return normalise_phone(value)
 
 
+class NewWalkIn(BaseModel):
+    patient_name: str = Field(min_length=1, max_length=120)
+    patient_age: Optional[int] = Field(default=None, ge=0, le=130)
+    patient_sex: Optional[Literal["female", "male", "other"]] = None
+    phone: str = Field(max_length=20)
+    form_id: Optional[str] = Field(default=None, max_length=64)  # empty: "not sure", staff confirm later
+    channel: Literal["sms", "whatsapp"] = "sms"
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, value: str) -> str:
+        return normalise_phone(value)
+
+
+class Department(BaseModel):
+    form_id: str = Field(max_length=64)
+
+
 class Resend(BaseModel):
     channel: Literal["sms", "whatsapp"] = "sms"
 
@@ -182,7 +202,7 @@ def issue_link(db: sqlite3.Connection, booking: sqlite3.Row, base_url: str, chan
     doctor = db.execute("SELECT * FROM users WHERE id = ?", (booking["doctor_id"],)).fetchone()
     made = diagnofast.create_intake(
         diagnofast.NewIntake(
-            form_id=booking["form_id"], patient_name=booking["patient_name"], patient_age=booking["patient_age"],
+            form_id=booking["form_id"] or WALK_IN_FORM, patient_name=booking["patient_name"], patient_age=booking["patient_age"],
             patient_sex=booking["patient_sex"], patient_id=booking["patient_id"],
         ),
         doctor,
@@ -268,8 +288,6 @@ def resend_link(
     doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db),
 ) -> dict:
     booking = _managed_booking(db, doctor, booking_id)
-    if not booking["form_id"]:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "There's no such booking.")
     if booking["intake_id"]:
         current = db.execute("SELECT status FROM intakes WHERE id = ?", (booking["intake_id"],)).fetchone()
         if current and current["status"] not in ("waiting", "expired"):
@@ -330,3 +348,80 @@ def outbox(doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection
          "text": row["text"], "send_at": row["send_at"], "created_at": row["created_at"], "sent": False}
         for row in rows
     ]
+
+
+@router.post("/walk-ins", status_code=status.HTTP_201_CREATED, dependencies=[Depends(bookings_on)])
+def create_walk_in(
+    request: NewWalkIn, http: Request, doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)
+) -> dict:
+    """A patient with no booking, seen by the signed-in doctor today. With no department, staff confirm one later."""
+    if doctor["id"] not in _managed_doctors(db, doctor):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only add walk-ins to your own queue.")
+    if request.form_id is not None and agent.load_form(request.form_id) is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown department.")
+    visit_date = date.today().isoformat()
+    booking_id = insert(
+        db, "opd_bookings", slot_id=None, doctor_id=doctor["id"], visit_date=visit_date,
+        queue_number=next_queue_number(db, doctor["id"], visit_date), form_id=request.form_id,
+        department_confirmed_by=doctor["id"] if request.form_id else None, walk_in=1,
+        patient_name=request.patient_name.strip(), patient_age=request.patient_age, patient_sex=request.patient_sex,
+        phone=request.phone, created_by=doctor["id"], created_at=now_iso(),
+    )
+    booking = db.execute("SELECT * FROM opd_bookings WHERE id = ?", (booking_id,)).fetchone()
+    message = issue_link(db, booking, str(http.base_url), request.channel)
+    audit.record(db, doctor, "opd.walk_in.created", resource_type="opd_booking", resource_id=booking_id)
+    return {
+        "id": booking_id, "queue_number": booking["queue_number"], "visit_date": visit_date,
+        "form_id": request.form_id, "department": department(request.form_id), "message": message,
+    }
+
+
+@router.get("/bookings/{booking_id}/suggestion", dependencies=[Depends(bookings_on)])
+def department_suggestion(booking_id: str, doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """A department suggestion for STAFF, from the question graph. Never shown to the patient: routing a
+    patient by AI is close to triage, where CDSCO rules may apply. A person confirms or chooses otherwise."""
+    import json
+
+    from backend.diagnofast import guidance
+    from backend.integrations import graph
+
+    if not addons.enabled("diagnofast.walkin_suggestion", db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": "addon_off", "message": "Walk-in suggestions are switched off."})
+    booking = _managed_booking(db, doctor, booking_id)
+    note = "A suggestion for staff only. Confirm a department before telling the patient."
+    empty = {"form_id": None, "department": None, "because": [], "source": None}
+    intake = db.execute("SELECT transcript FROM intakes WHERE id = ?", (booking["intake_id"],)).fetchone() if booking["intake_id"] else None
+    complaints = guidance.match_complaints([turn["answer"] for turn in json.loads(intake["transcript"])]) if intake else []
+    if not complaints:
+        return {**empty, "note": "Nothing to suggest yet: the interview hasn't named a complaint the graph knows."}
+    client = graph.client(db)
+    if client is None:
+        return {**empty, "note": "Suggestions are unavailable: Neo4j isn't connected. Please choose a department."}
+    try:
+        db.commit()  # no lock held while Neo4j answers
+        guidance.ensure_questions(client)
+        votes = client.department_votes(complaints)
+    except graph.GraphUnavailable:
+        return {**empty, "note": "Suggestions are unavailable: Neo4j didn't answer. Please choose a department."}
+    if not votes:
+        return {**empty, "note": "Nothing to suggest for these complaints. Please choose a department."}
+    best = max(votes.items(), key=lambda item: (item[1], item[0] == WALK_IN_FORM))[0]
+    return {"form_id": best, "department": department(best), "because": complaints, "source": "neo4j", "note": note}
+
+
+@router.post("/bookings/{booking_id}/department", dependencies=[Depends(bookings_on)])
+def confirm_department(
+    booking_id: str, request: Department, doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    """A person confirms the department. Only then does the patient's status page show one."""
+    booking = _managed_booking(db, doctor, booking_id)
+    if agent.load_form(request.form_id) is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown department.")
+    if not booking["walk_in"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A booked patient's department comes from their slot.")
+    db.execute(
+        "UPDATE opd_bookings SET form_id = ?, department_confirmed_by = ? WHERE id = ?",
+        (request.form_id, doctor["id"], booking_id),
+    )
+    audit.record(db, doctor, "opd.department.confirmed", resource_type="opd_booking", resource_id=booking_id)
+    return {"form_id": request.form_id, "department": department(request.form_id)}

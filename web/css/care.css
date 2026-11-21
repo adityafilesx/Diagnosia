@@ -592,3 +592,4 @@ button:not(.quiet):not(.danger):not(.link-button):not(.patient-row),
 
 .translation-line { margin: 6px 0 0; color: var(--ink-soft); }
 .feedback-panel { margin: 18px 0; }
+.department-picker { display: grid; gap: 6px; min-width: 12rem; }

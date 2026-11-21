@@ -128,7 +128,7 @@ def examples(db: Optional[sqlite3.Connection] = None) -> List[dict]:
     return found[:MAX_EXAMPLES]
 
 
-def _loaded(client) -> bool:
+def ensure_questions(client) -> bool:
     """Loads the seed into Neo4j once per process. Idempotent, so a second load changes nothing."""
     version = seed()["version"]
     if getattr(client, "_questions_loaded", None) == version:
@@ -149,7 +149,7 @@ def graph_suggestion(db: sqlite3.Connection, complaints: List[str], asked: List[
     if client is None:
         return None
     try:
-        _loaded(client)
+        ensure_questions(client)
         found = client.next_question(complaints, asked)
     except graph.GraphUnavailable as error:
         logger.warning("Question graph unavailable, the AI chooses alone: %s", error)
