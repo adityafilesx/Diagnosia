@@ -293,6 +293,19 @@ def signoff(args) -> int:
     return 0
 
 
+def graph_rebuild(args) -> int:
+    """Empties the Neo4j copy and queues every finished DiagnoFast visit again. SQLite is the record."""
+    from backend.diagnofast import graph_sync
+
+    init_db()
+    queued = graph_sync.rebuild()
+    if queued < 0:
+        print("Neo4j isn't available here: switch it on in Settings, set NEO4J_URI, and use made-up patients only.", file=sys.stderr)
+        return 1
+    print(f"Cleared the Neo4j copy and queued {queued} finished visits. The app's sweep sends them.")
+    return 0
+
+
 def revoke_signoff(args) -> int:
     db = connect()
     db.execute(
@@ -623,6 +636,7 @@ def parser() -> argparse.ArgumentParser:
         (("--document-reference",), required),
         (("--operator",), required),
     )
+    command("graph-rebuild", graph_rebuild)
     command("revoke-signoff", revoke_signoff, (("--item",), required), (("--operator",), required))
     command("readiness", readiness)
     command("ai-usage", ai_usage, (("--days",), {"type": int, "default": 7}))

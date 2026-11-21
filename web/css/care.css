@@ -577,3 +577,15 @@ button:not(.quiet):not(.danger):not(.link-button):not(.patient-row),
   body:has(.requisition) .intake-print-page { position: static; display: grid; margin: 0; }
   body:not(:has(.requisition)) .intake-print-page { display: none; }
 }
+
+/* DiagnoFast evidence and history graphs (BUILD.md step 8). */
+.graph-panel { margin: 18px 0; }
+.graph-scroll { overflow-x: auto; }
+.graph-picture { width: 100%; min-width: 560px; height: auto; display: block; }
+.graph-picture text { font-size: 13px; fill: var(--ink); }
+.graph-picture .graph-note { font-size: 12px; opacity: 0.8; }
+.graph-picture .graph-note.warn { opacity: 1; font-weight: 600; fill: var(--alert); }
+.graph-node rect { fill: var(--band); stroke: var(--edge); }
+.graph-node.answer rect { stroke-dasharray: 4 3; }
+.graph-node.row.uncited rect, .graph-node.visit.current rect { stroke-width: 2; }
+.graph-edge { fill: none; stroke: var(--action); stroke-width: 1.5; opacity: 0.8; }

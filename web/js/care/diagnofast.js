@@ -2,6 +2,7 @@
 import { act, api, form, h, show, when } from './ui.js';
 import { packPanel } from './pack.js';
 import { renderBookings } from './opd.js';
+import { graphsPanel } from './graphs.js';
 
 const STATUS_TEXT = {
     waiting: 'Not started',
@@ -156,6 +157,7 @@ export function reportView(detail, context) {
             h('p', {}, 'Provisional / differential diagnosis: ', h('span', { class: 'writing-line' })),
             h('p', { class: 'plan-line' }, 'Prescription / plan: ', h('span', { class: 'writing-line' })),
             h('div', { class: 'signoff' }, h('p', {}, 'Doctor signature: ____________________'), h('p', {}, 'Date: ____________________'))),
+        detail.graphs && graphsPanel(detail.graphs),
         h('details', { class: 'no-print requisition-original', open: !report },
             h('summary', {}, 'Original form answers & patient transcript'),
             h('h3', {}, `${detail.form_title} form`),
@@ -253,6 +255,7 @@ export function preparePrintReport(container, detail) {
 async function renderReport(container, id, context) {
     const load = async () => {
         const detail = await api(`/api/diagnofast/intakes/${id}`);
+        if (detail.status === 'done') detail.graphs = await api(`/api/diagnofast/intakes/${id}/graph`).catch(() => null);
         show(container, h('h1', { class: 'no-print' }, 'DiagnoFast'), reportView(detail, context));
         preparePrintReport(container, detail);
         return detail;

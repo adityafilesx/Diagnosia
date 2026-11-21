@@ -28,6 +28,7 @@ from backend.clinscribe import routes as clinscribe
 from backend.config import WEB_DIR, settings
 from backend.db import connect, init_db
 from backend.diagnofast import routes as diagnofast
+from backend.diagnofast import graph_sync
 from backend.opd import routes as opd
 from backend.opd import slot_login
 from backend.dischargecare import routes as dischargecare
@@ -119,6 +120,7 @@ SWEEP_STEPS = (
     ("expired_links", diagnofast.expire_stale),
     ("stale_reports", diagnofast.fail_stale_reports),
     ("old_prescription_readings", prescription.forget_old_readings),
+    ("graph_projection", graph_sync.sweep),  # does nothing unless Neo4j is switched on
 )
 
 

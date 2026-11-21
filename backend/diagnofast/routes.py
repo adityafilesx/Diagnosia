@@ -35,7 +35,7 @@ from backend.auth import require_doctor
 from backend.careflow import events
 from backend.config import settings
 from backend.db import connect, get_db, release
-from backend.diagnofast import abha, agent, recordings, validate
+from backend.diagnofast import abha, agent, graph_sync, recordings, validate
 from backend.patient_pack import sync as pack
 from backend.records import audit, care, consent
 from backend.records.access import READ, WRITE, lookup, open_patient
@@ -430,9 +430,19 @@ def review_report(
     ).rowcount
     if not stamped:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only a finished interview that hasn't been reviewed can be stamped.")
+    if row["status"] == "done":
+        graph_sync.enqueue(db, "intake", row["id"])  # the copy shows it reviewed
     if not row["patient_id"]:  # with a chart, the gate above has already written this to the audit log
         audit.record(db, doctor, "diagnofast.report.reviewed", None, "intake", str(row["id"]))
     return {"reviewed": True}
+
+
+@router.get("/intakes/{intake_id}/graph")
+def intake_graphs(intake_id: int, doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """The evidence and history graphs. Neo4j says which items link; every word comes from SQLite."""
+    row = _readable_intake(intake_id, doctor, db, "diagnofast.report.viewed")
+    release(db)  # no lock held while Neo4j answers
+    return graph_sync.views(db, row)
 
 
 @router.post("/intakes/{intake_id}/report/retry", status_code=status.HTTP_202_ACCEPTED)
@@ -704,6 +714,7 @@ def _build_report(intake_id: int) -> None:
             )
             if row["patient_id"]:  # an intake with no record has no patient to attach it to
                 pack.enqueue(db, row["patient_id"], "intake", intake_id)
+            graph_sync.enqueue(db, "intake", intake_id)  # a reference only, with the change
             events.emit(db, MODULE, "intake.review_required", _workflow(db, row), "review_required", key=str(intake_id), metadata={"review_required": True}, used_ai=True)
         except Exception as error:  # any failure, so the intake never stays "preparing" for ever
             # The doctor can still read the answers and transcript, and can retry.
