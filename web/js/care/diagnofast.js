@@ -92,7 +92,7 @@ function conflictsPanel(found) {
         found.flags.length
             ? h('ul', {}, found.flags.map((flag) => h('li', {}, h('strong', {}, flag.message),
                 h('ul', {}, flag.records.map((entry) => h('li', { class: 'muted' }, `${entry.text} · ${entry.where}${entry.doctor ? ` · ${entry.doctor}` : ''}`))))))
-            : h('p', { class: 'muted' }, `No possible conflicts in ${found.checked.medicines} confirmed medicines and ${found.checked.allergies} allergies.`),
+            : h('p', { class: 'muted' }, `No possible conflicts in ${found.checked.medicines} confirmed medicine${found.checked.medicines === 1 ? '' : 's'} and ${found.checked.allergies} allerg${found.checked.allergies === 1 ? 'y' : 'ies'}.`),
         h('p', { class: 'muted' }, found.salt_check.reason));
 }
 
