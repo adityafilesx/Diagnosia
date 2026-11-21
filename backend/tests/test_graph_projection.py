@@ -188,3 +188,12 @@ def test_the_rebuild_command_clears_and_requeues(doctor, client, patient, fake_g
     assert operator(["graph-rebuild"]) == 0
     assert "clear" in fake_graph.calls
     assert queued(intake_id)["state"] == "queued"
+
+
+def test_the_neo4j_copy_runs_on_the_five_second_delivery_loop_not_the_five_minute_sweep():
+    import inspect
+
+    from backend import app as app_module
+
+    assert "graph_sync.background_pass" in inspect.getsource(app_module._deliver_forever)
+    assert all(name != "graph_projection" for name, _ in app_module.SWEEP_STEPS)

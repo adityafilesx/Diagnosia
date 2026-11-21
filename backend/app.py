@@ -121,7 +121,6 @@ SWEEP_STEPS = (
     ("expired_links", diagnofast.expire_stale),
     ("stale_reports", diagnofast.fail_stale_reports),
     ("old_prescription_readings", prescription.forget_old_readings),
-    ("graph_projection", graph_sync.sweep),  # does nothing unless Neo4j is switched on
 )
 
 
@@ -162,6 +161,12 @@ async def _deliver_forever() -> None:
             await run_in_threadpool(pack_sync.run_once)
         except Exception as error:  # An optional integration must never stop the app.
             logger.warning("Patient pack pass failed: %s", type(error).__name__)
+        try:
+            # The Neo4j copy, every few seconds so a finished visit shows in the graphs quickly. Does nothing
+            # unless Neo4j is switched on.
+            await run_in_threadpool(graph_sync.background_pass)
+        except Exception as error:  # An optional integration must never stop the app.
+            logger.warning("Neo4j copy pass failed: %s", type(error).__name__)
 
 
 def _prepare_content() -> None:

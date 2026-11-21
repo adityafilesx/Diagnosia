@@ -134,8 +134,8 @@ def run_once(now: Optional[datetime] = None) -> int:
         db.close()
 
 
-def sweep(db: sqlite3.Connection) -> int:
-    """For the app's sweep, which passes its own connection; the worker uses its own."""
+def background_pass() -> int:
+    """For the app's delivery loop. Tests replace it, and call run_once themselves."""
     return run_once()
 
 
