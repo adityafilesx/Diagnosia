@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>DiagnoFast · Find your booking</title>
+  <link rel="icon" href="images/favicon.png">
+  <link rel="stylesheet" href="css/tools.css">
+</head>
+<body class="intake-page">
+  <header class="intake-header"><a href="index.html"><img src="images/logo_inv.svg" alt="Curai" width="114" height="34"></a><span>DiagnoFast <small>Find your booking</small></span></header>
+  <main class="intake-shell">
+    <section id="slot-inactive" class="tool-panel" hidden>
+      <h1>Please ask reception / रिसेप्शन पर पूछें</h1>
+      <p id="slot-inactive-message">This QR code isn't active. Please ask reception.</p>
+    </section>
+    <section id="slot-phone" class="tool-panel" hidden aria-labelledby="slot-title">
+      <p class="intake-eyebrow">01 / YOUR BOOKING · आपकी बुकिंग</p>
+      <h1 id="slot-title">Find your booking / अपनी बुकिंग खोजें</h1>
+      <p id="slot-details"></p>
+      <label class="tool-label" for="slot-phone-number">Mobile number used for booking / बुकिंग वाला मोबाइल नंबर</label>
+      <input id="slot-phone-number" type="tel" inputmode="numeric" maxlength="20" autocomplete="tel" placeholder="98765 43210">
+      <div class="tool-actions"><button id="slot-send" class="use-now" type="button">Get a code / कोड पाएँ</button></div>
+      <p id="slot-phone-error" class="tool-error" role="alert" hidden></p>
+    </section>
+    <section id="slot-code" class="tool-panel" hidden aria-labelledby="slot-code-title">
+      <p class="intake-eyebrow">02 / CHECK YOUR NUMBER · नंबर की पुष्टि</p>
+      <h1 id="slot-code-title">Type the 6-digit code / 6 अंकों का कोड लिखें</h1>
+      <p id="slot-demo-note" class="intake-hint" hidden></p>
+      <label class="tool-label" for="slot-code-input">Code / कोड</label>
+      <input id="slot-code-input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+      <div class="tool-actions"><button id="slot-verify" class="use-now" type="button">Check / जाँचें</button></div>
+      <p id="slot-code-error" class="tool-error" role="alert" hidden></p>
+    </section>
+    <section id="slot-names" class="tool-panel" hidden aria-labelledby="slot-names-title">
+      <p class="intake-eyebrow">03 / WHO IS VISITING · कौन दिखाने आया है</p>
+      <h1 id="slot-names-title">Choose your name / अपना नाम चुनें</h1>
+      <p>Names are partly hidden. / नाम आंशिक रूप से छिपे हैं।</p>
+      <div id="slot-name-list" class="specialty-grid"></div>
+      <p id="slot-names-error" class="tool-error" role="alert" hidden></p>
+    </section>
+    <p class="intake-help">Need help? Please ask reception. / मदद के लिए रिसेप्शन पर जाएँ।</p>
+  </main>
+  <script src="js/tools.js"></script>
+  <script src="js/slot.js"></script>
+</body>
+</html>

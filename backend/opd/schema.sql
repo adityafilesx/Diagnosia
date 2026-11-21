@@ -47,3 +47,19 @@ CREATE TABLE IF NOT EXISTS opd_outbox (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS opd_outbox_doctor ON opd_outbox (doctor_id, created_at);
+
+-- One-time codes for the slot QR login (BUILD.md step 5). Only hashes are stored. A code lasts
+-- 5 minutes and allows 3 tries; a verified code becomes a session that can pick one name, once.
+CREATE TABLE IF NOT EXISTS opd_otps (
+    id TEXT PRIMARY KEY,
+    slot_id TEXT NOT NULL REFERENCES opd_slots (id) ON DELETE CASCADE,
+    phone TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    session_hash TEXT UNIQUE,
+    session_expires_at TEXT,
+    used_at TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS opd_otps_slot_phone ON opd_otps (slot_id, phone, created_at);

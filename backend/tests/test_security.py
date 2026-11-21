@@ -19,6 +19,9 @@ PUBLIC = {("POST", "/api/auth/register"), ("POST", "/api/auth/login"), ("POST", 
 PUBLIC |= {("GET", "/api/diagnofast/kiosk"), ("POST", "/api/diagnofast/kiosk/intakes")}
 # Public like the kiosk itself: refused unless a kiosk doctor is configured, and rate-limited.
 PUBLIC |= {("POST", "/api/diagnofast/kiosk/consent-audio")}
+# The slot QR login: public by design, behind its switch, rate-limited, and proved by a one-time code.
+PUBLIC |= {("GET", "/api/opd/qr/{slot_code}"), ("POST", "/api/opd/qr/{slot_code}/otp"),
+           ("POST", "/api/opd/qr/{slot_code}/verify"), ("POST", "/api/opd/qr/{slot_code}/choose")}
 # Health checks for a host or load balancer. They say only ok, or which of two checks failed.
 PUBLIC |= {("GET", "/healthz"), ("GET", "/readyz")}
 # DiagnoFast's patient has no account. The one-interview link in the path is the credential.
@@ -61,7 +64,7 @@ GATES = (
     "_editable", "_side", "_change", "_decide", "_is_receiver", "_require_admin",
 
     "_readable_intake", "_open_intake", "_open_workflow", "_allowed", "gate_staff", "open_pack",
-    "_kiosk_doctor", "_managed_slot", "_managed_booking", "_managed_doctors",
+    "_kiosk_doctor", "_managed_slot", "_managed_booking", "_managed_doctors", "_open_slot",
 )
 NEEDS_NO_RECORD = {
     "register", "login", "logout", "me", "my_status", "accept_invitation", "system_status", "system_readiness",

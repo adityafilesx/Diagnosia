@@ -29,6 +29,7 @@ from backend.config import WEB_DIR, settings
 from backend.db import connect, init_db
 from backend.diagnofast import routes as diagnofast
 from backend.opd import routes as opd
+from backend.opd import slot_login
 from backend.dischargecare import routes as dischargecare
 from backend.integrations import execution
 from backend.lablens import extract as lablens_jobs
@@ -65,7 +66,7 @@ CARE_PAGE_POLICY = (
     "frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
 )
 # The workspace and the patient interview handle patient data, so they keep the strict policy above.
-STRICT_PAGES = ("care.html", "intake.html")
+STRICT_PAGES = ("care.html", "intake.html", "slot.html")
 # An API answer is data. A browser that opens one directly may load and run nothing.
 API_POLICY = "default-src 'none'; frame-ancestors 'none'"
 # Browsers remember for a year that this site is HTTPS-only. Sent only when CURAI_HTTPS=1.
@@ -211,6 +212,7 @@ _tool(dischargecare.router, "discharge")
 _tool(referralloop.router, "referrals")
 _tool(diagnofast.router, "diagnofast")
 _tool(opd.router, "diagnofast")  # OPD bookings are part of DiagnoFast
+_tool(slot_login.router, "diagnofast")
 _tool(prescription.router, "prescription")
 app.include_router(reminders.router)
 
