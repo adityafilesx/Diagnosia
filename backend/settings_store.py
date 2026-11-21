@@ -61,6 +61,7 @@ ADDON_SWITCHES = {
     "diagnofast.slot_login": ("DiagnoFast add-ons", "Slot QR login with a phone number and a one-time code"),
     "diagnofast.walkin_suggestion": ("DiagnoFast add-ons", "Department suggestion for walk-ins, shown to staff only"),
     "diagnofast.review_feedback": ("DiagnoFast add-ons", "Ask the reviewing doctor what they wish had been asked"),
+    "referrals.network_view": ("ReferralLoop add-ons", "Referral network view for staff: paths, overdue loops, specialist load (uses Neo4j when on)"),
     "sarvam.llm": ("Sarvam AI", "Also try Sarvam's chat model as a third AI provider, last, for text only (stretch)"),
 }
 

@@ -35,6 +35,10 @@ class GraphClient(Protocol):
 
     def evidence(self, visit_ref: str) -> List[dict]: ...
 
+    def merge_referral(self, referral: dict) -> None: ...
+
+    def referral_network(self, refs: Sequence[str]) -> List[dict]: ...
+
     def clear(self) -> None: ...
 
 
@@ -50,6 +54,8 @@ CONSTRAINTS = (
     "CREATE CONSTRAINT term_key IF NOT EXISTS FOR (n:Term) REQUIRE n.key IS UNIQUE",
     "CREATE CONSTRAINT answer_ref IF NOT EXISTS FOR (n:Answer) REQUIRE n.ref IS UNIQUE",
     "CREATE CONSTRAINT row_ref IF NOT EXISTS FOR (n:ReportRow) REQUIRE n.ref IS UNIQUE",
+    "CREATE CONSTRAINT referral_ref IF NOT EXISTS FOR (n:Referral) REQUIRE n.ref IS UNIQUE",
+    "CREATE CONSTRAINT destination_ref IF NOT EXISTS FOR (n:Destination) REQUIRE n.ref IS UNIQUE",
 )
 
 LOAD_QUESTIONS = """
@@ -116,6 +122,30 @@ WITH r, row
 UNWIND row.turns AS turn
 MATCH (a:Answer {ref: $visit_ref + ':turn:' + toString(turn)})
 MERGE (r)-[:CITES]->(a)
+"""
+
+# A referral: who sent it, where it went, its coded specialty and dates. No reason, question or patient.
+MERGE_REFERRAL = """
+MERGE (r:Referral {ref: $ref})
+SET r.specialty = $specialty, r.priority = $priority, r.status = $status, r.open = $open,
+    r.respond_by = $respond_by, r.day = $day
+MERGE (f:Doctor {ref: $from_ref})
+MERGE (f)-[:REFERRED]->(r)
+WITH r
+OPTIONAL MATCH (r)-[old:SENT_TO]->()
+DELETE old
+WITH DISTINCT r
+MERGE (d:Destination {ref: $to_ref})
+MERGE (r)-[:SENT_TO]->(d)
+"""
+
+# Only the referrals SQLite says this person may see ($refs). Overdue is worked out now, not when copied.
+REFERRAL_NETWORK = """
+MATCH (f:Doctor)-[:REFERRED]->(r:Referral)-[:SENT_TO]->(d:Destination)
+WHERE r.ref IN $refs
+RETURN r.ref AS ref, f.ref AS from_ref, d.ref AS to_ref, r.specialty AS specialty, r.open AS open,
+       r.respond_by AS respond_by, r.priority AS priority, r.status AS status
+ORDER BY ref
 """
 
 HISTORY = """
@@ -190,9 +220,18 @@ class Neo4jGraph:
     def evidence(self, visit_ref: str) -> List[dict]:
         return self._run(EVIDENCE, visit_ref=visit_ref)
 
+    def merge_referral(self, referral: dict) -> None:
+        self._constraints()
+        self._run(MERGE_REFERRAL, **referral)
+
+    def referral_network(self, refs: Sequence[str]) -> List[dict]:
+        return self._run(REFERRAL_NETWORK, refs=list(refs))
+
     def clear(self) -> None:
         # Only the projection's own labels. The question graph is reloaded from its seed file afterwards.
-        self._run("MATCH (n) WHERE n:Patient OR n:Visit OR n:Doctor OR n:Term OR n:Answer OR n:ReportRow DETACH DELETE n")
+        self._run(
+            "MATCH (n) WHERE n:Patient OR n:Visit OR n:Doctor OR n:Term OR n:Answer OR n:ReportRow OR n:Referral OR n:Destination DETACH DELETE n"
+        )
 
 
 _lock = threading.Lock()

@@ -15,6 +15,7 @@ class FakeGraph:
         self.down = down
         self.rows: List[dict] = []
         self.visits: Dict[str, dict] = {}
+        self.referrals: Dict[str, dict] = {}
         self.calls: List[str] = []
         self.loads = 0
 
@@ -81,6 +82,16 @@ class FakeGraph:
             for row in sorted(visit["rows"], key=lambda row: row["index"])
         ]
 
+    def merge_referral(self, referral: dict) -> None:
+        self._check("merge_referral")
+        self.referrals[referral["ref"]] = dict(referral)
+
+    def referral_network(self, refs: Sequence[str]) -> List[dict]:
+        self._check("referral_network")
+        keys = ("ref", "from_ref", "to_ref", "specialty", "open", "respond_by", "priority", "status")
+        return [{key: self.referrals[ref][key] for key in keys} for ref in sorted(refs) if ref in self.referrals]
+
     def clear(self) -> None:
         self._check("clear")
         self.visits = {}
+        self.referrals = {}

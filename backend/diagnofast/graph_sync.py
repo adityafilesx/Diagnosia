@@ -98,15 +98,24 @@ def run_once(now: Optional[datetime] = None) -> int:
             (now.isoformat(timespec="seconds"), BATCH),
         ).fetchall()
         for item in due:
-            row = db.execute("SELECT * FROM intakes WHERE id = ?", (item["source_id"],)).fetchone()
-            visit = visit_for(row) if row is not None else None
+            if item["source_type"] == "referral":
+                from backend.referralloop import network
+
+                row = db.execute("SELECT * FROM referrals WHERE id = ?", (item["source_id"],)).fetchone()
+                payload = network.referral_for(row) if row is not None else None
+                send = client.merge_referral
+            else:
+                row = db.execute("SELECT * FROM intakes WHERE id = ?", (item["source_id"],)).fetchone()
+                payload = visit_for(row) if row is not None else None
+                send = client.merge_visit
+            visit = payload
             if visit is None:
                 db.execute("UPDATE graph_items SET state = 'skipped', updated_at = ? WHERE id = ?", (now_iso(), item["id"]))
                 db.commit()
                 continue
             db.commit()  # no lock held while Neo4j answers
             try:
-                client.merge_visit(visit)
+                send(visit)
             except graph.GraphUnavailable as error:
                 attempts = item["attempts"] + 1
                 later = now + timedelta(seconds=retry_delay(attempts))
@@ -142,6 +151,9 @@ def rebuild() -> int:
         count = 0
         for row in db.execute("SELECT id FROM intakes WHERE status = 'done' AND report IS NOT NULL").fetchall():
             enqueue(db, "intake", row["id"])
+            count += 1
+        for row in db.execute("SELECT id FROM referrals").fetchall():
+            enqueue(db, "referral", row["id"])
             count += 1
         db.execute("UPDATE graph_items SET next_attempt_at = ? WHERE state = 'queued'", (stamp,))
         db.commit()

@@ -2,7 +2,7 @@
 -- reads the finished record from SQLite when it sends, so Neo4j can always be rebuilt from here.
 CREATE TABLE IF NOT EXISTS graph_items (
     id TEXT PRIMARY KEY,
-    source_type TEXT NOT NULL CHECK (source_type IN ('intake')),
+    source_type TEXT NOT NULL CHECK (source_type IN ('intake', 'referral')),
     source_id TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'sent', 'skipped')),
     attempts INTEGER NOT NULL DEFAULT 0,

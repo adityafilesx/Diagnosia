@@ -13,13 +13,16 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 
+from backend import addons
 from backend.auth import require_doctor, require_user
 from backend.db import get_db
+from backend.diagnofast import graph_sync
 from backend.patient_pack import sync as pack
 from backend.records import access as gate
 from backend.records import audit, care, documents
 from backend.records.access import CLINICAL
 from backend.records.store import insert, now_iso, one, rows, update
+from backend.referralloop import network
 
 router = APIRouter(prefix="/api/addons/referrals")
 
@@ -172,6 +175,7 @@ def _is_manual(referral: sqlite3.Row) -> bool:
 def _log(
     db: sqlite3.Connection, referral: sqlite3.Row, new_status: str, user_id: int, side: str, note: str = "", source: str = "app"
 ) -> None:
+    graph_sync.enqueue(db, "referral", referral["id"])  # a reference for the Neo4j copy, with the change
     insert(
         db,
         "referral_events",
@@ -467,6 +471,7 @@ def create_referral(
         note=f"Priority: {request.priority}",
         created_at=timestamp,
     )
+    graph_sync.enqueue(db, "referral", referral_id)  # a reference for the Neo4j copy, with the change
     _notify_receivers(db, referral, f"New {request.priority} {request.specialty} referral", request.reason[:200])
     care.add_timeline(db, request.patient_id, "referralloop", f"Referred to {request.specialty}", request.priority, "referral", referral_id)
     return _payload(db, referral, "referrer")
@@ -512,6 +517,15 @@ def exception_queue(user=Depends(require_doctor), db: sqlite3.Connection = Depen
     payloads = [_payload(db, referral, "referrer") for referral in mine]
     payloads += [_payload(db, referral, "receiver") for referral in _inbox_rows(db, user)]
     return [referral for referral in payloads if referral["exceptions"]]
+
+
+@router.get("/network")
+def referral_network(user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Staff only: who refers to whom, overdue loops and specialist load, for the referrals this person
+    may see. No patient appears in it."""
+    if not addons.enabled("referrals.network_view", db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": "addon_off", "message": "The referral network view is switched off."})
+    return network.view(db, network._network_scope(db, user))  # SQLite decides what is in scope
 
 
 @router.get("/patients/{patient_id}")

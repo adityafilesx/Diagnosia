@@ -1,6 +1,7 @@
 // ReferralLoop: send a referral and follow it until the outcome is reviewed.
 import { act, api, ask, badge, form, h, section, table, toast, when, show } from './ui.js';
 import { packPanel } from './pack.js';
+import { networkPanel } from './referral_network.js';
 
 const BASE = '/api/addons/referrals';
 const PACK_STATUSES = ['accepted', 'appointment_offered', 'booked', 'rescheduled', 'no_show', 'attended', 'outcome_returned'];
@@ -345,6 +346,7 @@ export async function renderReferrals(container, context) {
     const { patient, isClinician, isStaff } = context;
     const area = h('div', {});
     const lists = h('div', {});
+    const networkBox = h('div', {});
     const loadLists = async () => {
         const [rows, inbox, exceptions] = await Promise.all([
             patient ? api(`${BASE}/patients/${patient.id}`) : [],
@@ -396,7 +398,12 @@ export async function renderReferrals(container, context) {
             : h('p', { class: 'empty', id: 'new-referral-guard' }, patient ? 'Only a clinician on this patient\'s care team can send a referral.' : 'Open a patient to send a new referral. Referrals sent to you are listed below.'),
         area,
         lists,
+        context.config?.addons?.['referrals.network_view'] && h('details', { class: 'sheet referral-network' },
+            h('summary', {}, h('h2', { style: 'display:inline' }, 'Referral network (staff only)')), networkBox),
     );
     await loadLists();
+    if (context.config?.addons?.['referrals.network_view']) {
+        show(networkBox, await networkPanel().catch((error) => h('p', { class: 'error' }, error.message)));
+    }
     return undefined;
 }

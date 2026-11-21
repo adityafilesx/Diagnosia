@@ -34,7 +34,7 @@ def real():
     driver.verify_connectivity()
     client = graph.Neo4jGraph(driver, settings.neo4j_database)
     yield client
-    client._run("MATCH (n) WHERE n.ref STARTS WITH 'livetest' DETACH DELETE n")
+    client._run("MATCH (n) WHERE n.ref STARTS WITH 'livetest' DETACH DELETE n")  # visits, referrals, doctors, destinations
     driver.close()
     print("\nNeo4j query timings (ms):", {name: round(ms, 1) for name, ms in TIMINGS.items()})
 
@@ -131,3 +131,22 @@ def test_visits_merge_and_read_back_including_one_with_no_medicines_or_allergies
     fake.merge_visit(second)
     assert [(i["row"], sorted(a["turn"] for a in i["answers"])) for i in fake.evidence(first["visit_ref"])] == [(0, [1, 3]), (1, [2])]
     assert [v["visit_ref"] for v in fake.history(patient)] == [v["visit_ref"] for v in history]
+
+
+def test_referrals_merge_and_read_back_like_the_fake(real):
+    refs = [f"livetest:referral:{uuid.uuid4().hex[:8]}" for _ in range(2)]
+    rows = [
+        {"ref": refs[0], "from_ref": "livetest:doctor:1", "to_ref": "livetest:org:a", "specialty": "cardiology", "priority": "routine",
+         "status": "sent", "open": True, "respond_by": "2026-11-01", "day": "2026-10-20"},
+        {"ref": refs[1], "from_ref": "livetest:doctor:1", "to_ref": "livetest:doctor:2", "specialty": "ent", "priority": "urgent",
+         "status": "closed", "open": False, "respond_by": "2026-12-01", "day": "2026-11-20"},
+    ]
+    fake = FakeGraph()
+    for row in rows:
+        timed("merge_referral", real.merge_referral, row)
+        fake.merge_referral(row)
+    real.merge_referral({**rows[0], "to_ref": "livetest:org:b"})  # redirected: the old destination link goes
+    fake.merge_referral({**rows[0], "to_ref": "livetest:org:b"})
+    got = timed("referral_network", real.referral_network, refs + ["livetest:referral:not-there"])
+    assert got == fake.referral_network(refs + ["livetest:referral:not-there"])
+    assert {item["ref"]: item["to_ref"] for item in got} == {refs[0]: "livetest:org:b", refs[1]: "livetest:doctor:2"}

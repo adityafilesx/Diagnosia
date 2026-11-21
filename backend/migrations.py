@@ -176,6 +176,18 @@ def _intake_graph_state(db: sqlite3.Connection) -> None:
     db.execute("ALTER TABLE intakes ADD COLUMN graph_state TEXT")
 
 
+def _graph_items_referrals(db: sqlite3.Connection) -> None:
+    """Referrals join the Neo4j queue. SQLite can't change a CHECK, so an older table is rebuilt."""
+    found = db.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'graph_items'").fetchone()
+    if found is None or "'referral'" in found[0]:
+        return
+    db.execute("ALTER TABLE graph_items RENAME TO graph_items_old")
+    db.execute(found[0].replace("'intake')", "'intake', 'referral')").replace("graph_items_old", "graph_items"))
+    db.execute("INSERT INTO graph_items SELECT * FROM graph_items_old")
+    db.execute("DROP TABLE graph_items_old")
+    db.execute("CREATE INDEX IF NOT EXISTS graph_items_due ON graph_items (state, next_attempt_at)")
+
+
 MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (1, "account_states", _account_states),
     (2, "organization_verification", _organization_verification),
@@ -196,6 +208,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[sqlite3.Connection], None]]] = [
     (17, "one_draft_per_session", _one_draft_per_session),
     (18, "lab_lines_not_read", _lab_lines_not_read),
     (19, "intake_graph_state", _intake_graph_state),
+    (20, "graph_items_referrals", _graph_items_referrals),
 ]
 
 
