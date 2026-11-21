@@ -62,6 +62,12 @@ def test_pain_follows_socrates_and_fever_asks_pattern_chills_rash_and_travel():
     ("pet mein dard hai", ["abdominal_pain"]),
     ("I moved here last year", []),  # "ear" inside "year" is not an ear problem
     ("हमारा मकान दूर है", []),  # "कान" inside "मकान" is not an ear either
+    # A denied symptom is not a complaint (found in the end-to-end run: "no rash" started rash questions).
+    ("नहीं, कोई दाने नहीं", []),
+    ("No rash, no cough", []),
+    ("koi khansi nahi hai", []),
+    ("Fever since Monday, no cough", ["fever"]),
+    ("बुखार है पर खांसी नहीं", ["fever"]),
 ])
 def test_complaints_are_matched_in_english_hindi_and_hinglish(said, expected):
     assert sorted(guidance.match_complaints([said])) == sorted(expected)

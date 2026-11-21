@@ -85,13 +85,23 @@ def _complaint_patterns() -> Dict[str, re.Pattern]:
     }
 
 
+# A clause that denies something ("no rash", "कोई दाने नहीं", "khansi nahi") names no complaint.
+CLAUSE_BREAK = re.compile(r"[,.;:!?।|]|\b(?:but|and|par|lekin|magar|aur)\b|(?<![\u0900-\u097F])(?:पर|लेकिन|मगर|और)(?![\u0900-\u097F])", re.IGNORECASE)
+NEGATION = re.compile(r"\b(?:no|not|none|never|without|denies|nahi|nahin|nhi|na)\b|नहीं|नही|ना(?![\u0900-\u097F])", re.IGNORECASE)
+
+
 def match_complaints(texts: List[str]) -> List[str]:
-    """The seed's complaints mentioned in the patient's own words, in the order they first appear."""
+    """The seed's complaints mentioned in the patient's own words, in the order they first appear.
+
+    Clauses that deny something are skipped, so "fever since Monday, no cough" is fever only."""
     found: List[str] = []
     for text in texts:
-        for complaint_id, pattern in _complaint_patterns().items():
-            if complaint_id not in found and pattern.search(text or ""):
-                found.append(complaint_id)
+        for clause in CLAUSE_BREAK.split(text or ""):
+            if not clause or NEGATION.search(clause):
+                continue
+            for complaint_id, pattern in _complaint_patterns().items():
+                if complaint_id not in found and pattern.search(clause):
+                    found.append(complaint_id)
     return found
 
 
