@@ -1,6 +1,6 @@
 """Calls real services. Skipped unless asked for, and only ever sends synthetic data.
 
-Public references:  CURAI_LIVE_TESTS=1 pytest -m live backend/tests/live
+Public references:  DIAGNOSIA_LIVE_TESTS=1 pytest -m live backend/tests/live
 Groq also needs a real key in GROQ_API_KEY.
 """
 import io
@@ -18,7 +18,7 @@ from backend.config import settings
 from backend.diagnofast import agent
 
 pytestmark = pytest.mark.live
-ENABLED = os.environ.get("CURAI_LIVE_TESTS") == "1"
+ENABLED = os.environ.get("DIAGNOSIA_LIVE_TESTS") == "1"
 SYNTHETIC_TRANSCRIPT = "Synthetic test. The speaker says only that this is a test sentence."
 
 
@@ -28,7 +28,7 @@ class Echo(BaseModel):
 
 def needs_live():
     if not ENABLED:
-        pytest.skip("Set CURAI_LIVE_TESTS=1 to call real services")
+        pytest.skip("Set DIAGNOSIA_LIVE_TESTS=1 to call real services")
 
 
 def needs_key():

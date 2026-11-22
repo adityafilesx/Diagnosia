@@ -86,7 +86,7 @@ def _meko_checks(client: meko.MekoClient) -> List[Tuple[str, bool, str]]:
     checks.append(("tools we use are offered", not absent, f"missing: {absent}" if absent else "all offered"))
     client.describe_datapack()
     checks.append(("datapack accessible", True, "described by the server"))
-    found = client.knowledge("Curai workflow")
+    found = client.knowledge("Diagnosia workflow")
     checks.append(("knowledge search", found.available, f"{len(found.items)} results" if found.available else found.reason))
     return checks
 

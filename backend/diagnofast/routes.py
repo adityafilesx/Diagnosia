@@ -2,8 +2,8 @@
 
 Reception creates a link for one interview for each patient. The patient needs no
 account, and the link stops working when the interview ends or when it expires:
-a link nobody opens lasts CURAI_DIAGNOFAST_LINK_HOURS, and a started interview
-has CURAI_DIAGNOFAST_INTERVIEW_HOURS to finish. Everything the
+a link nobody opens lasts DIAGNOSIA_DIAGNOFAST_LINK_HOURS, and a started interview
+has DIAGNOSIA_DIAGNOFAST_INTERVIEW_HOURS to finish. Everything the
 patient says is visible to the doctor who created the link and, once the link
 belongs to a patient record, to that patient's care team.
 """
@@ -50,7 +50,7 @@ MODULE = "DiagnoFast"
 ALERT_URGENT = "diagnofast_urgent"
 ALERT_HELP = "diagnofast_help"
 
-logger = logging.getLogger("curai.diagnofast")
+logger = logging.getLogger("diagnosia.diagnofast")
 router = APIRouter(prefix="/api/diagnofast")
 
 

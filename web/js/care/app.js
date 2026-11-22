@@ -151,7 +151,7 @@ async function render() {
     const routeChanged = window.location.hash !== lastRoute;
     lastRoute = window.location.hash;
     const label = TOOLS[name]?.label ?? LABELS[name];
-    document.title = name === 'home' ? 'Curai' : `${label}: Curai`;
+    document.title = name === 'home' ? 'Diagnosia' : `${label}: Diagnosia`;
     loading(main);
     if (SWITCHED_TOOLS.includes(name) && !state.config.tools.includes(name)) {
         show(main, h('h1', {}, label), h('p', { class: 'empty' }, 'This tool is switched off. An administrator can turn it on in Settings.'));
@@ -271,7 +271,7 @@ document.addEventListener('keydown', (event) => {
 const THEMES = [['light', 'sun', 'Light'], ['dark', 'moon', 'Dark'], ['system', 'system', 'Same as device']];
 const themeButton = document.getElementById('theme-toggle');
 function drawThemeButton() {
-    const choice = window.curaiTheme?.get() || 'light';
+    const choice = window.diagnosiaTheme?.get() || 'light';
     const [, iconName, label] = THEMES.find(([value]) => value === choice) || THEMES[0];
     const next = THEMES[(THEMES.findIndex(([value]) => value === choice) + 1) % THEMES.length];
     show(themeButton, icon(iconName, 'nav-icon'));
@@ -279,9 +279,9 @@ function drawThemeButton() {
     themeButton.title = `Theme: ${label}`;
 }
 themeButton.addEventListener('click', () => {
-    const choice = window.curaiTheme?.get() || 'light';
+    const choice = window.diagnosiaTheme?.get() || 'light';
     const next = THEMES[(THEMES.findIndex(([value]) => value === choice) + 1) % THEMES.length][0];
-    window.curaiTheme?.set(next);
+    window.diagnosiaTheme?.set(next);
     drawThemeButton();
 });
 drawThemeButton();

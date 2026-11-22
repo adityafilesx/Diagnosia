@@ -34,7 +34,7 @@ WORDS = {
         "hi-IN": ["आपके पुराने स्वास्थ्य रिकॉर्ड ABHA से आपके डॉक्टर के लिए लाए जा सकते हैं। क्या लाएँ?"],
     },
     PRESCRIPTION: {
-        "en-IN": ["I agree to my photo being sent to outside AI services to read it. Curai doesn't keep the photo."],
+        "en-IN": ["I agree to my photo being sent to outside AI services to read it. Diagnosia doesn't keep the photo."],
     },
 }
 

@@ -5,6 +5,6 @@ fetch('/api/me')
         var cta = document.getElementById('account-cta');
         if (!user || !cta) return;
         cta.href = 'care.html';
-        cta.firstElementChild.textContent = 'OPEN CURAI';
+        cta.firstElementChild.textContent = 'OPEN DIAGNOSIA';
     })
     .catch(function() {});

@@ -1,6 +1,6 @@
 ---
 id: module-overview
-title: Curai module overview
+title: Diagnosia module overview
 category: module_documentation
 version: 1.1
 source: README.md and docs/addons
@@ -8,9 +8,9 @@ review_status: technical_reviewed
 clinical_content: none
 ---
 
-# Curai module overview
+# Diagnosia module overview
 
-Curai has two core tools and four add-ons, on one shared patient record. This describes what each one does in a workflow. It gives no clinical advice.
+Diagnosia has two core tools and four add-ons, on one shared patient record. This describes what each one does in a workflow. It gives no clinical advice.
 
 ## Core tools
 

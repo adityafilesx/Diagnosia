@@ -2,7 +2,7 @@
 // loaded in <head>: the content-security-policy allows no inline script.
 // The choice is "light" (the default), "dark", or "system" (follow the device).
 (function applyTheme() {
-    var KEY = 'curai-theme';
+    var KEY = 'diagnosia-theme';
     var root = document.documentElement;
     var query = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
@@ -25,7 +25,7 @@
         root.setAttribute('data-theme-choice', choice);
     }
 
-    window.curaiTheme = {
+    window.diagnosiaTheme = {
         get: stored,
         set: function set(choice) {
             try {

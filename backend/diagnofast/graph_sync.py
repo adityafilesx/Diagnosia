@@ -25,7 +25,7 @@ from backend.diagnofast import guidance
 from backend.integrations import graph
 from backend.records.store import now_iso
 
-logger = logging.getLogger("curai.graph")
+logger = logging.getLogger("diagnosia.graph")
 
 BATCH = 20
 MAX_HISTORY = 10

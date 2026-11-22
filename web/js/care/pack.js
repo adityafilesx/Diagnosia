@@ -42,7 +42,7 @@ function factsBlock(facts) {
         h('h3', {}, 'Allergies'),
         facts.allergies.length
             ? h('ul', {}, facts.allergies.map((item) => h('li', {}, [item.substance, item.reaction, item.severity !== 'unknown' ? item.severity : ''].filter(Boolean).join(', '))))
-            : h('p', { class: 'muted' }, "None recorded in Curai. That doesn't mean there are none."),
+            : h('p', { class: 'muted' }, "None recorded in Diagnosia. That doesn't mean there are none."),
         h('h3', {}, 'Medicines the patient saved ', provenance('patient_confirmed')),
         facts.medicines.length
             ? [h('ul', {}, facts.medicines.map((item) => h('li', {}, item))),
@@ -94,7 +94,7 @@ export async function packPanel(patientId, context) {
     } catch (error) {
         return h('p', { class: 'muted' }, error.message);
     }
-    if (!pack.enabled) return emptyState("Patient packs aren't switched on", 'Records stay in Curai. An administrator can switch packs on.');
+    if (!pack.enabled) return emptyState("Patient packs aren't switched on", 'Records stay in Diagnosia. An administrator can switch packs on.');
     const isDoctor = context?.me?.role === 'doctor';
     const list = h('details', { class: 'quiet-details' }, h('summary', {}, `What's in this pack (${pack.items.length})`),
         pack.items.length
@@ -103,7 +103,7 @@ export async function packPanel(patientId, context) {
                 badge(STATE_WORDS[item.state] || item.state, item.state === 'ready' ? 'good' : item.state === 'failed' ? 'bad' : item.state === 'held' ? 'warn' : ''))))
             : emptyState('Nothing yet', 'Finished records join the pack: signed notes, confirmed lab reports, approved discharges.'));
     if (!pack.stored) {
-        return h('div', {}, h('p', { class: 'muted' }, "Records are kept in Curai only. A pack needs the patient's agreement."), list);
+        return h('div', {}, h('p', { class: 'muted' }, "Records are kept in Diagnosia only. A pack needs the patient's agreement."), list);
     }
     // The AI brief is held for regulatory review unless an administrator has switched it on.
     if (!isDoctor || !context?.config?.features?.patient_pack_brief) return h('div', {}, list);

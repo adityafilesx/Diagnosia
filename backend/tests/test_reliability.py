@@ -92,7 +92,7 @@ def test_a_failing_sweep_step_is_logged_and_the_rest_still_run(client, monkeypat
         raise RuntimeError("synthetic")
 
     monkeypatch.setattr(app_module, "SWEEP_STEPS", (("broken", broken), ("after", lambda db: ran.append(True))))
-    with caplog.at_level(logging.WARNING, logger="curai"):
+    with caplog.at_level(logging.WARNING, logger="diagnosia"):
         app_module._sweep_once()
     assert ran == [True]
     assert "Sweep step broken failed: RuntimeError" in caplog.text

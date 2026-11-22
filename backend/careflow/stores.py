@@ -15,7 +15,7 @@ from backend.careflow import contract
 from backend.careflow.events import decode
 from backend.config import settings
 
-logger = logging.getLogger("curai.careflow")
+logger = logging.getLogger("diagnosia.careflow")
 
 MAX_TIMELINE = 500
 MAX_RECENT = 200
@@ -127,7 +127,7 @@ def project(workflow_ref: str, events: List[dict]) -> dict:
     status = "failed" if last["status"] == "failed" else "waiting_for_review" if pending else "active"
     return {
         "_id": workflow_ref,
-        "projection_note": "Activity view only. The Curai database is the record.",
+        "projection_note": "Activity view only. The Diagnosia database is the record.",
         "tenant_ref": last["tenant_ref"],
         "last_activity_at": _as_date(last["occurred_at"]),
         "latest_activity": last["event_type"],
@@ -292,7 +292,7 @@ def mongo_store() -> Optional[MongoEventStore]:
             serverSelectionTimeoutMS=settings.mongodb_timeout_ms,
             connectTimeoutMS=settings.mongodb_timeout_ms,
             tz_aware=True,
-            appname="curai-careflow",
+            appname="diagnosia-careflow",
             w="majority",  # delivered means a majority of the cluster has the event
         )
         client.admin.command("ping")

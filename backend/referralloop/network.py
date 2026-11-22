@@ -15,7 +15,7 @@ from typing import Dict, List
 
 from backend.integrations import graph
 
-logger = logging.getLogger("curai.referralloop")
+logger = logging.getLogger("diagnosia.referralloop")
 
 TERMINAL = ("closed", "cancelled")
 WAITING = ("sent", "acknowledged", "accepted")

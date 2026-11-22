@@ -1,4 +1,4 @@
-"""The Curai web app: the API plus the public site in web/.
+"""The Diagnosia web app: the API plus the public site in web/.
 
 Run from the project folder with:  uvicorn backend.app:app --reload
 """
@@ -49,7 +49,7 @@ from backend.referralloop import routes as referralloop
 from backend.reminders import routes as reminders
 from backend.reminders import service as reminder_service
 
-logger = logging.getLogger("curai")
+logger = logging.getLogger("diagnosia")
 
 SWEEP_SECONDS = 300
 DELIVERY_SECONDS = 5
@@ -71,7 +71,7 @@ CARE_PAGE_POLICY = (
 STRICT_PAGES = ("care.html", "intake.html", "slot.html")
 # An API answer is data. A browser that opens one directly may load and run nothing.
 API_POLICY = "default-src 'none'; frame-ancestors 'none'"
-# Browsers remember for a year that this site is HTTPS-only. Sent only when CURAI_HTTPS=1.
+# Browsers remember for a year that this site is HTTPS-only. Sent only when DIAGNOSIA_HTTPS=1.
 HSTS = "max-age=31536000; includeSubDomains"
 INLINE_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S)
 
@@ -200,7 +200,7 @@ async def lifespan(_: FastAPI):
         await run_in_threadpool(watching.stop)
 
 
-app = FastAPI(title="Curai", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+app = FastAPI(title="Diagnosia", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(records.router)
 app.include_router(staff.router)
@@ -322,7 +322,7 @@ app.add_exception_handler(
     speech.SpeechRejected, _friendly_failure(422, "The speech service couldn't process that audio. Please try again."),
 )
 async def _busy(request: Request, error: sqlite3.OperationalError) -> JSONResponse:
-    # Another writer held the lock for longer than CURAI_DB_BUSY_SECONDS. Anything else is a real fault.
+    # Another writer held the lock for longer than DIAGNOSIA_DB_BUSY_SECONDS. Anything else is a real fault.
     if "locked" not in str(error) and "busy" not in str(error):
         raise error
     logger.warning("Database busy on request %s", audit.request_id.get())

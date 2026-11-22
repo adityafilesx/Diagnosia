@@ -16,7 +16,7 @@ from backend import llm
 from backend.diagnofast import red_flags
 from backend.speech import Language
 
-logger = logging.getLogger("curai.diagnofast")
+logger = logging.getLogger("diagnosia.diagnofast")
 
 FORMS_DIR = Path(__file__).parent / "forms"
 MAX_QUESTIONS = 12

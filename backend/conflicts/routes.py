@@ -32,7 +32,7 @@ from backend.db import get_db
 from backend.integrations import graph
 from backend.records.access import READ, open_patient
 
-logger = logging.getLogger("curai.conflicts")
+logger = logging.getLogger("diagnosia.conflicts")
 router = APIRouter(prefix="/api/conflicts")
 
 WORD = re.compile(r"[A-Za-zऀ-ॿ]+")

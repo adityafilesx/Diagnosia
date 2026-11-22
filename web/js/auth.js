@@ -1,4 +1,4 @@
-// Sign in and sign up against the Curai API.
+// Sign in and sign up against the Diagnosia API.
 
 // Back to the tool that sent them here. Only places inside the workspace are accepted.
 function destination() {

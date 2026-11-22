@@ -1,6 +1,6 @@
 # Platform setup
 
-How to get Curai working end to end on one machine, and what can be configured.
+How to get Diagnosia working end to end on one machine, and what can be configured.
 
 ## First run
 
@@ -12,11 +12,11 @@ uv pip install -r backend/requirements.txt
 
 `setup-local` runs in development only, and only once. It:
 
-- creates the document encryption key at `~/.curai/document-keys.json`, outside the project
+- creates the document encryption key at `~/.diagnosia/document-keys.json`, outside the project
 - adds the settings it needs to `.env`
 - creates a verified demo clinic, a demo specialist centre, and demo accounts
 - runs a synthetic patient journey through the record-based tools and leaves a DiagnoFast link waiting, using the real API
-- saves the logins to `~/.curai/local-accounts.txt`
+- saves the logins to `~/.diagnosia/local-accounts.txt`
 
 **Back up the key file.** Losing it makes stored documents unreadable.
 
@@ -168,12 +168,12 @@ Made-up patients only. Commands are for macOS or Linux from the repository folde
    Install the driver once: `.venv/bin/python -m pip install -r backend/requirements-integrations.txt`.
 3. **A fresh demo database**, so your own data is untouched:
    ```bash
-   export CURAI_DB=$PWD/backend/storage/demo/curai.db CURAI_DOCUMENTS_DIR=$PWD/backend/storage/demo/documents CURAI_DEMO_MODE=1
+   export DIAGNOSIA_DB=$PWD/backend/storage/demo/diagnosia.db DIAGNOSIA_DOCUMENTS=$PWD/backend/storage/demo/documents DIAGNOSIA_DEMO_MODE=1
    .venv/bin/python -m backend.synthetic.seed_accounts
    ```
 4. **The Sarvam sign-off**, only if the Sarvam workspace really is on zero retention with training opted
    out: `.venv/bin/python -m backend.operator_cli signoff --item sarvam_terms --signed-by "<you>" --role "Account owner" --document-reference "<where noted>" --operator "<you>"`.
-5. **Start it:** `.venv/bin/python -m backend.synthetic.serve --port 8000`. Keep the same `CURAI_*` exports in
+5. **Start it:** `.venv/bin/python -m backend.synthetic.serve --port 8000`. Keep the same `DIAGNOSIA_*` exports in
    that terminal.
 6. **Switch the add-ons on.** Sign in as `doctor01@example.com` (password `Synthetic-demo-only-1`), the hospital's
    administrator, open Settings, and turn on: Sarvam AI, Neo4j,

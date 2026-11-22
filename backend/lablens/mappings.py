@@ -19,7 +19,7 @@ from backend.records.store import insert, now_iso, one, rows
 router = APIRouter(prefix="/api/addons/lablens/mappings")
 
 CODE_SYSTEM = "http://loinc.org"
-STARTER_SOURCE = "Curai starter catalogue, not checked against a LOINC release"
+STARTER_SOURCE = "Diagnosia starter catalogue, not checked against a LOINC release"
 
 
 class Approval(BaseModel):

@@ -18,7 +18,7 @@ from pydantic import BaseModel, EmailStr, Field
 from backend.config import settings
 from backend.db import connect, get_db
 
-SESSION_COOKIE = "curai_session"
+SESSION_COOKIE = "diagnosia_session"
 SESSION_LIFETIME = timedelta(days=14)
 STAFF_SESSION_LIFETIME = timedelta(hours=12)  # staff accounts reach many patients' records
 BAD_LOGIN = "Incorrect email or password."
@@ -28,7 +28,7 @@ FAILED_LOGIN_WINDOW = timedelta(minutes=15)
 # A session's last use is rewritten no more often than this, to keep reads from becoming writes.
 TOUCH_EVERY = timedelta(minutes=1)
 # Sent by the pages on their own timed refreshes, which are not a person using the app.
-BACKGROUND_HEADER = "X-Curai-Background"
+BACKGROUND_HEADER = "X-Diagnosia-Background"
 
 router = APIRouter(prefix="/api")
 hasher = PasswordHasher()
@@ -89,12 +89,12 @@ def _start_session(db: sqlite3.Connection, response: Response, user_id: int, rol
 
 def current_user(
     request: Request,
-    curai_session: Optional[str] = Cookie(default=None),
+    diagnosia_session: Optional[str] = Cookie(default=None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> Optional[sqlite3.Row]:
-    if not curai_session:
+    if not diagnosia_session:
         return None
-    token_hash = _hash_token(curai_session)
+    token_hash = _hash_token(diagnosia_session)
     now = _now()
     row = db.execute(
         """
@@ -240,11 +240,11 @@ def login(
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     response: Response,
-    curai_session: Optional[str] = Cookie(default=None),
+    diagnosia_session: Optional[str] = Cookie(default=None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
-    if curai_session:
-        db.execute("DELETE FROM sessions WHERE token_hash = ?", (_hash_token(curai_session),))
+    if diagnosia_session:
+        db.execute("DELETE FROM sessions WHERE token_hash = ?", (_hash_token(diagnosia_session),))
     response.delete_cookie(SESSION_COOKIE, path="/")
 
 

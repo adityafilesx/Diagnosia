@@ -8,7 +8,7 @@ from backend.db import connect
 from backend.integrations.execution import request_id
 from backend.records.store import insert, new_id, now_iso
 
-logger = logging.getLogger("curai")
+logger = logging.getLogger("diagnosia")
 
 
 def record(

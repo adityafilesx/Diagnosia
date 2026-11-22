@@ -1,6 +1,6 @@
 """Real MongoDB Atlas, YugabyteDB and Meko, with synthetic data. Off unless asked for.
 
-    CURAI_LIVE_INTEGRATIONS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_integrations.py
+    DIAGNOSIA_LIVE_INTEGRATIONS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_integrations.py
 
 Each test proves the service is what it claims to be before doing anything, so a local stand-in can
 never pass here. A service with no credentials is reported as BLOCKED_MISSING_CREDENTIALS. If it's
@@ -17,12 +17,12 @@ from backend.config import settings
 from backend.integrations import execution, meko, yugabyte
 
 pytestmark = pytest.mark.live
-ENABLED = os.environ.get("CURAI_LIVE_INTEGRATIONS") == "1"
+ENABLED = os.environ.get("DIAGNOSIA_LIVE_INTEGRATIONS") == "1"
 
 
 def need(enabled: bool, *values):
     if not ENABLED:
-        pytest.skip("Set CURAI_LIVE_INTEGRATIONS=1")
+        pytest.skip("Set DIAGNOSIA_LIVE_INTEGRATIONS=1")
     missing = [name for name, value in values if not value]
     if missing and enabled:
         pytest.fail(f"Switched on, but BLOCKED_MISSING_CREDENTIALS: {', '.join(missing)}")
@@ -33,7 +33,7 @@ def need(enabled: bool, *values):
 def event(workflow_ref, event_id=None, occurred=None, **changes):
     return {
         "event_id": event_id or f"evt_{uuid.uuid4().hex}", "schema_version": "1.1", "event_type": "lab.review_required", "module": "LabLens",
-        "workflow_stage": "during_visit", "source_system": "curai", "source_operation": "live.test", "source_ref": None,
+        "workflow_stage": "during_visit", "source_system": "diagnosia", "source_operation": "live.test", "source_ref": None,
         "workflow_ref": workflow_ref, "tenant_ref": "tenant_live", "correlation_id": f"corr_{uuid.uuid4().hex}", "causation_id": None,
         "occurred_at": occurred or datetime.now(timezone.utc).isoformat(), "status": "review_required", "actor_type": "system", "target_module": None,
         "metadata": {"review_required": True}, "data_classification": "synthetic_demo", **changes,
@@ -50,7 +50,7 @@ def atlas(monkeypatch):
     client.admin.command("ping")
     hosts = [host for host, _port in client.nodes]
     assert stores.deployment_name(hosts) == "mongodb_atlas", "This server is not MongoDB Atlas, so this can't count as a live result"
-    name = f"curai_live_{uuid.uuid4().hex[:8]}"
+    name = f"diagnosia_live_{uuid.uuid4().hex[:8]}"
     store = stores.MongoEventStore(client[name], "mongodb_atlas")
     store.bootstrap()
     yield store
@@ -192,12 +192,12 @@ def test_meko_describes_the_configured_datapack(real_meko):
 
 
 def test_meko_knowledge_search_answers(real_meko):
-    found = real_meko.knowledge("Curai handoff rules")
+    found = real_meko.knowledge("Diagnosia handoff rules")
     assert found.available is True
 
 
 def test_meko_memory_round_trip(real_meko):
-    marker = f"curai-live-check-{uuid.uuid4().hex[:8]}"
+    marker = f"diagnosia-live-check-{uuid.uuid4().hex[:8]}"
     real_meko.remember(f"Synthetic live check {marker}", {"kind": "live_check", "provenance": "live test"})
     assert real_meko.search_memory(marker) is not None
 

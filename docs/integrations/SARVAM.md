@@ -35,7 +35,7 @@ before relying on them, because model names have already changed once: the names
 
 ## Common to every call
 
-- Host: `api.sarvam.ai`, over HTTPS. It is added to `CURAI_ALLOWED_AI_HOSTS`. A call to any other host
+- Host: `api.sarvam.ai`, over HTTPS. It is added to `DIAGNOSIA_ALLOWED_AI_HOSTS`. A call to any other host
   is refused before it is made.
 - Authentication: the header `api-subscription-key: <key>` (STT, TTS, TR). The key comes from
   `SARVAM_API_KEY` in `.env` or from Settings, never from code.

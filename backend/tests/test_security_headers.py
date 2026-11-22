@@ -109,7 +109,7 @@ def test_background_polling_does_not_count_as_activity(client, details, clock):
     client.post("/api/auth/register", json=details)
     for _ in range(4):  # the page polls for 40 minutes while nobody touches it
         clock(minutes=10)
-        client.get("/api/me", headers={"X-Curai-Background": "1"})
+        client.get("/api/me", headers={"X-Diagnosia-Background": "1"})
     assert client.get("/api/me").status_code == 401
 
 

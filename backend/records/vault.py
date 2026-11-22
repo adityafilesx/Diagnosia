@@ -43,7 +43,7 @@ def new_key() -> str:
 
 def _load_ring() -> Tuple[str, Dict[str, bytes]]:
     if not settings.document_key_file:
-        raise VaultUnavailable("CURAI_DOCUMENT_KEY_FILE is not set")
+        raise VaultUnavailable("DIAGNOSIA_DOCUMENT_KEY_FILE is not set")
     path = Path(settings.document_key_file)
     if not key_file_is_safe(path):
         raise VaultUnavailable("The key file must be outside the repository and away from stored documents")
@@ -110,7 +110,7 @@ def _pack(key_id: str, wrap_nonce: bytes, wrapped: bytes, nonce: bytes, cipherte
 
 def _unpack(blob: bytes) -> Tuple[dict, bytes]:
     if not blob.startswith(MAGIC) or len(blob) < 8:
-        raise IntegrityFailure("Not an encrypted Curai file")
+        raise IntegrityFailure("Not an encrypted Diagnosia file")
     length = struct.unpack(">I", blob[4:8])[0]
     try:
         header = json.loads(blob[8:8 + length])

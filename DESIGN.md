@@ -1,4 +1,4 @@
-# Curai design system
+# Diagnosia design system
 
 The working rules for every screen. Tokens are in `web/css/tokens.css`; the workspace is
 `web/css/care.css`, the patient pages `web/css/tools.css`, sign-in `web/css/auth.css`.

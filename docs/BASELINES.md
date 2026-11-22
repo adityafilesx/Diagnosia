@@ -121,7 +121,7 @@ the text figure says nothing about scans.
 
 `python -m backend.synthetic.load_test`: a throwaway database, 20 staff each saving every second (new patients
 and tasks), 5 ClinScribe drafts in flight through a fake AI that takes 3 seconds, 30 seconds, one process,
-4 CPUs. Busy wait 5 s (`CURAI_DB_BUSY_SECONDS`).
+4 CPUs. Busy wait 5 s (`DIAGNOSIA_DB_BUSY_SECONDS`).
 
 | | Writes | Refused as busy | p50 | p95 | Max | Notes drafted |
 |---|---|---|---|---|---|---|

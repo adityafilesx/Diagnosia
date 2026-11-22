@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Protocol, Sequence
 
 from backend.config import settings
 
-logger = logging.getLogger("curai.graph")
+logger = logging.getLogger("diagnosia.graph")
 
 
 class GraphUnavailable(Exception):
