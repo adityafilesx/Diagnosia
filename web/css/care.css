@@ -604,6 +604,40 @@ details.quiet-details[open] { padding-bottom: var(--space-2); }
 .trend .hit { fill: transparent; }
 .trend .guide { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
 
+/* LabLens: the original beside what was read from it, one row per result with accept / fix / remove. */
+.upload-panel form.inline { align-items: flex-end; }
+.upload-panel form.inline label { flex: 1 1 320px; }
+.compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--space-5); align-items: start; }
+.compare h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 var(--space-3); }
+.compare-original { position: sticky; top: 84px; }
+.compare-original .original { height: min(calc(100vh - 150px), 820px); min-height: 420px; }
+.original.image { object-fit: contain; }
+.compare-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: var(--space-3); }
+.compare-head h3 { margin: 0; }
+.result-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; }
+.result-row {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 6px var(--space-4); align-items: start;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.result-row:last-child { border-bottom: 0; }
+.result-row.needs-eye { background: color-mix(in srgb, var(--highlighter) 45%, var(--surface)); }
+.result-row.rejected { background: var(--surface-2); }
+.result-row.rejected .result-name strong, .result-row.rejected .value { text-decoration: line-through; color: var(--text-muted); }
+.result-name, .result-value { display: grid; gap: 2px; min-width: 0; }
+.result-name strong { font-weight: 620; }
+.result-value .value { font-size: var(--text-md); font-weight: 620; font-variant-numeric: tabular-nums; }
+.result-state { justify-self: end; }
+.result-issues { grid-column: 1 / -1; }
+.result-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.result-actions button { min-height: 36px; padding: 6px 12px; }
+button.quiet.chosen { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-soft-ink); box-shadow: none; }
+.result-state mark { display: inline-flex; font-size: var(--text-xs); line-height: 1.6; padding: 2px 10px; border-radius: var(--radius-pill); font-weight: 650; }
+.status.pending { background: var(--highlighter); color: var(--highlighter-ink); }
+.confirm-bar { align-items: flex-end; }
+.confirm-fields { display: grid; gap: var(--space-3); flex: 1 1 360px; }
+.confirm-fields .action-note { margin: 0; }
+.confirm-fields label.inline-label input { width: auto; }
+
 /* DischargeCare */
 .who-to-call h2 { margin: 0 0 4px; }
 .who-to-call .call-line { font-size: var(--text-xl); font-weight: 700; margin: 4px 0; overflow-wrap: anywhere; }
@@ -700,6 +734,9 @@ button.big-done { min-height: 56px; min-width: 140px; font-size: var(--text-lg);
   .app { grid-template-columns: 224px minmax(0, 1fr); }
   .wristband .facts { display: none; }
   .queue-layout { grid-template-columns: minmax(0, 1fr); }
+  .compare { grid-template-columns: minmax(0, 1fr); }
+  .compare-original { position: static; }
+  .compare-original .original { height: 520px; }
 }
 
 @media (max-width: 860px) {
@@ -738,6 +775,12 @@ button.big-done { min-height: 56px; min-width: 140px; font-size: var(--text-lg);
   .requisition-table { min-width: 480px; }
   .queue-item { grid-template-columns: auto minmax(0, 1fr); }
   .queue-item .q-tags { grid-column: 2; justify-content: flex-start; }
+  .row-details > summary.queue-item { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .row-details > summary .q-tags { grid-column: 2; grid-row: 2; }
+  .row-details .row-body { padding-left: 14px; }
+  .result-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .result-value { grid-column: 1 / -1; grid-row: 2; }
+  .result-actions button { flex: 1 1 0; min-height: 44px; }
 }
 
 /* Touch: every target at least 44px (WCAG 2.5.8 asks 24; phones need more). Phone widths count as touch,
