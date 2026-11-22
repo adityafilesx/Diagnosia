@@ -1,0 +1,170 @@
+/* Curai design tokens. One source for the workspace, the patient pages and sign-in.
+
+   Scene: a doctor at a shared desktop in a bright OPD between two-minute consultations, and a patient
+   on a low-cost Android phone under waiting-room tube lights. Light is the default; staff can switch
+   to dark. Colour is restrained: tinted neutrals, one teal accent for actions and selection, and
+   semantic colours that always travel with words and an icon, never alone. */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Neutrals, tinted a little toward the teal brand hue. */
+  --bg: #f3f6f5;
+  --surface: #ffffff;
+  --surface-2: #eef3f1;          /* second layer: toolbars, table heads, quiet panels */
+  --surface-sunken: #e7eeeb;
+  --border: #dce5e2;             /* decorative lines */
+  --border-strong: #7f938e;      /* control edges: 3:1 on surface (WCAG 1.4.11) */
+  --text: #172b2a;
+  --text-muted: #4f625f;         /* 6.2:1 on white, 5.6:1 on --bg */
+  --text-faint: #6b7d79;         /* large text and icons only */
+
+  /* Brand */
+  --accent: #0b6b63;             /* 6.4:1 with white */
+  --accent-hover: #095a53;
+  --accent-press: #074a44;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3f1ed;
+  --accent-soft-ink: #0a5a53;
+  --nav: #123b3a;
+  --nav-ink: #e4efec;
+  --nav-muted: #a9c4be;
+  --nav-hover: rgb(255 255 255 / 0.08);
+  --nav-active: #e3f1ed;
+  --nav-active-ink: #0f3433;
+
+  /* Semantic. Each pairs a tint, an ink with 4.5:1 on that tint, and a border. */
+  --danger: #b42318;
+  --danger-ink: #9a1d14;
+  --danger-soft: #fdeeec;
+  --danger-border: #f2c2bc;
+  --warning: #9a5b00;
+  --warning-ink: #7a4800;
+  --warning-soft: #fff5df;
+  --warning-border: #f0d49a;
+  --success: #1d6b45;
+  --success-ink: #185c3b;
+  --success-soft: #e8f5ee;
+  --success-border: #b9dec9;
+  --info-soft: #e8f1f8;
+  --info-ink: #1c4f7a;
+  /* Unreviewed AI output is marked with a highlighter, the product's one signature. */
+  --highlighter: #fff0c2;
+  --highlighter-ink: #5c4108;
+
+  --focus: #0b6b63;
+  --focus-halo: rgb(11 107 99 / 0.22);
+  --scrim: rgb(9 26 25 / 0.45);
+
+  --shadow-1: 0 1px 2px rgb(16 42 40 / 0.06), 0 1px 1px rgb(16 42 40 / 0.04);
+  --shadow-2: 0 4px 12px rgb(16 42 40 / 0.08), 0 1px 3px rgb(16 42 40 / 0.06);
+  --shadow-3: 0 16px 40px rgb(16 42 40 / 0.16), 0 4px 12px rgb(16 42 40 / 0.08);
+
+  /* Type: one system family that renders Latin and Devanagari natively, with no font download. */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari",
+    "Kohinoor Devanagari", "Nirmala UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  --control-h: 40px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+
+  --z-sticky: 20;
+  --z-drawer: 40;
+  --z-scrim: 35;
+  --z-toast: 60;
+
+  /* Older names still read by tool modules and SVG charts. */
+  --paper: var(--bg);
+  --sheet: var(--surface);
+  --ink: var(--text);
+  --ink-soft: var(--text-muted);
+  --rule: var(--border);
+  --edge: var(--border-strong);
+  --band: var(--surface-2);
+  --action: var(--accent);
+  --action-ink: var(--accent-ink);
+  --line: var(--accent);
+  --alert: var(--danger);
+  --alert-tint: var(--danger-soft);
+  --done: var(--success);
+  --brand: var(--accent);
+  --bar: var(--nav);
+  --bar-ink: var(--nav-ink);
+  --raised: var(--surface-2);
+}
+
+/* Dark, for staff who choose it. Surfaces lift with lightness, not shadows. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c1615;
+  --surface: #13201f;
+  --surface-2: #192a28;
+  --surface-sunken: #0f1b1a;
+  --border: #243a37;
+  --border-strong: #5f7c77;
+  --text: #e5efed;
+  --text-muted: #a5bab6;
+  --text-faint: #7f9792;
+
+  --accent: #4cbfae;
+  --accent-hover: #63cdbd;
+  --accent-press: #3aa999;
+  --accent-ink: #052a26;
+  --accent-soft: #143b36;
+  --accent-soft-ink: #8fe0d3;
+  --nav: #091312;
+  --nav-ink: #dbe9e6;
+  --nav-muted: #86a39d;
+  --nav-hover: rgb(255 255 255 / 0.06);
+  --nav-active: #1b3d39;
+  --nav-active-ink: #e5f6f2;
+
+  --danger: #ff8f84;
+  --danger-ink: #ffb1a9;
+  --danger-soft: #3a1714;
+  --danger-border: #6e2a24;
+  --warning: #f0c06a;
+  --warning-ink: #f6d398;
+  --warning-soft: #33270f;
+  --warning-border: #67501f;
+  --success: #7fd3a5;
+  --success-ink: #a6e3c1;
+  --success-soft: #12301f;
+  --success-border: #285d3f;
+  --info-soft: #132a3c;
+  --info-ink: #a9cdec;
+  --highlighter: #4a3f12;
+  --highlighter-ink: #f7e39a;
+
+  --focus: #7ad6c8;
+  --focus-halo: rgb(122 214 200 / 0.25);
+  --scrim: rgb(0 0 0 / 0.6);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 4px 14px rgb(0 0 0 / 0.45);
+  --shadow-3: 0 16px 40px rgb(0 0 0 / 0.55);
+}

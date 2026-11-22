@@ -64,7 +64,7 @@ SECURITY_HEADERS = {
 }
 CARE_PAGE_POLICY = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
-    "font-src 'self' https://assets.website-files.com; connect-src 'self'; media-src 'self' blob:; "
+    "font-src 'self' https://assets.website-files.com; connect-src 'self'; media-src 'self' blob: data:; "
     "frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
 )
 # The workspace and the patient interview handle patient data, so they keep the strict policy above.

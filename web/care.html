@@ -1,30 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
    <meta charset="UTF-8">
    <meta name="viewport" content="width=device-width, initial-scale=1">
    <meta name="robots" content="noindex">
+   <meta name="color-scheme" content="light dark">
    <title>Curai</title>
+   <script src="js/theme.js"></script>
+   <link rel="stylesheet" href="css/tokens.css">
    <link rel="stylesheet" href="css/care.css">
    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
 </head>
 <body>
    <a class="skip" href="#main">Skip to the main content</a>
-   <header class="topbar">
-      <a class="brand" href="#/home" aria-label="Curai home"><img src="images/logo_inv.svg" alt="" width="114" height="34"></a>
-      <button class="link-button" id="open-nav" type="button" aria-expanded="false" aria-controls="rail">Tools</button>
-      <div class="topbar-actions">
-         <a class="link-button" href="index.html#FAQ">Help</a>
-         <a class="link-button" href="#/inbox" id="inbox-link">Inbox <span id="inbox-count"></span></a>
-         <a class="link-button" href="#/account" id="who"></a>
-         <button class="link-button" id="sign-out" type="button">Sign out</button>
+   <div class="app">
+      <aside id="sidebar" class="sidebar" aria-label="Curai">
+         <a class="brand" href="#/home" aria-label="Curai home"><img src="images/logo_inv.svg" alt="" width="114" height="34"></a>
+         <nav id="rail" class="rail" aria-label="Tools"></nav>
+      </aside>
+      <div id="scrim" class="scrim" hidden></div>
+      <div class="workspace">
+         <header class="topbar">
+            <button class="icon-button" id="open-nav" type="button" aria-expanded="false" aria-controls="sidebar" aria-label="Open the tools menu"></button>
+            <a class="topbar-brand" href="#/home" aria-label="Curai home"><img src="images/logo_inv.svg" alt="" width="114" height="34"></a>
+            <section id="wristband" class="wristband" aria-label="Current patient"></section>
+            <div class="topbar-actions">
+               <button class="icon-button" id="theme-toggle" type="button" aria-label="Colour theme"></button>
+               <a class="topbar-link hide-small" href="index.html#FAQ">Help</a>
+               <a class="topbar-link" href="#/inbox" id="inbox-link">Inbox <span id="inbox-count"></span></a>
+               <a class="account" href="#/account" id="who"></a>
+               <button class="topbar-link" id="sign-out" type="button">Sign out</button>
+            </div>
+         </header>
+         <div id="alerts" class="staff-alerts" role="alert" aria-live="assertive"></div>
+         <main id="main" class="chart" tabindex="-1"></main>
       </div>
-   </header>
-   <div id="alerts" class="staff-alerts" role="alert" aria-live="assertive"></div>
-   <section id="wristband" class="wristband" aria-label="Current patient"></section>
-   <div class="shell">
-      <nav id="rail" class="rail" aria-label="Tools"></nav>
-      <main id="main" class="chart" tabindex="-1"></main>
    </div>
    <div id="toast" class="toast" role="status" aria-live="polite"></div>
    <script type="module" src="js/care/app.js"></script>

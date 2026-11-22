@@ -5,24 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>DiagnoFast · Your visit starts here</title>
-  <link rel="icon" href="images/favicon.png">
+  <link rel="icon" href="icons/favicon-32x32.png">
+  <meta name="color-scheme" content="light">
+  <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/tools.css">
 </head>
 <body class="intake-page">
-  <header class="intake-header"><a href="index.html"><img src="images/logo_inv.svg" alt="Curai" width="114" height="34"></a><span>DiagnoFast <small>Waiting-room assistant</small></span></header>
+  <header class="intake-header">
+    <a class="intake-logo" href="index.html"><img src="images/logo_inv.svg" alt="Curai" width="114" height="34"></a>
+    <span class="intake-product">DiagnoFast <small>Before you see the doctor · डॉक्टर से मिलने से पहले</small></span>
+  </header>
   <main class="intake-shell">
+    <ol id="intake-journey" class="journey" aria-label="Your visit / आपकी विज़िट">
+      <li data-stage="language"><span class="journey-en">Language</span> <span lang="hi">भाषा</span></li>
+      <li data-stage="consent"><span class="journey-en">Agree</span> <span lang="hi">सहमति</span></li>
+      <li data-stage="questions"><span class="journey-en">Questions</span> <span lang="hi">सवाल</span></li>
+      <li data-stage="done"><span class="journey-en">Done</span> <span lang="hi">पूरा</span></li>
+    </ol>
     <section id="intake-inactive" class="tool-panel" hidden>
       <h1>Please ask reception / रिसेप्शन पर पूछें</h1>
       <p id="intake-inactive-message">This link is no longer active. Please ask reception for a new link.</p>
     </section>
     <section id="intake-specialties" class="tool-panel" hidden aria-labelledby="specialty-title">
-      <p class="intake-eyebrow">01 / WELCOME · स्वागत है</p>
+      <p class="intake-eyebrow">Welcome · <span lang="hi">स्वागत है</span></p>
       <h1 id="specialty-title">Which department are you visiting?</h1>
       <p>अपना विभाग चुनें। If you’re unsure, ask reception to help you choose.</p>
       <div id="intake-specialty-grid" class="specialty-grid"></div>
     </section>
     <section id="intake-welcome" class="tool-panel" hidden>
-      <p class="intake-eyebrow">02 / BEFORE WE BEGIN · शुरू करने से पहले</p>
       <h1>Namaste<span id="intake-name"></span></h1>
       <p id="intake-department"></p>
       <button id="intake-change-specialty" class="tool-secondary" type="button" hidden>Change department / विभाग बदलें</button>
@@ -54,7 +64,7 @@
     <section id="intake-interview" class="intake-columns" hidden aria-label="Patient interview">
       <div class="tool-panel assistant-panel">
         <p id="intake-assistant-label" class="intake-eyebrow"></p>
-        <div class="assistant-orb" aria-hidden="true"><span>✦</span></div>
+        <div class="assistant-orb" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h4l5-4v13l-5-4H4ZM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></div>
         <p id="intake-question" class="intake-question" aria-live="polite" tabindex="-1"></p>
         <button id="intake-replay" class="tool-secondary" type="button"></button>
         <p id="intake-chip-hint" class="intake-hint"></p>
@@ -77,12 +87,10 @@
       </div>
     </section>
     <section id="intake-finish" class="tool-panel" hidden>
-      <p class="intake-eyebrow">DiagnoFast</p>
       <p id="intake-finish-message" class="intake-question" aria-live="assertive"></p>
       <a id="intake-reset" class="use-now" href="intake.html">Finish / समाप्त करें</a>
     </section>
     <section id="intake-status" class="tool-panel" hidden aria-labelledby="intake-status-title">
-      <p class="intake-eyebrow">DiagnoFast</p>
       <h1 id="intake-status-title"></h1>
       <p id="intake-status-number" class="intake-queue-number" aria-live="polite"></p>
       <p id="intake-status-department" class="intake-question"></p>

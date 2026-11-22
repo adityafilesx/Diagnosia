@@ -3,6 +3,7 @@ import { act, api, form, h, show, when } from './ui.js';
 import { packPanel } from './pack.js';
 import { renderBookings } from './opd.js';
 import { graphsPanel } from './graphs.js';
+import { icon, initials } from './icons.js';
 
 const STATUS_TEXT = {
     waiting: 'Not started',
@@ -310,6 +311,24 @@ function ageFrom(birthDate) {
     return Math.floor((Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 }
 
+// One queue row: who, when, and where the interview stands, in words as well as colour.
+function queueRow(intake) {
+    const urgent = intake.urgent.length > 0;
+    const review = ['done', 'report_failed'].includes(intake.status) && !intake.reviewed;
+    const stateTag = intake.reviewed ? h('span', { class: 'status good' }, 'Reviewed')
+        : review ? h('span', { class: 'status warn' }, 'To review')
+            : h('span', { class: 'status' }, STATUS_TEXT[intake.status] || intake.status);
+    return h('a', { class: `queue-item${urgent ? ' urgent' : ''}`, href: `#/diagnofast/${intake.id}` },
+        h('span', { class: 'q-avatar', 'aria-hidden': 'true' }, urgent ? icon('alert', 'nav-icon') : initials(intake.patient_name)),
+        h('span', { class: 'q-main' },
+            h('span', { class: 'q-name' }, intake.patient_name),
+            h('span', { class: 'q-when' }, when(intake.created_at))),
+        h('span', { class: 'q-tags' },
+            urgent && h('span', { class: 'status bad' }, `Urgent: ${intake.urgent.join(', ')}`),
+            intake.needs_help && h('span', { class: 'status warn' }, 'Asked for help'),
+            stateTag));
+}
+
 export async function renderDiagnoFast(container, context) {
     clearInterval(poll);
     const { patient, route } = context;
@@ -328,16 +347,29 @@ export async function renderDiagnoFast(container, context) {
     const forms = await api('/api/diagnofast/forms');
     const queue = h('div', {});
     const created = h('div', { 'aria-live': 'polite' });
+    let intakes = [];
+    const count = h('p', { class: 'queue-count', role: 'status' });
+    const search = h('input', { type: 'search', placeholder: 'Search patient name', 'aria-label': 'Search queue', oninput: () => drawQueue() });
+    const filter = h('select', { 'aria-label': 'Filter queue', onchange: () => drawQueue() },
+        h('option', { value: '' }, 'All interviews'),
+        h('option', { value: 'urgent' }, 'Urgent'),
+        h('option', { value: 'review' }, 'To review'),
+        h('option', { value: 'reviewed' }, 'Reviewed'));
+    const drawQueue = () => {
+        const found = intakes.filter((item) => item.patient_name.toLowerCase().includes(search.value.trim().toLowerCase()))
+            .filter((item) => !filter.value || (filter.value === 'urgent' ? item.urgent.length > 0
+                : filter.value === 'reviewed' ? item.reviewed : ['done', 'report_failed'].includes(item.status) && !item.reviewed));
+        count.textContent = `${found.length} of ${intakes.length} interviews · ${intakes.filter((item) => item.urgent.length).length} urgent`;
+        show(queue, found.length
+            ? h('div', { class: 'queue-list' }, found.map(queueRow))
+            : h('div', { class: 'empty' }, h('strong', {}, intakes.length ? 'No interviews match' : 'No interviews yet'),
+                intakes.length ? 'Try another name or filter.' : 'Create an interview link and the patient answers by voice while they wait.'));
+    };
 
     const loadQueue = async () => {
         const url = patient ? `/api/diagnofast/intakes?patient_id=${patient.id}` : '/api/diagnofast/intakes';
-        const intakes = await api(url);
-        show(queue, intakes.length
-            ? intakes.map((intake) => h('a', { class: `queue-item${intake.urgent.length ? ' urgent' : ''}`, href: `#/diagnofast/${intake.id}` },
-                h('span', {}, `${intake.urgent.length ? 'Urgent: ' : ''}${intake.patient_name}`,
-                    intake.needs_help && h('mark', { style: 'margin-left:8px' }, 'Asked for help')),
-                h('span', { class: 'muted' }, `${intake.reviewed ? 'Reviewed' : STATUS_TEXT[intake.status] || intake.status}, ${when(intake.created_at)}`)))
-            : h('p', { class: 'muted' }, patient ? 'No interviews for this patient yet.' : 'No patients yet. Send a link to start.'));
+        intakes = await api(url);
+        drawQueue();
     };
 
     const sendLink = form(
@@ -348,7 +380,7 @@ export async function renderDiagnoFast(container, context) {
             { name: 'patient_sex', label: 'Sex', type: 'select', value: patient?.sex, options: [['', 'Not recorded'], ['female', 'Female'], ['male', 'Male'], ['other', 'Other']] },
             { name: 'abha_id', label: 'ABHA ID (optional)', maxlength: 32 },
         ],
-        'Create patient link',
+        'Create interview link',
         async (values, element) => {
             const made = await act(() => api('/api/diagnofast/intakes', {
                 method: 'POST',
@@ -368,9 +400,11 @@ export async function renderDiagnoFast(container, context) {
     show(container,
         h('h1', {}, 'DiagnoFast'),
         h('p', { class: 'lede' }, 'The patient answers by voice while they wait. You get a one-page report, and urgent symptoms come to the top.'),
-        h('div', { class: 'columns' },
-            h('div', { class: 'sheet' }, h('h2', {}, patient ? `New link for ${patient.first_name}` : 'New patient link'), sendLink, created),
-            h('div', { class: 'sheet' }, h('h2', {}, patient ? `${patient.first_name}'s interviews` : 'Queue'), queue)),
+        h('div', { class: 'queue-layout' },
+            h('section', { class: 'sheet' }, h('h2', {}, patient ? `${patient.first_name}'s interviews` : 'Patient queue'),
+                h('div', { class: 'queue-toolbar' }, search, filter), count, queue),
+            h('section', { class: 'sheet' }, h('h2', {}, patient ? `New link for ${patient.first_name}` : 'New patient link'),
+                h('p', { class: 'muted' }, 'Start a voice interview. The patient can open the link without an account.'), sendLink, created)),
         h('p', { class: 'muted' },
             context.config?.addons?.['diagnofast.bookings'] && [h('a', { href: '#/diagnofast/bookings' }, 'OPD bookings and queue'), ' · '],
             h('a', { href: 'intake.html', target: '_blank', rel: 'noopener' }, 'Open self-service kiosk'), ' · ', h('a', { href: 'diagnofast_hiw.html' }, 'How it works')));

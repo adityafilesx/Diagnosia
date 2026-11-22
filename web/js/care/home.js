@@ -1,6 +1,7 @@
 // Where everyone lands after signing in: their patients, who is waiting, and every tool.
 import { api, h, plural, show, when } from './ui.js';
 import { STAGES, canUse } from './catalogue.js';
+import { icon } from './icons.js';
 
 export function toolList(context) {
     return h('div', { class: 'stages' }, STAGES.map((stage) => {
@@ -8,7 +9,7 @@ export function toolList(context) {
         return tools.length ? h('section', { class: 'stage' },
             h('h3', {}, stage.title),
             tools.map((tool) => h('a', { class: 'tool-link', href: `#/${tool.id}` },
-                h('strong', {}, tool.label),
+                h('strong', {}, icon(tool.id), tool.label),
                 h('span', {}, tool.blurb)))) : null;
     }));
 }

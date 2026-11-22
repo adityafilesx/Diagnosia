@@ -154,3 +154,14 @@ def test_a_route_that_sets_its_own_policy_keeps_it(doctor, patient):
     headers = doctor.get(f"/api/documents/{stored['id']}/file?inline=1").headers
     assert headers["content-security-policy"] == "frame-ancestors 'self'"
     assert headers["x-content-type-options"] == "nosniff"
+
+
+def test_the_strict_pages_can_play_the_voice_the_server_sends(client):
+    # Question, consent and status audio arrive as data: URLs (diagnofast routes _spoken). A policy
+    # without data: in media-src silently blocked every server voice, so patients only ever heard
+    # the browser's voice. Found in the 22 Nov redesign walk-through.
+    for page in ("intake.html", "slot.html", "care.html"):
+        policy = client.get(f"/{page}").headers["content-security-policy"]
+        media = next(part for part in policy.split(";") if part.strip().startswith("media-src"))
+        assert "data:" in media.split()
+        assert "script-src 'self';" in policy  # scripts stay strict

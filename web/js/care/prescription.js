@@ -234,14 +234,28 @@ const CONSENT_TEXT = "I agree to my photo being sent to outside AI services to r
 const NO_LIST = "Medicine names can't be checked against a list on this server right now, so a misread name won't be flagged. Compare every name with your prescription, and ask your pharmacist if any looks wrong.";
 
 export function renderPrescription(container, context) {
+    forgetPhotos();
+    const stages = ['Add photos', 'Check medicines', 'Read explanation'];
+    const progress = h('ol', { class: 'workflow-steps no-print', 'aria-label': 'Prescription steps' });
+    const setStep = (active) => show(progress, stages.map((label, index) => h('li', { 'aria-current': index === active ? 'step' : null }, label)));
+    setStep(0);
     const stepOne = h('div', {});
     const stepTwo = h('div', {});
     const stepThree = h('div', {});
     const photos = h('input', { type: 'file', name: 'images', accept: 'image/jpeg,image/png', multiple: true, required: true });
+    const preview = h('div', { class: 'upload-preview' });
+    photos.addEventListener('change', () => {
+        photos.setCustomValidity(photos.files.length > 4 ? 'Choose up to 4 photos of one prescription.' : '');
+        // Clear the previous reading before replacing its source photos.
+        show(stepOne); show(stepTwo); show(stepThree); setStep(0);
+        rememberPhotos(photos.files);
+        show(preview, photoStrip());
+    });
     const consent = h('input', { type: 'checkbox', required: true });
     const readButton = h('button', { type: 'submit' }, 'Read my prescription');
 
     const showConfirm = (reading) => {
+        setStep(1);
         const list = h('div', {}, reading.medicines.map(medicineCard));
         const language = h('select', {}, LANGUAGES.map(([value, label]) => h('option', { value, lang: value.slice(0, 2) }, label)));
         const explain = h('button', { type: 'button' }, 'Explain my prescription');
@@ -256,6 +270,7 @@ export function renderPrescription(container, context) {
                     body: { reading_id: reading.reading_id, confirmed: confirmed, language: language.value, doctor_notes: notes.slice(0, 2000) },
                 });
                 show(stepThree, resultsView(data, language.value, reading, confirmed));
+                setStep(2);
                 stepThree.scrollIntoView({ behavior: 'smooth' });
             } catch (error) {
                 toast(error.message, true);
@@ -281,10 +296,12 @@ export function renderPrescription(container, context) {
             show(stepOne);
             show(stepTwo);
             show(stepThree);
+            setStep(0);
             readButton.disabled = true;
             readButton.textContent = 'Reading...';
             const body = new FormData();
             rememberPhotos(photos.files);
+            show(preview, photoStrip());
             [...photos.files].forEach((photo) => body.append('images', photo));
             body.append('consent', consent.checked);
             body.append('consent_version', CONSENT_VERSION);
@@ -305,14 +322,17 @@ export function renderPrescription(container, context) {
         },
     },
     h('label', {}, 'Photos of your prescription (JPG or PNG). Add the front and back if both have writing, up to 4 photos.', photos),
+    preview,
     h('label', { class: 'tick consent-row' }, consent, CONSENT_TEXT),
     readButton);
 
     show(container,
         h('h1', {}, 'Prescription Analyzer'),
         h('p', { class: 'lede' }, 'Reads your prescription and explains it in plain words. It never changes a dose.'),
+        progress,
         context?.config?.medicine_list_ready === false ? h('div', { class: 'banner danger no-print', id: 'no-medicine-list', role: 'status' }, NO_LIST) : null,
-        h('div', { class: 'sheet no-print' }, upload),
+        h('div', { class: 'sheet no-print' }, h('h2', {}, 'Add your prescription'),
+            h('p', { class: 'muted' }, 'Use a clear, well-lit photo with all medicine names and directions visible. You will check the reading before anything is explained.'), upload),
         stepOne, stepTwo, stepThree,
         h('p', { class: 'muted no-print' }, h('a', { href: 'prescription_analyzer_hiw.html' }, 'How it works')));
 }

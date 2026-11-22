@@ -3,7 +3,7 @@ const TEXT = {
     'en-IN': {
         start: 'Start my interview', record: 'Tap and speak', stop: 'Stop recording', thinking: 'Please wait…',
         type: 'Edit / type', send: 'Confirm answer',
-        assistant: 'YOUR INTAKE ASSISTANT', transcript: 'YOUR WORDS', replay: '↻ Hear the question',
+        assistant: 'Your question', transcript: 'Speak or type', replay: '↻ Hear the question',
         chipHint: 'Tap an option or speak in your own words.', review: 'Check these words. Edit anything that is wrong, then confirm.',
         safety: 'If you need help now, please tell reception.', answer: 'Your answer', ready: 'Ready when you are',
         listening: '● Recording · listening', reviewStatus: 'Ready to review', confidence: 'Recognition confidence unavailable',
@@ -407,7 +407,7 @@ function startMeter(mic) {
         const draw = () => {
             analyser.getByteFrequencyData(data);
             context.clearRect(0, 0, canvas.width, canvas.height);
-            context.fillStyle = '#eaa3cd';
+            context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0b6b63';
             for (let i = 0; i < 40; i += 1) {
                 const height = Math.max(2, data[i * 2] / 255 * 36);
                 context.fillRect(i * 12 + 2, (40 - height) / 2, 8, height);
@@ -669,3 +669,32 @@ async function initialize() {
     }
 }
 initialize();
+
+// The journey strip shows where the patient is: language, agree, questions, done. It follows which
+// section is on screen, so it never claims a percentage or a fixed number of questions.
+(function trackJourney() {
+    const strip = document.getElementById('intake-journey');
+    if (!strip) return;
+    const stageFor = () => {
+        if (!$('status').hidden || !$('finish').hidden) return 'done';
+        if (!$('interview').hidden) return 'questions';
+        if (!$('consent').hidden) return 'consent';
+        if (!$('welcome').hidden || !$('specialties').hidden) return 'language';
+        return null;
+    };
+    const draw = () => {
+        const stage = stageFor();
+        // Written only on change: the observer watches "hidden", and an unchanged write still notifies.
+        if (strip.hidden !== !stage) strip.hidden = !stage;
+        let reached = true;
+        strip.querySelectorAll('li').forEach((item) => {
+            const current = item.dataset.stage === stage;
+            item.toggleAttribute('aria-current', false);
+            if (current) item.setAttribute('aria-current', 'step');
+            item.classList.toggle('done', reached && !current);
+            if (current) reached = false;
+        });
+    };
+    new MutationObserver(draw).observe(document.querySelector('.intake-shell'), { attributes: true, subtree: true, attributeFilter: ['hidden'] });
+    draw();
+}());
