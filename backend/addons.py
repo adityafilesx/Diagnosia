@@ -35,3 +35,22 @@ def sarvam_ready(db: sqlite3.Connection) -> bool:
 
 def neo4j_ready(db: sqlite3.Connection) -> bool:
     return _made_up_patients_only() and _switch("neo4j.enabled", db) and bool(settings.neo4j_uri)
+
+
+def blockers(db: sqlite3.Connection) -> dict:
+    """What each add-on still needs before it can run, in words for the Settings page. An empty list
+    means nothing beyond its own switch. Never holds a key or an address, only whether one is there."""
+    real_data = [] if _made_up_patients_only() else ["Off while real patient data is allowed"]
+    sarvam = list(real_data)
+    if not settings_store.api_key(db, "sarvam"):
+        sarvam.append("Needs a Sarvam API key")
+    if not safety.signed_off(db, "sarvam_terms"):
+        sarvam.append("Needs the sarvam_terms sign-off")
+    neo4j = list(real_data)
+    if not settings.neo4j_uri:
+        neo4j.append("Needs NEO4J_URI in the server environment")
+    return {
+        "sarvam.enabled": sarvam,
+        "neo4j.enabled": neo4j,
+        "diagnofast.slot_login": [] if _switch("diagnofast.bookings", db) else ["Needs OPD bookings switched on"],
+    }

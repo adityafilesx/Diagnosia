@@ -294,6 +294,8 @@ def public_config(user=Depends(require_user), db: sqlite3.Connection = Depends(g
 
 @router.get("/settings")
 def list_settings(user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
+    from backend import addons  # addons reads this module's settings, so it is imported here
+
     stored = _stored(db)
     keys = {}
     for provider, label in {**PROVIDERS, **OTHER_SECRETS}.items():
@@ -310,6 +312,8 @@ def list_settings(user=Depends(require_doctor), db: sqlite3.Connection = Depends
         "setup": setup_steps(db),
         "ai_key": keys["groq"],
         "ai_keys": keys,
+        # Why a switched-on add-on still won't run, so the page can say so beside the switch.
+        "addon_blockers": addons.blockers(db),
     }
 
 

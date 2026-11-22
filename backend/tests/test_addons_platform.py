@@ -115,3 +115,47 @@ def test_docker_compose_runs_neo4j_on_this_machine_only():
     compose = (ROOT / "docker-compose.integrations.yml").read_text(encoding="utf-8")
     assert "neo4j:5.26-community" in compose
     assert "127.0.0.1:7687:7687" in compose
+
+
+# --- why an add-on won't run, said in Settings -----------------------------------------------------
+
+
+def blockers(staff):
+    return staff.get("/api/platform/settings").json()["addon_blockers"]
+
+
+def test_settings_say_what_each_service_add_on_still_needs(person, db, monkeypatch):
+    staff = person("doctor", "Anil", "Shah")
+    verified_organization(staff)
+    monkeypatch.setattr(settings, "sarvam_api_key", "")
+    monkeypatch.setattr(settings, "neo4j_uri", "")
+    found = blockers(staff)
+    assert found["sarvam.enabled"] == ["Needs a Sarvam API key", "Needs the sarvam_terms sign-off"]
+    assert found["neo4j.enabled"] == ["Needs NEO4J_URI in the server environment"]
+    monkeypatch.setattr(settings, "sarvam_api_key", "sk_test_key_123")
+    sign()
+    assert blockers(staff)["sarvam.enabled"] == []
+
+
+def test_settings_say_when_real_patient_data_stops_both_services(person, monkeypatch):
+    staff = person("doctor", "Anil", "Shah")
+    verified_organization(staff)
+    monkeypatch.setattr(settings, "allow_real_patient_data", True)
+    found = blockers(staff)
+    for key in ("sarvam.enabled", "neo4j.enabled"):
+        assert "Off while real patient data is allowed" in found[key]
+
+
+def test_slot_login_says_it_needs_bookings(person, db):
+    staff = person("doctor", "Anil", "Shah")
+    verified_organization(staff)
+    assert blockers(staff)["diagnofast.slot_login"] == ["Needs OPD bookings switched on"]
+    switch_on(db, "diagnofast.bookings")
+    assert blockers(staff)["diagnofast.slot_login"] == []
+
+
+def test_the_blockers_hold_no_secret(person, monkeypatch):
+    staff = person("doctor", "Anil", "Shah")
+    verified_organization(staff)
+    monkeypatch.setattr(settings, "sarvam_api_key", "sk_test_key_123")
+    assert "sk_test" not in str(blockers(staff))
