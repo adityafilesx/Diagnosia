@@ -1,5 +1,6 @@
 // Small helpers for the care workspace. Everything shown on screen goes through
 // h(), which uses text nodes, so patient or AI text can never become markup.
+import { icon } from './icons.js';
 
 export class ApiError extends Error {
     constructor(status, detail) {
@@ -261,8 +262,93 @@ export function section(title, ...children) {
     return [h('h2', {}, title), ...children];
 }
 
-export function loading(container) {
-    container.replaceChildren(h('p', { class: 'muted' }, 'Loading…'));
+// One loading look everywhere: a few grey rows where the list will be, and words for screen readers.
+export function loading(container, words = 'Loading…') {
+    container.replaceChildren(loadingRows(words));
+}
+
+export function loadingRows(words = 'Loading…', count = 3) {
+    return h('div', { class: 'loading-rows', role: 'status', 'aria-live': 'polite' },
+        h('span', { class: 'visually-hidden' }, words),
+        Array.from({ length: count }, () => h('span', { class: 'skeleton-row', 'aria-hidden': 'true' })));
+}
+
+// One empty state everywhere: what isn't here, why that's fine or what to do, and at most one action.
+export function emptyState(title, text, action) {
+    return h('div', { class: 'empty' },
+        h('strong', {}, title),
+        text ? h('span', {}, text) : null,
+        action ? h('div', { class: 'row empty-action' }, action) : null);
+}
+
+// The states of one task, in order. Done ones carry a tick and the word "done" for screen readers;
+// the current one is marked as the step. Order carries meaning here, so numbers are honest.
+export function stateTrack(steps, current, label) {
+    const at = steps.findIndex(([key]) => key === current);
+    return h('ol', { class: 'state-track', 'aria-label': label },
+        steps.map(([key, text], index) => {
+            const state = index < at ? 'done' : index === at ? 'current' : 'todo';
+            return h('li', { 'data-state': state, 'aria-current': state === 'current' ? 'step' : null },
+                h('span', { class: 'state-mark', 'aria-hidden': 'true' }, state === 'done' ? icon('check', 'state-tick') : String(index + 1)),
+                h('span', { class: 'state-word' }, text),
+                state === 'done' ? h('span', { class: 'visually-hidden' }, ' (done)') : null);
+        }));
+}
+
+// A segmented control for views of one list. Each tab carries its count in words and numbers, and an
+// alerting tab adds an icon, so it reads without colour. Arrow keys move between tabs (WAI-ARIA tabs).
+export function tabs(items, current, onSelect, label) {
+    const list = h('div', { class: 'tabs', role: 'tablist', 'aria-label': label });
+    const buttons = items.map((item) => h('button', {
+        type: 'button',
+        role: 'tab',
+        class: `tab${item.alert ? ' alerting' : ''}`,
+        'aria-selected': String(item.key === current),
+        tabIndex: item.key === current ? 0 : -1,
+        'data-tab': item.key,
+        onclick: () => onSelect(item.key),
+    },
+    item.alert ? icon('alert', 'tab-icon') : null,
+    h('span', {}, item.label),
+    item.count === undefined ? null : h('span', { class: 'tab-count', 'aria-label': `${item.count}` }, String(item.count))));
+    list.addEventListener('keydown', (event) => {
+        const move = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+        if (!move) return;
+        const index = buttons.indexOf(document.activeElement);
+        if (index < 0) return;
+        const next = buttons[(index + move + buttons.length) % buttons.length];
+        next.focus();
+        next.click();
+    });
+    list.append(...buttons);
+    return list;
+}
+
+// The one row pattern for lists of work, the same as the DiagnoFast queue: a leading mark, a title with
+// a line under it, status tags on the right, and details that open in place. A row is a link (href), a
+// button (onclick), an expandable row (details), or plain.
+export function listRow({ lead, leadIcon, title, meta, tags, details, href, onclick, tone, open = false, attrs = {} }) {
+    const leadMark = lead === undefined && !leadIcon ? null
+        : h('span', { class: 'q-avatar', 'aria-hidden': 'true' }, leadIcon ? icon(leadIcon, 'q-icon') : lead);
+    const body = [
+        leadMark,
+        h('span', { class: 'q-main' }, h('span', { class: 'q-name' }, title), meta ? h('span', { class: 'q-when' }, meta) : null),
+        tags?.length ? h('span', { class: 'q-tags' }, tags) : null,
+    ];
+    const kind = `queue-item list-row${tone ? ` ${tone}` : ''}${leadMark ? '' : ' no-lead'}`;
+    if (details) {
+        return h('details', { class: `row-details${tone ? ` ${tone}` : ''}`, open, ...attrs },
+            h('summary', { class: kind }, body, h('span', { class: 'row-chevron', 'aria-hidden': 'true' })),
+            h('div', { class: 'row-body' }, details));
+    }
+    if (href) return h('a', { class: kind, href, ...attrs }, body);
+    if (onclick) return h('button', { type: 'button', class: kind, onclick, ...attrs }, body);
+    return h('div', { class: kind, ...attrs }, body);
+}
+
+export function rowList(rows, empty) {
+    if (!rows.length) return empty;
+    return h('div', { class: 'queue-list' }, rows);
 }
 
 // One test or measure over time. Values also stay readable as a table.

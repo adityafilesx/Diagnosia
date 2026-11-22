@@ -1,5 +1,6 @@
 // ClinScribe: capture a consultation, review the draft, sign the note.
-import { act, api, badge, form, h, plural, section, show, table, toast, when } from './ui.js';
+import { act, api, badge, emptyState, form, h, listRow, plural, rowList, show, stateTrack, toast, when } from './ui.js';
+import { icon } from './icons.js';
 import { needPatient } from './overview.js';
 
 const BASE = '/api/addons/clinscribe';
@@ -107,7 +108,10 @@ function transcriptView(session) {
     return { list, fill };
 }
 
-async function renderSession(area, session, context, showNotes) {
+// The four states of a consultation, in order. Each state shows one primary action.
+const STAGES = [['record', 'Record'], ['transcript', 'Check the transcript'], ['draft', 'Review the draft'], ['signed', 'Signed']];
+
+async function renderSession(area, session, context, showNotes, setStage) {
     const speaker = h('select', { 'aria-label': 'Who is speaking' },
         ['unknown', 'clinician', 'patient', 'other'].map((name) => h('option', { value: name }, name === 'unknown' ? 'Speaker not set' : name)));
     const { list, fill } = transcriptView(session);
@@ -134,15 +138,37 @@ async function renderSession(area, session, context, showNotes) {
         warn(`${plural(lost, 'part')} of this recording could not be transcribed. Type what was missed below.`);
     };
     // Shows the session again from the server: after "Stop and finish" the record controls go.
-    const reopen = async () => renderSession(area, await api(`${BASE}/sessions/${session.id}`), context, showNotes);
+    const reopen = async () => renderSession(area, await api(`${BASE}/sessions/${session.id}`), context, showNotes, setStage);
 
     const state = h('div', { class: 'recording' }, h('span', { class: 'dot' }), h('span', {}));
+    // Start and Pause share one place: whichever is possible now is the primary action.
+    const startButton = h('button', {
+        type: 'button',
+        id: 'start-recording',
+        class: 'primary-lg',
+        onclick: async () => {
+            if (recorder) return;
+            if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+                warn('This browser cannot record. Type the lines below instead.');
+                return;
+            }
+            // The server checks consent first, so the microphone never opens without it.
+            if (!(await setState('recording'))) return;
+            try {
+                await startMicrophone(session, speaker, { onSegment: reload, onLost: lostChunk }, context);
+            } catch (problem) {
+                await setState('paused');
+                warn(micProblem(problem));
+            }
+        },
+    }, icon('mic', 'button-icon'), 'Start recording');
+    const pauseButton = h('button', { type: 'button', class: 'primary-lg', onclick: async () => { await stopMicrophone(); await setState('paused'); } }, 'Pause');
     const paint = (name) => {
         state.classList.toggle('on', name === 'recording');
         state.lastChild.textContent = { recording: 'Recording. The patient has been told.', paused: 'Not recording', stopped: 'Session ended' }[name];
+        startButton.hidden = name === 'recording';
+        pauseButton.hidden = name !== 'recording';
     };
-    paint(session.state);
-
     const setState = async (name) => {
         const changed = await act(() => api(`${BASE}/sessions/${session.id}/state`, { method: 'POST', body: { state: name } }), context);
         if (!changed) return false;
@@ -150,30 +176,7 @@ async function renderSession(area, session, context, showNotes) {
         paint(name);
         return true;
     };
-    const controls = h('div', { class: 'row' },
-        h('button', {
-            type: 'button',
-            id: 'start-recording',
-            onclick: async () => {
-                if (recorder) return;
-                if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-                    warn('This browser cannot record. Type the lines below instead.');
-                    return;
-                }
-                // The server checks consent first, so the microphone never opens without it.
-                if (!(await setState('recording'))) return;
-                try {
-                    await startMicrophone(session, speaker, { onSegment: reload, onLost: lostChunk }, context);
-                } catch (problem) {
-                    await setState('paused');
-                    warn(micProblem(problem));
-                }
-            },
-        }, 'Start recording'),
-        h('button', { type: 'button', class: 'quiet', onclick: async () => { await stopMicrophone(); await setState('paused'); } }, 'Pause'),
-        h('button', { type: 'button', class: 'danger', onclick: async () => { await stopMicrophone(); if (await setState('stopped')) await reopen(); } }, 'Stop and finish'),
-        speaker,
-        warning);
+    paint(session.state);
 
     const ended = session.state === 'stopped';
     const typed = form(
@@ -188,6 +191,30 @@ async function renderSession(area, session, context, showNotes) {
             reload();
         },
     );
+    typed.querySelector('button[type="submit"]').classList.add('quiet');
+    const heading = h('div', { class: 'section-head' },
+        h('h2', {}, ended ? 'Check the transcript' : 'Record the consultation'),
+        h('p', { class: 'muted' }, `Started ${when(session.started_at)}`));
+
+    if (!ended) {
+        setStage('record');
+        show(area, h('section', { class: 'sheet stage-panel' },
+            heading,
+            h('div', { class: 'row' }, state, lostBadge),
+            h('div', { class: 'row record-controls' },
+                startButton,
+                pauseButton,
+                h('button', { type: 'button', class: 'quiet', onclick: async () => { await stopMicrophone(); if (await setState('stopped')) await reopen(); } }, 'Stop and finish'),
+                h('label', { class: 'inline-label' }, 'Speaker', speaker)),
+            warning,
+            h('h3', {}, 'Transcript so far'),
+            list,
+            h('details', { class: 'quiet-details' }, h('summary', {}, 'Type a line instead'), typed),
+            h('p', { class: 'muted' }, 'When the consultation is over, press Stop and finish. You can then check the transcript and draft the note.')));
+        return;
+    }
+
+    setStage('transcript');
     const draft = form(
         [{
             name: 'template',
@@ -198,10 +225,6 @@ async function renderSession(area, session, context, showNotes) {
         'Draft the note',
         async (values) => {
             if (values.template === 'custom') values.custom_headings = context.config.defaults.clinscribe_custom_headings;
-            if (session.state !== 'stopped') {
-                await stopMicrophone();
-                if (!(await setState('stopped'))) return;
-            }
             try {
                 const note = await api(`${BASE}/sessions/${session.id}/draft-note`, { method: 'POST', body: values });
                 toast('Draft ready');
@@ -218,15 +241,17 @@ async function renderSession(area, session, context, showNotes) {
         },
         { inline: true },
     );
-    show(area,
-        h('h2', {}, `Consultation started ${when(session.started_at)}`),
+    draft.querySelector('button[type="submit"]').classList.add('primary-lg');
+    show(area, h('section', { class: 'sheet stage-panel' },
+        heading,
         h('div', { class: 'row' }, state, lostBadge),
-        ended ? null : controls,
+        warning,
         list,
-        // Once the session has ended, the two things left to do: write the note, or add what was missed.
-        ...(ended
-            ? [...section('Draft the note', draft), h('div', { class: 'row', style: 'margin-top:12px' }, speaker), typed]
-            : [typed, ...section('Draft a note', draft)]));
+        h('details', { class: 'quiet-details' }, h('summary', {}, 'Add a line the recording missed'),
+            h('label', { class: 'inline-label' }, 'Speaker', speaker), typed),
+        h('div', { class: 'action-bar' },
+            h('p', { class: 'action-note' }, 'Read the transcript, add anything it missed, then draft the note. The draft is not part of the record until you sign it.'),
+            draft)));
 }
 
 const FLAGGED = ['uncertain', 'unsupported', 'not_checked'];
@@ -273,20 +298,24 @@ function statementEditor(statement, section_) {
     };
 }
 
-function renderNote(area, note, context, afterChange) {
+function renderNote(area, note, context, afterChange, setStage) {
     const content = note.content;
     if (note.status === 'approved') {
+        setStage('signed');
         show(area,
-            h('h2', {}, 'Signed note'),
-            h('p', { class: 'muted' }, `Signed ${when(note.approved_at)}. ${note.template.toUpperCase()}.`),
-            h('div', { class: 'sheet' }, content.sections.map((part) => [
-                h('h3', {}, part.heading),
-                part.statements.length ? part.statements.map((line) => h('p', {}, line.text)) : h('p', { class: 'muted' }, 'Nothing recorded.'),
-            ])),
-            h('a', { class: 'button', href: `${BASE}/notes/${note.id}/fhir`, download: `note-${note.id.slice(0, 8)}.json` }, 'Export as FHIR'),
+            h('section', { class: 'sheet locked-note', 'aria-label': 'Signed note, locked' },
+                h('div', { class: 'section-head' }, h('h2', {}, 'Signed note'), h('p', { class: 'muted' }, note.template.toUpperCase())),
+                h('p', { class: 'lock-line' }, icon('lock', 'lock-icon'), `Signed ${when(note.approved_at)}. Locked: a signed note can't be changed.`),
+                content.sections.map((part) => [
+                    h('h3', {}, part.heading),
+                    part.statements.length ? part.statements.map((line) => h('p', {}, line.text)) : h('p', { class: 'muted' }, 'Nothing recorded.'),
+                ]),
+                h('div', { class: 'row' },
+                    h('a', { class: 'button quiet', href: `${BASE}/notes/${note.id}/fhir`, download: `note-${note.id.slice(0, 8)}.json` }, 'Export as FHIR'))),
         );
         return;
     }
+    setStage('draft');
     const editors = content.sections.map((part) => ({
         heading: part.heading,
         lines: part.statements.map((statement) => statementEditor(statement, part.heading)),
@@ -300,11 +329,11 @@ function renderNote(area, note, context, afterChange) {
     const save = () => act(() => api(`${BASE}/notes/${note.id}`, { method: 'PATCH', body: collect() }), context, 'Saved');
     const flaggedIds = (content_) => content_.sections.flatMap((part) => part.statements).filter((line) => FLAGGED.includes(line.check?.verdict)).map((line) => line.id);
     show(area,
-        h('h2', {}, 'Review the draft'),
-        h('div', { class: 'banner' }, 'This is an AI draft and not part of the record until you sign it. Highlighted lines need your eye.'),
-        h('p', { class: 'muted' }, `${plural(note.open_flags, 'line')} to check. Drafted by ${note.model}, prompt ${note.prompt_version}.`),
+        h('div', { class: 'section-head' }, h('h2', {}, 'Review the draft'), h('p', { class: 'muted' }, `Drafted by ${note.model}, prompt ${note.prompt_version}`)),
+        h('div', { class: 'banner warn' }, 'This is an AI draft and not part of the record until you sign it. Highlighted lines need your eye.'),
+        h('p', { class: 'muted' }, note.open_flags ? `${plural(note.open_flags, 'line')} to check.` : 'No lines flagged. Read it through before signing.'),
         note.chunks_lost ? h('div', { class: 'banner danger' }, `${plural(note.chunks_lost, 'chunk')} lost: that much of the recording could not be transcribed, so this draft may be missing what was said then.`) : null,
-        editors.map((part) => h('div', {},
+        editors.map((part) => h('section', { class: 'sheet note-part' },
             h('h3', {}, part.heading),
             part.lines.length ? part.lines.map((line) => line.element) : h('p', { class: 'muted' }, 'Nothing said on this.'),
             h('button', {
@@ -319,40 +348,42 @@ function renderNote(area, note, context, afterChange) {
         content.missing_information?.length
             ? h('div', {}, h('h3', {}, 'Not in the transcript'), h('ul', {}, content.missing_information.map((item) => h('li', {}, item))))
             : null,
-        h('div', { class: 'sheet' },
-            note.open_flags ? h('p', { class: 'muted' }, `Tick "I have checked this line" on each of the ${plural(note.open_flags, 'highlighted line')} before signing.`) : null,
-            h('div', { class: 'row', style: 'margin-top:8px' },
-                h('button', {
-                    type: 'button',
-                    class: 'quiet',
-                    onclick: async () => { if (await save()) afterChange(note.id); },
-                }, 'Save changes'),
-                h('button', {
-                    type: 'button',
-                    onclick: async () => {
-                        const saved = await save();
-                        if (!saved) return;
-                        // Saving checks typed lines again, so the flags are read from what was saved. Each
-                        // one needs its own tick: a flag raised by this save is shown before anything is signed.
-                        const open = flaggedIds(saved.content).filter((id) => !ticked.has(id));
-                        if (open.length) {
-                            toast(`${plural(open.length, 'highlighted line')} still to check. Tick each one after comparing it, then sign.`, true);
-                            afterChange(note.id);
-                            return;
-                        }
-                        const acknowledged = flaggedIds(saved.content);
-                        const signed = await act(() => api(`${BASE}/notes/${note.id}/approve`, { method: 'POST', body: { acknowledged } }), context, 'Note signed');
-                        if (signed) afterChange(note.id);
-                    },
-                }, 'Sign note'),
-                h('button', {
-                    type: 'button',
-                    class: 'quiet',
-                    onclick: async () => {
-                        await act(() => api(`${BASE}/notes/${note.id}/discard`, { method: 'POST' }), context, 'Draft discarded');
-                        afterChange(null);
-                    },
-                }, 'Discard draft'))),
+        h('div', { class: 'action-bar sticky' },
+            h('p', { class: 'action-note' }, note.open_flags
+                ? `Tick "I have checked this line" on each of the ${plural(note.open_flags, 'highlighted line')} before signing.`
+                : 'Signing adds this note to the record and locks it.'),
+            h('button', {
+                type: 'button',
+                class: 'quiet',
+                onclick: async () => {
+                    await act(() => api(`${BASE}/notes/${note.id}/discard`, { method: 'POST' }), context, 'Draft discarded');
+                    afterChange(null);
+                },
+            }, 'Discard draft'),
+            h('button', {
+                type: 'button',
+                class: 'quiet',
+                onclick: async () => { if (await save()) afterChange(note.id); },
+            }, 'Save changes'),
+            h('button', {
+                type: 'button',
+                class: 'primary-lg',
+                onclick: async () => {
+                    const saved = await save();
+                    if (!saved) return;
+                    // Saving checks typed lines again, so the flags are read from what was saved. Each
+                    // one needs its own tick: a flag raised by this save is shown before anything is signed.
+                    const open = flaggedIds(saved.content).filter((id) => !ticked.has(id));
+                    if (open.length) {
+                        toast(`${plural(open.length, 'highlighted line')} still to check. Tick each one after comparing it, then sign.`, true);
+                        afterChange(note.id);
+                        return;
+                    }
+                    const acknowledged = flaggedIds(saved.content);
+                    const signed = await act(() => api(`${BASE}/notes/${note.id}/approve`, { method: 'POST', body: { acknowledged } }), context, 'Note signed');
+                    if (signed) afterChange(note.id);
+                },
+            }, icon('lock', 'button-icon'), 'Sign note')),
     );
 }
 
@@ -365,13 +396,19 @@ export async function renderClinScribe(container, context) {
         api(`${BASE}/patients/${patient.id}/sessions`),
         api(`${BASE}/patients/${patient.id}/notes`),
     ]);
-    const area = h('div', {});
+    const area = h('div', { class: 'stage-area' });
+    const track = h('div', {});
+    const setStage = (key) => show(track, stateTrack(STAGES, key, 'Where this consultation is'));
     const showNote = async (noteId) => {
         if (!noteId) return refresh();
-        renderNote(area, await api(`${BASE}/notes/${noteId}`), context, (next) => showNote(next));
+        renderNote(area, await api(`${BASE}/notes/${noteId}`), context, (next) => showNote(next), setStage);
+        area.scrollIntoView({ block: 'start', behavior: 'smooth' });
         return undefined;
     };
-    const showSession = async (id) => renderSession(area, await api(`${BASE}/sessions/${id}`), context, showNote);
+    const showSession = async (id) => {
+        await renderSession(area, await api(`${BASE}/sessions/${id}`), context, showNote, setStage);
+        area.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
 
     const open = encounters.filter((item) => item.status === 'in_progress');
     const start = open.length ? form(
@@ -394,35 +431,50 @@ export async function renderClinScribe(container, context) {
         },
         { inline: true },
     );
+    start.querySelector('button[type="submit"]').classList.add('primary-lg');
+    setStage('record');
+    show(area, h('section', { class: 'sheet stage-panel' },
+        h('h2', {}, open.length ? 'Start recording a consultation' : 'Start a visit first'),
+        h('p', { class: 'muted' }, open.length
+            ? 'Choose the visit and the language spoken. Recording starts only when you press Start recording.'
+            : 'A consultation is recorded against a visit. Say why the patient came, then open a session.'),
+        start));
+
+    const sessionRows = sessions.map((row) => listRow({
+        leadIcon: 'mic',
+        title: `Consultation, ${when(row.started_at)}`,
+        meta: plural(row.segments, 'line'),
+        tone: row.state === 'recording' ? 'urgent' : row.state === 'stopped' ? '' : 'warn',
+        tags: [
+            row.chunks_lost ? badge(`${plural(row.chunks_lost, 'chunk')} lost`, 'bad') : null,
+            badge(row.transcript_deleted_at ? 'transcript deleted' : { recording: 'Recording', paused: 'Paused', stopped: 'Ended' }[row.state] || row.state,
+                row.state === 'stopped' ? '' : 'warn'),
+        ],
+        onclick: () => showSession(row.id),
+        attrs: { 'aria-label': `Open the consultation from ${when(row.started_at)}` },
+    }));
+    const noteRows = notes.map((row) => listRow({
+        leadIcon: row.status === 'draft' ? 'file' : 'lock',
+        title: `${row.status === 'draft' ? 'Draft note' : 'Signed note'}, ${when(row.created_at)}`,
+        meta: row.status === 'draft' ? (row.open_flags ? `${plural(row.open_flags, 'line')} to check` : 'Ready to read and sign') : 'Locked',
+        tone: row.status === 'draft' ? 'warn' : 'good',
+        tags: [row.status === 'draft' ? h('mark', {}, 'Draft') : badge('Signed', 'good')],
+        onclick: () => showNote(row.id),
+        attrs: { 'aria-label': `Open the ${row.status === 'draft' ? 'draft' : 'signed'} note from ${when(row.created_at)}` },
+    }));
 
     show(container,
         h('h1', {}, 'ClinScribe'),
         h('p', { class: 'lede' }, 'Turns a consultation into a draft note for you to check and sign. Audio is sent for transcription and not kept.'),
         h('div', { class: 'banner' }, 'Tell the patient before you start. Recording never begins on its own, and you can stop at any time.'),
         context.config.ai_ready ? null : h('div', { class: 'banner danger' }, 'AI isn\'t set up, so audio can\'t be transcribed and notes can\'t be drafted. Add a free Groq key in Settings.'),
-        start,
+        track,
         area,
-        ...section('Earlier sessions', table(
-            [
-                { label: 'Started', cell: (row) => when(row.started_at) },
-                { label: 'Lines', number: true, cell: (row) => row.segments },
-                { label: 'Audio lost', cell: (row) => (row.chunks_lost ? badge(`${plural(row.chunks_lost, 'chunk')} lost`, 'bad') : '') },
-                { label: 'State', cell: (row) => badge(row.transcript_deleted_at ? 'transcript deleted' : row.state) },
-                { label: '', cell: (row) => h('button', { type: 'button', class: 'quiet', onclick: () => showSession(row.id) }, 'Open') },
-            ],
-            sessions,
-            'No sessions yet.',
-        )),
-        ...section('Notes', table(
-            [
-                { label: 'Created', cell: (row) => when(row.created_at) },
-                { label: 'Status', cell: (row) => (row.status === 'draft' ? h('mark', {}, 'Draft') : badge(row.status, 'good')) },
-                { label: 'To check', number: true, cell: (row) => (row.status === 'draft' ? row.open_flags : '') },
-                { label: '', cell: (row) => h('button', { type: 'button', class: 'quiet', onclick: () => showNote(row.id) }, 'Open') },
-            ],
-            notes,
-            'No notes yet.',
-        )),
+        h('div', { class: 'columns history-columns' },
+            h('section', {}, h('h2', {}, 'Earlier sessions'),
+                rowList(sessionRows, emptyState('No sessions yet', 'A session appears here once you open one.'))),
+            h('section', {}, h('h2', {}, 'Notes'),
+                rowList(noteRows, emptyState('No notes yet', 'Draft a note from a finished session.')))),
     );
     return undefined;
 }
