@@ -752,6 +752,21 @@ input.switch:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 @media (pointer: coarse), (max-width: 860px) { input.switch { width: 52px; height: 30px; } input.switch::after { width: 24px; height: 24px; } input.switch:checked::after { transform: translateX(22px); } }
 
+/* OPD bookings */
+.crumb { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
+.crumb a { text-decoration: none; font-weight: 560; }
+.opd-bar { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin: 0 0 var(--space-4); }
+.opd-bar input[type="date"] { width: auto; }
+.queue-item .queue-number { font-size: var(--text-md); font-weight: 750; color: var(--text); font-variant-numeric: tabular-nums; }
+.queue-item.urgent .queue-number { color: inherit; }
+.nothing-sent { max-width: none; }
+.outbox-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.message-box p { margin: 2px 0; }
+.add-slot { margin-top: var(--space-5); }
+.department-picker { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-3) 0; }
+.department-picker select { width: auto; min-width: 200px; }
+.department-picker p { flex-basis: 100%; margin: 0; }
+
 /* DischargeCare: the team's readiness, and the family's checklist in large, plain type. */
 .start-panel form.inline label { flex: 1 1 200px; }
 .episode .section-head { margin-top: 0; }
@@ -867,7 +882,6 @@ button.big-done { min-height: 60px; min-width: 160px; font-size: var(--text-lg);
 .graph-edge.overdue { stroke: var(--danger); }
 .translation-line { margin: 6px 0 0; color: var(--text-muted); font-size: var(--text-sm); }
 .translation-line .status { margin-right: 6px; }
-.department-picker { display: grid; gap: 6px; min-width: 13rem; }
 
 /* ---------- Responsive --------------------------------------------------------------------- */
 
