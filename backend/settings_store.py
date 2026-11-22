@@ -279,6 +279,8 @@ def public_config(user=Depends(require_user), db: sqlite3.Connection = Depends(g
         "ai_ready": bool(provider_order(db)),
         # Without the list, medicine names read from a prescription can't be checked. The page says so.
         "medicine_list_ready": medicine_names.installed(),
+        # CareFlow's live stream exists only with MongoDB change streams on; otherwise the page refreshes.
+        "careflow_stream": bool(settings.mongodb_change_streams),
         "defaults": {
             "referrals_routine_days": get("referrals.routine_days", db),
             "referrals_urgent_days": get("referrals.urgent_days", db),

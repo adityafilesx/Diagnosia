@@ -752,6 +752,21 @@ input.switch:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 @media (pointer: coarse), (max-width: 860px) { input.switch { width: 52px; height: 30px; } input.switch::after { width: 24px; height: 24px; } input.switch:checked::after { transform: translateX(22px); } }
 
+/* Lists of activity, tasks, reminders and messages: the queue row everywhere. */
+ol.timeline.event-rows { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); container-type: inline-size; }
+ol.timeline.event-rows::before { content: none; }
+ol.timeline.event-rows > li { padding: 0; }
+ol.timeline.event-rows > li::before { content: none; }
+ol.timeline.event-rows > li:last-child .row-details { border-bottom: 0; }
+.list-row .q-name { white-space: normal; overflow-wrap: anywhere; }
+.mono { font-family: var(--font-mono); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.error-state { border-color: var(--danger-border); background: var(--danger-soft); color: var(--danger-ink); }
+.error-state strong { color: inherit; }
+details.add-panel > summary h2 { font-size: var(--text-md); }
+details.add-panel[open] > summary { margin-bottom: var(--space-4); }
+.queue-item.muted-row .q-name { font-weight: 520; color: var(--text-muted); }
+.row-details > summary.queue-item.muted-row .q-name { color: var(--text-muted); }
+
 /* OPD bookings */
 .crumb { margin: 0 0 var(--space-3); font-size: var(--text-sm); }
 .crumb a { text-decoration: none; font-weight: 560; }

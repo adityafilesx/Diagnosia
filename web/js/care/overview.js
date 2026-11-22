@@ -1,5 +1,5 @@
 // The shared record: patient choice, consent, care team, timeline, documents, tasks and inbox.
-import { act, api, ask, badge, form, h, section, table, when, show } from './ui.js';
+import { act, api, ask, badge, emptyState, form, h, listRow, rowList, section, table, when, show } from './ui.js';
 import { canUse } from './catalogue.js';
 import { visitStrip } from './home.js';
 import { packPanel } from './pack.js';
@@ -192,37 +192,36 @@ export async function renderOverview(container, context) {
 
 const STATUS_CHOICES = { open: 'Reopen', done: 'Done', blocked: 'Blocked', missed: 'Missed' };
 
+const TASK_WORDS = { open: 'Open', done: 'Done', blocked: 'Blocked', missed: 'Missed', held: 'Starts on approval' };
+
+// Tasks as rows: what, when, and its state in words. The status buttons sit in the row's details.
 export function taskList(tasks, context, onChange) {
-    return table(
-        [
-            {
-                label: 'Task',
-                cell: (task) => [
-                    h('strong', {}, task.title),
-                    task.detail ? h('div', { class: 'muted' }, task.detail) : null,
-                ],
-            },
-            { label: 'Due', cell: (task) => [when(task.due_at), task.overdue ? [' ', badge('overdue', 'bad')] : null] },
-            { label: 'Priority', cell: (task) => (task.priority === 'high' ? badge('high', 'bad') : 'routine') },
-            { label: 'Status', cell: (task) => badge(task.status, task.status === 'done' ? 'good' : '') },
-            {
-                label: '',
-                cell: (task) => h('div', { class: 'row' }, Object.entries(STATUS_CHOICES)
-                    .filter(([status]) => status !== task.status && (status !== 'open' || task.status !== 'open'))
-                    .map(([status, label]) => h('button', {
-                        type: 'button',
-                        class: 'quiet',
-                        onclick: async () => {
-                            const note = status === 'blocked' || status === 'missed' ? await ask('What happened?') ?? '' : '';
-                            await act(() => api(`/api/tasks/${task.id}/status`, { method: 'POST', body: { status, note } }), context, 'Task updated');
-                            onChange();
-                        },
-                    }, label))),
-            },
+    return rowList(tasks.map((task) => listRow({
+        leadIcon: task.status === 'done' ? 'check' : task.overdue ? 'clock' : 'tasks',
+        tone: task.status === 'done' ? 'good' : task.overdue || ['blocked', 'missed'].includes(task.status) ? 'urgent' : '',
+        title: task.title,
+        meta: [task.due_at ? `Due ${when(task.due_at)}` : 'No due date', task.audience === 'patient' ? 'For the patient or family' : task.audience === 'care_team' ? 'For the care team' : null].filter(Boolean).join(' · '),
+        tags: [
+            task.overdue && task.status !== 'done' ? badge('Overdue', 'bad') : null,
+            task.priority === 'high' ? badge('High priority', 'bad') : null,
+            badge(TASK_WORDS[task.status] || task.status, task.status === 'done' ? 'good' : ['blocked', 'missed'].includes(task.status) ? 'warn' : ''),
         ],
-        tasks,
-        'No tasks.',
-    );
+        details: [
+            task.detail ? h('p', {}, task.detail) : null,
+            task.status_note ? h('p', { class: 'muted' }, `Note: ${task.status_note}`) : null,
+            h('div', { class: 'row', role: 'group', 'aria-label': `Change ${task.title}` }, Object.entries(STATUS_CHOICES)
+                .filter(([status]) => status !== task.status && (status !== 'open' || task.status !== 'open'))
+                .map(([status, label]) => h('button', {
+                    type: 'button',
+                    class: status === 'done' ? '' : 'quiet',
+                    onclick: async () => {
+                        const note = status === 'blocked' || status === 'missed' ? await ask('What happened?') ?? '' : '';
+                        await act(() => api(`/api/tasks/${task.id}/status`, { method: 'POST', body: { status, note } }), context, 'Task updated');
+                        onChange();
+                    },
+                }, label))),
+        ],
+    })), emptyState('No tasks', 'Tasks for this patient appear here.'));
 }
 
 export async function renderTasks(container, context) {
@@ -244,26 +243,41 @@ export async function renderTasks(container, context) {
         },
         { inline: true },
     ) : null;
-    show(container, h('h1', {}, 'Tasks'), add, h('div', { style: 'margin-top:12px' }, taskList(tasks, context, refresh)));
+    if (add) add.querySelector('button[type="submit"]').classList.add('quiet');
+    const open = tasks.filter((task) => !['done', 'held'].includes(task.status));
+    show(container,
+        h('h1', {}, 'Tasks'),
+        add ? h('details', { class: 'sheet add-panel' }, h('summary', {}, h('h2', {}, 'Add a task')), add) : null,
+        h('div', { class: 'section-head' }, h('h2', {}, 'Open'), h('p', { class: 'muted' }, `${open.length} of ${tasks.length}`)),
+        taskList(open, context, refresh),
+        tasks.length > open.length ? [h('h2', {}, 'Done or waiting'), taskList(tasks.filter((task) => !open.includes(task)), context, refresh)] : null);
     return undefined;
 }
 
 export async function renderInbox(container, context) {
     const notes = await api('/api/notifications');
+    const unread = notes.filter((note) => !note.read_at).length;
     show(container,
         h('h1', {}, 'Inbox'),
-        notes.length
-            ? h('ul', { class: 'timeline' }, notes.map((note) => h('li', {},
-                note.read_at ? note.title : h('strong', {}, note.title),
-                note.body ? h('div', {}, note.body) : null,
-                h('div', { class: 'row muted' }, when(note.created_at), !note.read_at && h('button', {
+        h('p', { class: 'lede' }, unread ? `${unread} new` : 'Everything here has been read.'),
+        rowList(notes.map((note) => listRow({
+            leadIcon: 'bell',
+            tone: note.read_at ? 'muted-row' : 'accent',
+            title: note.title,
+            meta: when(note.created_at),
+            tags: [note.read_at ? null : badge('New', 'warn')],
+            details: [
+                note.body ? h('p', {}, note.body) : h('p', { class: 'muted' }, 'No more detail.'),
+                note.read_at ? null : h('div', { class: 'row' }, h('button', {
                     type: 'button',
-                    class: 'link-button',
+                    class: 'quiet',
                     onclick: async () => {
                         await act(() => api(`/api/notifications/${note.id}/read`, { method: 'POST' }), context);
                         context.refresh();
                     },
-                }, 'Mark as read')))))
-            : h('p', { class: 'empty' }, 'Nothing new.'),
+                }, 'Mark as read')),
+            ],
+            open: !note.read_at && notes.length <= 3,
+        })), emptyState('Nothing new', 'Messages from your care team and the tools arrive here.')),
     );
 }

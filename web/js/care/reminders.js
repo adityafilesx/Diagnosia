@@ -1,5 +1,5 @@
 // Reminders, and the clinic's list of people who need a call.
-import { act, api, badge, form, h, section, show, table, toast, when } from './ui.js';
+import { act, api, badge, emptyState, form, h, listRow, rowList, section, show, table, toast, when } from './ui.js';
 
 const STATE_WORDS = {
     pending: 'Scheduled',
@@ -110,46 +110,45 @@ export async function renderReminders(container, context) {
         h('h1', {}, 'Reminders'),
         h('p', { class: 'lede' }, 'Tracks whether a reminder reached someone. If it can\'t be confirmed, a person follows up.'),
         h('div', { class: 'banner' }, 'A reminder is not an emergency or clinical escalation. Scheduled or sent does not mean it was received.'),
-        isStaff ? section('Clinic follow-up',
-            h('button', { type: 'button', class: 'quiet', onclick: () => printCallList(printArea, context) }, 'Print a call list'),
-            table(
-                [
-                    { label: 'Patient', cell: (row) => [`${row.first_name} ${row.last_name}`, row.phone ? h('div', { class: 'muted' }, row.phone) : h('div', { class: 'muted' }, 'No phone on record')] },
-                    { label: 'Reminder', cell: (row) => [row.title, h('div', { class: 'muted' }, row.failure_reason)] },
-                    { label: 'Priority', cell: (row) => (row.priority === 'high' ? badge('high', 'bad') : 'routine') },
-                    { label: 'Follow up by', cell: (row) => [when(row.followup_due_at), row.overdue ? [' ', badge('overdue', 'bad')] : null] },
-                    { label: 'Tries', number: true, cell: (row) => row.contact_attempts },
-                    { label: 'Outcome', cell: (row) => outcomeControl(row, context) },
+        isStaff ? [
+            h('div', { class: 'section-head' }, h('h2', {}, 'Clinic follow-up'),
+                h('button', { type: 'button', class: 'quiet', onclick: () => printCallList(printArea, context) }, 'Print a call list')),
+            rowList(followUps.map((row) => listRow({
+                leadIcon: 'phone',
+                tone: row.overdue ? 'urgent' : 'warn',
+                title: `${row.first_name} ${row.last_name} · ${row.title}`,
+                meta: [row.phone || 'No phone on record', `Follow up by ${when(row.followup_due_at)}`, `${row.contact_attempts} ${row.contact_attempts === 1 ? 'try' : 'tries'}`].join(' · '),
+                tags: [row.overdue ? badge('Overdue', 'bad') : null, row.priority === 'high' ? badge('High priority', 'bad') : null],
+                details: [
+                    row.failure_reason ? h('p', {}, row.failure_reason) : null,
+                    outcomeControl(row, context),
                 ],
-                followUps,
-                'Nobody needs a call right now.',
-            )) : null,
+            })), emptyState('Nobody needs a call right now', 'A reminder nobody confirmed comes here for a person to follow up.')),
+        ] : null,
         printArea,
-        patient ? section(`Reminders for ${patient.first_name}`,
-            schedule,
-            table(
-                [
-                    { label: 'Reminder', cell: (row) => row.title },
-                    { label: 'When', cell: (row) => when(row.scheduled_for) },
-                    { label: 'Channel', cell: (row) => (row.channel || 'Not chosen yet').replaceAll('_', ' ') },
-                    { label: 'What happened', cell: (row) => stateBadge(row.state) },
-                    {
-                        label: '',
-                        cell: (row) => (['in_app_sent', 'delivered', 'external_delivery_pending'].includes(row.state) && !isClinician
-                            ? h('button', {
-                                type: 'button',
-                                class: 'quiet',
-                                onclick: async () => {
-                                    const done = await act(() => api(`/api/reminders/${row.id}/acknowledge`, { method: 'POST' }), context);
-                                    if (done) { toast('Thank you. Your care team can see this.'); refresh(); }
-                                },
-                            }, 'I saw this')
-                            : ''),
-                    },
-                ],
-                reminders,
-                'No reminders.',
-            )) : h('p', { class: 'empty' }, 'Open a patient to see or schedule their reminders.'),
+        patient ? [
+            h('h2', {}, `Reminders for ${patient.first_name}`),
+            schedule ? h('details', { class: 'sheet add-panel' }, h('summary', {}, h('h2', {}, 'Schedule a reminder')), schedule) : null,
+            rowList(reminders.map((row) => {
+                const kind = ['staff_followup_required', 'failed'].includes(row.state) ? 'urgent' : row.state === 'acknowledged' ? 'good' : '';
+                const canConfirm = ['in_app_sent', 'delivered', 'external_delivery_pending'].includes(row.state) && !isClinician;
+                return listRow({
+                    leadIcon: row.state === 'acknowledged' ? 'check' : 'bell',
+                    tone: kind,
+                    title: row.title,
+                    meta: `${when(row.scheduled_for)} · ${(row.channel || 'Channel not chosen yet').replaceAll('_', ' ')}`,
+                    tags: [stateBadge(row.state)],
+                    details: canConfirm ? h('div', { class: 'row' }, h('button', {
+                        type: 'button',
+                        onclick: async () => {
+                            const done = await act(() => api(`/api/reminders/${row.id}/acknowledge`, { method: 'POST' }), context);
+                            if (done) { toast('Thank you. Your care team can see this.'); refresh(); }
+                        },
+                    }, 'I saw this')) : h('p', { class: 'muted' }, STATE_WORDS[row.state] || row.state),
+                    open: canConfirm,
+                });
+            }), emptyState('No reminders', isClinician ? 'Schedule one above.' : 'Reminders from your care team appear here.')),
+        ] : emptyState('Open a patient', 'Open a patient to see or schedule their reminders.'),
         patient ? section('How to reach this person', await preferencesPanel(context)) : null,
     );
     return undefined;
