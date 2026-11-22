@@ -36,7 +36,7 @@ function feedback() {
     const line = h('p', { class: 'setting-feedback', role: 'status', 'aria-live': 'polite' });
     const say = (kind, text) => {
         line.className = `setting-feedback ${kind}`;
-        line.replaceChildren(kind === 'saved' ? icon('check', 'feedback-icon') : kind === 'error' ? icon('alert', 'feedback-icon') : '', text);
+        show(line, kind === 'saved' ? icon('check', 'feedback-icon') : kind === 'error' ? icon('alert', 'feedback-icon') : null, text);
     };
     return { line, say };
 }
