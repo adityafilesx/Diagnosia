@@ -10,7 +10,7 @@ The contract is `backend/careflow/contract.py`, and the code is the authority. T
 | `schema_version` | The contract version |
 | `event_type`, `module` | From the lists below. A module can only record its own |
 | `workflow_stage` | `before_visit`, `during_visit` or `after_visit`. Old events from removed tools may say `programme` |
-| `source_system`, `source_operation` | Always `curai`, and the audit action or operation that produced this event |
+| `source_system`, `source_operation` | Always `diagnosia`, and the audit action or operation that produced this event |
 | `source_ref` | The request ID, for tracing back to the audit log |
 | `workflow_ref` | A generated `case_...` reference. The map to a patient stays in SQLite |
 | `tenant_ref` | A one-way hash of the organization, or `tenant_individual` |
@@ -73,7 +73,7 @@ The same for every tool. The event stays in the SQLite outbox, which committed w
 - **Stage:** `after_visit`
 - **Trigger:** Audit hook
 - **Human review:** Yes: a clinician approves the plan.
-- **Events:** `discharge.approved`, `discharge.checklist.updated`, `discharge.completed`, `discharge.episode_created`, `discharge.episode_updated`
+- **Events:** `discharge.approved`, `discharge.checklist.updated`, `discharge.completed`, `discharge.episode_created`, `discharge.episode_updated`, `discharge.reopened`
 
 
 

@@ -7,25 +7,44 @@ read from free text. A referral can't quietly disappear: it stays open until a
 reviewed outcome or a recorded reason closes it.
 """
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from backend import addons
 from backend.auth import require_doctor, require_user
 from backend.db import get_db
+from backend.diagnofast import graph_sync
 from backend.patient_pack import sync as pack
 from backend.records import access as gate
 from backend.records import audit, care, documents
 from backend.records.access import CLINICAL
 from backend.records.store import insert, now_iso, one, rows, update
+from backend.referralloop import network
 
 router = APIRouter(prefix="/api/addons/referrals")
 
 DUPLICATE_WINDOW_DAYS = 30
 MAX_CONTACT_ATTEMPTS = 3
 TERMINAL = ("closed", "cancelled")
+# Stages where the referrer is waiting on the other service. Past the reply-by date these are chased.
+WAITING = ("sent", "acknowledged", "accepted")
+OVERDUE_TASK = "referral_overdue"  # the link type of the task the sweep creates
+# How long the referrer has to act on each task this tool creates, before it is escalated.
+CHASE_WITHIN_DAYS = 1
+UNREACHABLE_WITHIN_DAYS = 1
+REVIEW_OUTCOME_WITHIN_DAYS = 3
+# The receiving service said no, or pointed elsewhere. A new referral that names one of these as the
+# one it replaces takes over from it, and the old one closes with a link to the new one.
+REPLACEABLE = ("redirected", "declined")
+REPLACED_REASON = "Replaced by a new referral"
+# An appointment someone could still attend. "booked" needs one of these.
+OPEN_APPOINTMENT = ("offered", "booked", "rescheduled")
+# A typed year like 0206 or 2206 is a slip, not an appointment.
+APPOINTMENT_PAST_DAYS = 365
+APPOINTMENT_AHEAD_DAYS = 3 * 365
 
 # Who may move a referral from one stage to the next.
 RECEIVER_MOVES = {
@@ -74,6 +93,24 @@ class AppointmentRequest(BaseModel):
     scheduled_at: str = Field(min_length=10, max_length=25)
     location: str = Field(default="", max_length=200)
     booked: bool = False
+
+    @field_validator("scheduled_at")
+    @classmethod
+    def a_real_date(cls, value: str) -> str:
+        """A date, or a date and time. Stored in one form, so the screens and the overdue check agree."""
+        text = value.strip()
+        try:
+            if len(text) == 10:
+                day, stored = date.fromisoformat(text), text
+            else:
+                moment = datetime.fromisoformat(text)
+                day, stored = moment.date(), moment.strftime("%Y-%m-%dT%H:%M")
+        except ValueError:
+            raise ValueError("Please give the appointment as a date, or a date and time.")
+        today = date.today()
+        if not today - timedelta(days=APPOINTMENT_PAST_DAYS) <= day <= today + timedelta(days=APPOINTMENT_AHEAD_DAYS):
+            raise ValueError("Please check the appointment's year.")
+        return stored
 
 
 class ContactAttempt(BaseModel):
@@ -138,6 +175,7 @@ def _is_manual(referral: sqlite3.Row) -> bool:
 def _log(
     db: sqlite3.Connection, referral: sqlite3.Row, new_status: str, user_id: int, side: str, note: str = "", source: str = "app"
 ) -> None:
+    graph_sync.enqueue(db, "referral", referral["id"])  # a reference for the Neo4j copy, with the change
     insert(
         db,
         "referral_events",
@@ -155,6 +193,49 @@ def _log(
 def _move(db: sqlite3.Connection, referral: sqlite3.Row, new_status: str, user_id: int, side: str, note: str = "", source: str = "app") -> None:
     _log(db, referral, new_status, user_id, side, note, source)
     update(db, "referrals", referral["id"], status=new_status, updated_at=now_iso())
+    if new_status not in WAITING:
+        # It has moved on (or closed), so there is nothing left to chase.
+        db.execute(
+            "UPDATE tasks SET status = ?, updated_at = ? WHERE link_type = ? AND link_id = ? AND status = 'open'",
+            ("cancelled" if new_status in TERMINAL else "done", now_iso(), OVERDUE_TASK, referral["id"]),
+        )
+
+
+def _due_in(days: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat(timespec="seconds")
+
+
+def chase_overdue(db: sqlite3.Connection) -> int:
+    """Run by the sweep. A referral still waiting on the other service after its reply-by date becomes
+    a dated, high-priority task for the referrer, once. Before this it showed only when someone
+    opened the referrals page. The caller commits."""
+    overdue = db.execute(
+        f"""
+        SELECT * FROM referrals
+        WHERE status IN ({", ".join("?" * len(WAITING))}) AND respond_by < ?
+          AND NOT EXISTS (SELECT 1 FROM tasks WHERE tasks.link_type = ? AND tasks.link_id = referrals.id)
+        """,
+        (*WAITING, date.today().isoformat(), OVERDUE_TASK),
+    ).fetchall()
+    for referral in overdue:
+        waiting_for = "No reply" if referral["status"] == "sent" else "No appointment"
+        title = f"Chase the {referral['specialty']} referral: {waiting_for.lower()} by {referral['respond_by']}"
+        care.create_task(
+            db,
+            referral["patient_id"],
+            title,
+            referral["referring_user_id"],
+            detail="The reply-by date has passed. Contact the receiving service, send it elsewhere, or close it with a reason.",
+            owner_user_id=referral["referring_user_id"],
+            priority="high",
+            due_at=_due_in(CHASE_WITHIN_DAYS),
+            module="referralloop",
+            link_type=OVERDUE_TASK,
+            link_id=referral["id"],
+        )
+        care.notify(db, referral["referring_user_id"], f"Referral overdue: {referral['specialty']}", f"{waiting_for} by {referral['respond_by']}.", referral["patient_id"], "referralloop")
+        _log(db, referral, referral["status"], referral["referring_user_id"], "system", f"Past the reply-by date ({referral['respond_by']}): a task was created")
+    return len(overdue)
 
 
 def _notify_receivers(db: sqlite3.Connection, referral: sqlite3.Row, title: str, body: str = "") -> None:
@@ -167,6 +248,22 @@ def _notify_receivers(db: sqlite3.Connection, referral: sqlite3.Row, title: str,
         for member in members.fetchall():
             if member["user_id"] != referral["receiving_user_id"]:
                 care.notify(db, member["user_id"], title, body, None, "referralloop")
+
+
+def _link(db: sqlite3.Connection, referral_id: Optional[str]) -> Optional[dict]:
+    """Enough of another referral to show a link to it."""
+    if referral_id is None:
+        return None
+    other = db.execute(
+        """
+        SELECT referrals.id, referrals.status, referrals.specialty, referrals.manual_destination,
+               organizations.name AS organization
+        FROM referrals LEFT JOIN organizations ON organizations.id = referrals.receiving_organization_id
+        WHERE referrals.id = ?
+        """,
+        (referral_id,),
+    ).fetchone()
+    return one(other)
 
 
 def _payload(db: sqlite3.Connection, referral: sqlite3.Row, side: str) -> dict:
@@ -184,6 +281,15 @@ def _payload(db: sqlite3.Connection, referral: sqlite3.Row, side: str) -> dict:
         db.execute("SELECT * FROM referral_appointments WHERE referral_id = ? ORDER BY created_at", (referral_id,))
     )
     outcome = one(db.execute("SELECT * FROM referral_outcomes WHERE referral_id = ?", (referral_id,)).fetchone())
+    if side == "referrer":
+        # Only the referrer sees where a referral went next: the other service is none of the old one's business.
+        payload["replaces"] = _link(db, referral["replaces_referral_id"])
+        payload["replaced_by"] = None
+        if referral["closed_reason"] == REPLACED_REASON:
+            successor = db.execute(
+                "SELECT id FROM referrals WHERE replaces_referral_id = ? ORDER BY created_at, rowid LIMIT 1", (referral_id,)
+            ).fetchone()
+            payload["replaced_by"] = _link(db, successor["id"] if successor else None)
     if side == "patient":
         for field in ("clinical_question", "duplicate_reason"):
             payload.pop(field)
@@ -258,10 +364,31 @@ def _open_duplicate(db: sqlite3.Connection, request: ReferralRequest) -> Optiona
         """
         SELECT * FROM referrals
         WHERE patient_id = ? AND lower(specialty) = lower(?) AND status NOT IN ('closed', 'cancelled')
-          AND created_at >= ? ORDER BY created_at DESC LIMIT 1
+          AND created_at >= ? AND id IS NOT ?
+        ORDER BY created_at DESC LIMIT 1
         """,
-        (request.patient_id, request.specialty.strip(), since),
+        (request.patient_id, request.specialty.strip(), since, _being_replaced(db, request)),
     ).fetchone()
+
+
+def _being_replaced(db: sqlite3.Connection, request: ReferralRequest) -> Optional[str]:
+    """The referral this one takes over from, if the receiving service declined or redirected it."""
+    if request.replaces_referral_id is None:
+        return None
+    old = db.execute("SELECT status FROM referrals WHERE id = ?", (request.replaces_referral_id,)).fetchone()
+    return request.replaces_referral_id if old is not None and old["status"] in REPLACEABLE else None
+
+
+def _close(db: sqlite3.Connection, referral: sqlite3.Row, user_id: int, reason: str) -> None:
+    """Closes a referral with no outcome: its open tasks go, and the receiving service is told."""
+    db.execute(
+        "UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE link_type = 'referral' AND link_id = ? AND status = 'open'",
+        (now_iso(), referral["id"]),
+    )
+    _move(db, referral, "cancelled", user_id, "referrer", reason)
+    update(db, "referrals", referral["id"], closed_reason=reason)
+    _notify_receivers(db, referral, f"Referral closed: {referral['specialty']}", reason)
+    care.add_timeline(db, referral["patient_id"], "referralloop", f"{referral['specialty']} referral closed", reason, "referral", referral["id"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -306,6 +433,10 @@ def create_referral(
         if found is None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "A chosen document isn't in this patient's record.")
 
+    replaced = _being_replaced(db, request)
+    if replaced is not None:
+        # The new referral takes over, so the old one stops asking to be chased.
+        _close(db, _referral(db, replaced), user["id"], REPLACED_REASON)
     timestamp = now_iso()
     referral_id = insert(
         db,
@@ -340,6 +471,7 @@ def create_referral(
         note=f"Priority: {request.priority}",
         created_at=timestamp,
     )
+    graph_sync.enqueue(db, "referral", referral_id)  # a reference for the Neo4j copy, with the change
     _notify_receivers(db, referral, f"New {request.priority} {request.specialty} referral", request.reason[:200])
     care.add_timeline(db, request.patient_id, "referralloop", f"Referred to {request.specialty}", request.priority, "referral", referral_id)
     return _payload(db, referral, "referrer")
@@ -385,6 +517,15 @@ def exception_queue(user=Depends(require_doctor), db: sqlite3.Connection = Depen
     payloads = [_payload(db, referral, "referrer") for referral in mine]
     payloads += [_payload(db, referral, "receiver") for referral in _inbox_rows(db, user)]
     return [referral for referral in payloads if referral["exceptions"]]
+
+
+@router.get("/network")
+def referral_network(user=Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Staff only: who refers to whom, overdue loops and specialist load, for the referrals this person
+    may see. No patient appears in it."""
+    if not addons.enabled("referrals.network_view", db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": "addon_off", "message": "The referral network view is switched off."})
+    return network.view(db, network._network_scope(db, user))  # SQLite decides what is in scope
 
 
 @router.get("/patients/{patient_id}")
@@ -437,6 +578,19 @@ def change_status(
 ) -> dict:
     referral = _referral(db, referral_id)
     fresh = _change(db, user, referral, request.status, request.note)
+    if request.status == "booked":
+        # A booking is a time and place, not only a word. The newest open appointment becomes the booking.
+        latest = db.execute(
+            f"""
+            SELECT id FROM referral_appointments WHERE referral_id = ?
+              AND status IN ({", ".join("?" * len(OPEN_APPOINTMENT))})
+            ORDER BY created_at DESC, rowid DESC LIMIT 1
+            """,
+            (referral_id, *OPEN_APPOINTMENT),
+        ).fetchone()
+        if latest is None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Add the appointment date and time first, then mark it booked.")
+        update(db, "referral_appointments", latest["id"], status="booked")
     if request.status in ("attended", "no_show", "rescheduled"):
         db.execute(
             """
@@ -518,6 +672,7 @@ def record_contact_attempt(
             owner_user_id=referral["referring_user_id"],
             escalate_to_user_id=referral["referring_user_id"],
             priority="high",
+            due_at=_due_in(UNREACHABLE_WITHIN_DAYS),  # dated, so escalation reaches it
             module="referralloop",
             link_type="referral",
             link_id=referral_id,
@@ -580,6 +735,10 @@ def record_outcome(
         user["id"],
         owner_user_id=referral["referring_user_id"],
         escalate_to_user_id=referral["referring_user_id"],
+        # High and dated: escalation only looks at high-priority tasks with a due date, and an
+        # outcome nobody reads is how a referral loop stays open.
+        priority="high",
+        due_at=_due_in(REVIEW_OUTCOME_WITHIN_DAYS),
         module="referralloop",
         link_type="referral",
         link_id=referral_id,
@@ -632,12 +791,8 @@ def close_referral(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "The referring clinician closes a referral.")
     if referral["status"] in TERMINAL:
         raise HTTPException(status.HTTP_409_CONFLICT, "This referral is already closed.")
-    db.execute(
-        "UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE link_type = 'referral' AND link_id = ? AND status = 'open'",
-        (now_iso(), referral_id),
-    )
-    _move(db, referral, "cancelled", user["id"], side, request.reason)
-    update(db, "referrals", referral_id, closed_reason=request.reason)
-    _notify_receivers(db, referral, f"Referral closed: {referral['specialty']}", request.reason)
-    care.add_timeline(db, referral["patient_id"], "referralloop", f"{referral['specialty']} referral closed", request.reason, "referral", referral_id)
+    if referral["status"] == "outcome_returned":
+        # The specialist's answer is waiting. Closing here would drop it unread, with its review task.
+        raise HTTPException(status.HTTP_409_CONFLICT, "The outcome is back. Review it, which closes the referral.")
+    _close(db, referral, user["id"], request.reason)
     return _payload(db, _referral(db, referral_id), side)

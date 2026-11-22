@@ -1,5 +1,5 @@
 /**
- * Curai - Infinite 3D Spiral Component (Vanilla JS)
+ * Diagnosia - Infinite 3D Spiral Component (Vanilla JS)
  * Implements the ReactBits InfiniteSpiral 3D helix physics for anatomical organ visualization
  */
 

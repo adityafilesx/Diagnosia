@@ -5,7 +5,7 @@ been made. Replaces `DATA_RETENTION_AND_CONSENT.md`.
 
 ## Consent purposes
 
-**In demo mode no person gives these.** Every purpose is recorded automatically, marked `demo_default`, and the workspace has no consent panel, so revoking needs the API. This switches off with `ALLOW_REAL_PATIENT_DATA`, outside demo mode, or with `CURAI_DEFAULT_CONSENT=0`. Tools then ask for each agreement when they need it.
+**In demo mode no person gives these.** Every purpose is recorded automatically, marked `demo_default`, and the workspace has no consent panel, so revoking needs the API. This switches off with `ALLOW_REAL_PATIENT_DATA`, outside demo mode, or with `DIAGNOSIA_DEFAULT_CONSENT=0`. Tools then ask for each agreement when they need it.
 
 Each is checked by code when it matters, and revoking takes effect at once. Every grant
 keeps who recorded it, how, when, and the policy version (`2026-10-draft`). Consents are
@@ -37,6 +37,8 @@ distinct from consent given in the app.
 | Transcripts | Database | No | Until signing, unless retention agreed |
 | Prescription photos | Not stored | n/a | None |
 | Medicines a patient saved from a prescription | Database | No | Not set |
+| What was read from a prescription photo (medicine fields only, no photo, no doctor's notes) | Database, `prescription_readings` | No | Removed by the sweep after 24 hours |
+| Which medicines a patient ticked, at each explanation and save, with the app version and the models used | Database, `prescription_confirmations` | No | Not set |
 | Patient packs: finished records as text | Meko, in one datapack per patient | Not stated by Meko | Until consent is revoked. Meko doesn't state whether deletion reaches its backups |
 | Audit events | Database | No | Not set |
 | CareFlow outbox and reference map | Database | No | Not set |
@@ -49,7 +51,7 @@ distinct from consent given in the app.
 from a key ring. The authenticated data ties a file to its patient and document, so a file
 moved to another record won't open. A SHA-256 check confirms content on every read.
 
-- **Keys** live in the file named by `CURAI_DOCUMENT_KEY_FILE`. It is refused if it is
+- **Keys** live in the file named by `DIAGNOSIA_DOCUMENT_KEY_FILE`. It is refused if it is
   in the repository or beside the database or documents, or readable by anyone but its owner.
 - **No keys means no storage.** Uploads return 503 in every environment, with no fallback.
   There is no separate development mode.
@@ -59,7 +61,7 @@ moved to another record won't open. A SHA-256 check confirms content on every re
 ### Commands
 
 ```bash
-python -m backend.operator_cli generate-key --path ~/.curai/document-keys.json
+python -m backend.operator_cli generate-key --path ~/.diagnosia/document-keys.json
 python -m backend.operator_cli add-key --key-id k2          # new active key
 python -m backend.operator_cli rewrap-documents             # move files to it
 python -m backend.operator_cli retire-key --key-id k1       # refused while in use
@@ -102,29 +104,42 @@ copy is re-proved before deletion. Failures are listed and leave that document u
 | Google Gemini, in the United States or elsewhere | The same text and images, but never audio, only when Groq fails or Settings say providers take turns, and only if a Gemini key is set | When a Gemini key exists |
 | MongoDB Atlas, YugabyteDB and Meko, only if switched on | Activity events, technical AI timings and handoff notes. No names, results, notes or images | Synthetic data only. CareFlow stops recording if real patient data is allowed |
 | Meko, only if packs are switched on, hosted by Yugabyte | Finished records as text, including results and notes. No names, contact details, images or files | Synthetic data only, with `patient_pack` consent. Packs stop if real patient data is allowed. See `integrations/PATIENT_PACKS.md` |
-| Microsoft Edge voices (`speech.platform.bing.com`, through the `edge-tts` library) | The text of each DiagnoFast question, in English or Hindi. Never the patient's answers | Demo mode only. Off outside demo mode, with real patient data allowed, or with `CURAI_NEURAL_TTS=0`. No agreement exists |
+| Microsoft Edge voices (`speech.platform.bing.com`, through the `edge-tts` library) | The text of each DiagnoFast question, in English or Hindi. Never the patient's answers | Demo mode only. Off outside demo mode, with real patient data allowed, or with `DIAGNOSIA_NEURAL_TTS=0`. No agreement exists |
+| Sarvam AI, location unconfirmed (see `CLINICAL_GOVERNANCE.md` C2b) | DiagnoFast answer audio, the patient's confirmed Hindi answers (for translation), and text read aloud: questions, consent lines, queue number, department, the urgent message | Only with the Settings switch on, a key, and the `sarvam_terms` sign-off. Made-up patients only: off when real patient data is allowed |
+| Neo4j, on this machine (Docker) | IDs and coded terms from finished DiagnoFast records. No names, contact details or free text | Only with the Settings switch on and `NEO4J_URI` set. Made-up patients only: off when real patient data is allowed |
 
 The hosts the server itself can call are listed below. `backend/tests/test_egress.py` fails if the code
-names a host that isn't here. AI and speech calls also refuse any host outside `CURAI_ALLOWED_AI_HOSTS`
-(by default Groq, Gemini and this machine), so pointing `AI_BASE_URL` elsewhere stops the tools rather
+names a host that isn't here. AI and speech calls also refuse any host outside `DIAGNOSIA_ALLOWED_AI_HOSTS`
+(by default Groq, Gemini, Sarvam and this machine), so pointing `AI_BASE_URL` elsewhere stops the tools rather
 than sending patient text to an unnamed service.
 
 | Host | Why |
 |---|---|
 | `api.groq.com` | Groq AI and speech |
 | `generativelanguage.googleapis.com` | Gemini AI |
+| `api.sarvam.ai` | Sarvam speech to text, voice and translation, only when switched on and signed off |
 | `mcp.mekodata.ai` | Meko, only when switched on |
 | `speech.platform.bing.com` | Edge voices, demo mode only (inside the `edge-tts` library) |
-| MongoDB Atlas and YugabyteDB | Only the addresses an operator configures, only when switched on |
+| MongoDB Atlas, YugabyteDB and Neo4j | Only the addresses an operator configures, only when switched on |
 
-Two addresses appear in the code but are opened by the visitor's browser, not by the server:
-`calendar.google.com` (a link to add a reminder, which carries the medicine schedule the patient chose)
-and `assets.website-files.com` (fonts on the public pages).
+Some addresses appear in the code but are opened by the visitor's browser, not by the server:
+`assets.website-files.com` (fonts and one background image on the public pages and the workspace),
+`fonts.googleapis.com` and `fonts.gstatic.com` (a web font on the terms page), and `www.google.com`
+(the embedded map on the home page). The last three are named in `backend/app.py` only because the
+content-security-policy lists what the public pages may load; the workspace and the patient interview
+allow none of the Google addresses. Each of these sees the visitor's address and browser, never
+patient data.
 
 **The prescription consent tick.** The server refuses a photo without the agreement and the current
 wording's version, and stores that agreement. It cannot prove a person ticked the box: a client could
-send the same fields. That stays true until reading moves server-side behind a confirmed session
-(audit plan WI-211).
+send the same fields.
+
+**The "this matches my prescription" ticks.** Since WI-211 the server keeps its own copy of each
+reading for 24 hours and decides which medicines can be ticked. The page sends back only which cards
+were ticked, and the server explains or saves its own copy of those medicines, so a client can't have
+an unreadable medicine explained, change a name, or claim a field was clear. Each explanation and save
+stores the ticked set, the app version and the models. As with consent, the server cannot prove a
+person, not a program, made the ticks.
 
 Whether Groq may receive real patient data is covered in `CLINICAL_GOVERNANCE.md`. Today
 the answer is no.

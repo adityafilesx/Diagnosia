@@ -17,6 +17,11 @@ from backend.tests.conftest import grant, linked_patient, verified_organization
 PUBLIC = {("POST", "/api/auth/register"), ("POST", "/api/auth/login"), ("POST", "/api/auth/logout")}
 # Explicit deployment configuration gates self-service visits; no existing chart is exposed.
 PUBLIC |= {("GET", "/api/diagnofast/kiosk"), ("POST", "/api/diagnofast/kiosk/intakes")}
+# Public like the kiosk itself: refused unless a kiosk doctor is configured, and rate-limited.
+PUBLIC |= {("POST", "/api/diagnofast/kiosk/consent-audio")}
+# The slot QR login: public by design, behind its switch, rate-limited, and proved by a one-time code.
+PUBLIC |= {("GET", "/api/opd/qr/{slot_code}"), ("POST", "/api/opd/qr/{slot_code}/otp"),
+           ("POST", "/api/opd/qr/{slot_code}/verify"), ("POST", "/api/opd/qr/{slot_code}/choose")}
 # Health checks for a host or load balancer. They say only ok, or which of two checks failed.
 PUBLIC |= {("GET", "/healthz"), ("GET", "/readyz")}
 # DiagnoFast's patient has no account. The one-interview link in the path is the credential.
@@ -26,6 +31,9 @@ LINK_ROUTES = {
     ("POST", "/api/diagnofast/patient/{token}/answer"),
     ("POST", "/api/diagnofast/patient/{token}/transcribe"),
     ("POST", "/api/diagnofast/patient/{token}/help"),
+    ("POST", "/api/diagnofast/patient/{token}/consent-audio"),
+    ("GET", "/api/diagnofast/patient/{token}/status"),
+    ("POST", "/api/diagnofast/patient/{token}/status-audio"),
 }
 FAKE_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -58,7 +66,7 @@ GATES = (
     "_editable", "_side", "_change", "_decide", "_is_receiver", "_require_admin",
 
     "_readable_intake", "_open_intake", "_open_workflow", "_allowed", "gate_staff", "open_pack",
-    "_kiosk_doctor",
+    "_kiosk_doctor", "_managed_slot", "_managed_booking", "_managed_doctors", "_open_slot", "_finished_intake", "_network_scope",
 )
 NEEDS_NO_RECORD = {
     "register", "login", "logout", "me", "my_status", "accept_invitation", "system_status", "system_readiness",
@@ -93,6 +101,8 @@ def test_a_made_up_link_opens_nothing(client, method, path):
     body = {"json": {"language": "en-IN", "consent": True}} if path.endswith("start") else {"data": {"text": "hello"}}
     if path.endswith("transcribe"):
         body = {"files": {"audio": ("answer.webm", b"synthetic", "audio/webm")}}
+    if path.endswith("consent-audio"):
+        body = {"json": {"language": "en-IN", "kind": "interview"}}
     response = client.request(method, filled(path), **({} if method == "GET" else body))
     assert response.status_code == 404
 

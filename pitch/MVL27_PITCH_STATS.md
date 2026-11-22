@@ -1,4 +1,4 @@
-# Curai: Pitch Statistics (MVL '27)
+# Diagnosia: Pitch Statistics (MVL '27)
 
 Numbers for the 2-minute video and the pitch deck, with sources. Researched on
 26 Oct 2026.
@@ -79,7 +79,7 @@ Numbers for the 2-minute video and the pitch deck, with sources. Researched on
 | **Melanoma 5-year survival: >99% localised, 76% regional, 36% distant** | SEER data, diagnoses 2015–2021. Clearest argument for early screening. | [American Cancer Society](https://www.cancer.org/cancer/types/melanoma-skin-cancer/detection-diagnosis-staging/survival-rates-for-melanoma-skin-cancer-by-stage.html) |
 | **Melanoma in India is often diagnosed late** | AIIMS New Delhi series: "most of the nonocular lesions presented in the advanced stage"; late presentation causes "substantial morbidity". In India, acral melanoma (sole of the foot) is common and often missed. | AIIMS series ([CORE](https://core.ac.uk/works/81086732)); Madras plantar melanoma review ([Amrita](https://www.amrita.edu/publication/plantar-acral-melanoma-an-experience-from-a-regional-cancer-centre-india/)) |
 | **Fewer than 1 dermatologist per lakh people** in India | Older estimate: ~6,000 dermatologists for 121 crore people = 0.49 per lakh. A 2026 *JAMA Dermatology* study says 5.63 per lakh is needed for adequate access; the global average is 2.66. | [BioSpectrum](https://www.biospectrumasia.com/article/pdf/6539); [HealthDay on JAMA Derm 2026](https://www.healthday.com/healthpro-news/skin-health/considerable-global-disparities-found-in-access-to-dermatological-care) |
-| **AI beat 58 dermatologists at spotting melanoma** | CNN: 95% sensitivity, 82.5% specificity. Dermatologists: 86.6% sensitivity, 71.3% specificity. Use this as evidence that AI screening works in general, **not** as a claim about Curai's own model. | Haenssle et al., *Annals of Oncology* 2018 ([Healio](https://www.healio.com/hematology-oncology/melanoma-skin-cancer/news/online/%7B54437de1-5f8a-4c65-aa42-59522fbf6033%7D/artificial-intelligence-superior-to-dermatologists-for-melanoma-detection), [Radiology Business](https://radiologybusiness.com/topics/artificial-intelligence/ai-detects-skin-cancers-more-accuracy-dermatologists)) |
+| **AI beat 58 dermatologists at spotting melanoma** | CNN: 95% sensitivity, 82.5% specificity. Dermatologists: 86.6% sensitivity, 71.3% specificity. Use this as evidence that AI screening works in general, **not** as a claim about Diagnosia's own model. | Haenssle et al., *Annals of Oncology* 2018 ([Healio](https://www.healio.com/hematology-oncology/melanoma-skin-cancer/news/online/%7B54437de1-5f8a-4c65-aa42-59522fbf6033%7D/artificial-intelligence-superior-to-dermatologists-for-melanoma-detection), [Radiology Business](https://radiologybusiness.com/topics/artificial-intelligence/ai-detects-skin-cancers-more-accuracy-dermatologists)) |
 | **331,722 new melanoma cases worldwide in 2022** | GLOBOCAN 2022 (melanoma only; non-melanoma skin cancers are far more common). See section 10 on Indian incidence. | [WCRF](https://www.wcrf.org/dietandcancer/skin-cancer-statistics) |
 
 ---
@@ -124,7 +124,7 @@ global and Indian figures.
 
 ## 8. Competitors and category validation
 
-| Company | What it shows | How Curai is different | Source |
+| Company | What it shows | How Diagnosia is different | Source |
 |---|---|---|---|
 | **Abridge** (US) | AI that writes clinical notes. Raised $300M at a **$5.3B valuation** (June 2025), nearly double its Feb 2025 valuation. Investors value giving doctors time back. | Abridge listens *inside* the consultation, mostly in English, in US hospitals. DiagnoFast works *before* the consultation, by voice, in the patient's language. | [Axios](https://www.axios.com/pro/health-tech-deals/2025/06/24/abridge-raise-300m-5b-valuation-billing-scribe) |
 | **Eka Care / EkaScribe** (India) | Ambient scribe for Indian doctors; ABDM-compliant; Hindi, Tamil, Kannada, Gujarati. Raised ~$19.5M (seed + $15M Series A, 2022). | Also works during the consultation. DiagnoFast takes the history while the patient waits, using the doctor's own custom form. | [BioVoice](https://biovoicenews.com/eka-cares-ai-powered-ekascribe-aims-to-transform-clinical-documentation-for-doctors-across-india/), [Inc42](https://inc42.com/company/eka-software-solutions/funding/) |

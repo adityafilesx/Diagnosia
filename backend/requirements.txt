@@ -14,6 +14,8 @@ edge-tts>=7.2,<8
 pdfplumber==0.11.*
 cryptography>=46
 rapidfuzz==3.*
+# Slot QR codes drawn on the server as SVG (BSD, pure Python, no dependencies). No browser QR library, for the CSP.
+segno==1.6.*
 
 # Tests
 pytest==9.*

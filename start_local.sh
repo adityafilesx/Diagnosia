@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One command to run Curai locally with test accounts, on macOS or Linux.
+# One command to run Diagnosia locally with test accounts, on macOS or Linux.
 #   ./start_local.sh            # then open the address it prints (usually http://127.0.0.1:8000/login.html)
 #   ./start_local.sh --port 8001
 # Uses a .venv with Python 3.11+ and pip. A missing, old or broken .venv is set aside

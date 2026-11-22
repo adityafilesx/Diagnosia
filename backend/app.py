@@ -1,9 +1,12 @@
-"""The Curai web app: the API plus the public site in web/.
+"""The Diagnosia web app: the API plus the public site in web/.
 
 Run from the project folder with:  uvicorn backend.app:app --reload
 """
 import asyncio
+import base64
+import hashlib
 import logging
+import re
 import sqlite3
 import threading
 import uuid
@@ -22,9 +25,13 @@ from backend.careflow import events as careflow_events
 from backend.careflow import live as careflow_live
 from backend.careflow import routes as careflow
 from backend.clinscribe import routes as clinscribe
-from backend.config import WEB_DIR
+from backend.config import WEB_DIR, settings
 from backend.db import connect, init_db
 from backend.diagnofast import routes as diagnofast
+from backend.diagnofast import graph_sync
+from backend.opd import routes as opd
+from backend.conflicts import routes as conflicts
+from backend.opd import slot_login
 from backend.dischargecare import routes as dischargecare
 from backend.integrations import execution
 from backend.lablens import extract as lablens_jobs
@@ -33,6 +40,7 @@ from backend.lablens import routes as lablens
 from backend.patient_pack import routes as patient_pack
 from backend.patient_pack import sync as pack_sync
 from backend.prescription import routes as prescription
+from backend.prescription import medicines as medicine_names
 from backend.prescription.medicines import get_medicine_list
 from backend.records import audit, care, vault
 from backend.records import routes as records
@@ -41,7 +49,7 @@ from backend.referralloop import routes as referralloop
 from backend.reminders import routes as reminders
 from backend.reminders import service as reminder_service
 
-logger = logging.getLogger("curai")
+logger = logging.getLogger("diagnosia")
 
 SWEEP_SECONDS = 300
 DELIVERY_SECONDS = 5
@@ -56,17 +64,63 @@ SECURITY_HEADERS = {
 }
 CARE_PAGE_POLICY = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
-    "font-src 'self' https://assets.website-files.com; connect-src 'self'; media-src 'self' blob:; "
+    "font-src 'self' https://assets.website-files.com; connect-src 'self'; media-src 'self' blob: data:; "
     "frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
 )
+# The workspace and the patient interview handle patient data, so they keep the strict policy above.
+STRICT_PAGES = ("care.html", "intake.html", "slot.html")
+# An API answer is data. A browser that opens one directly may load and run nothing.
+API_POLICY = "default-src 'none'; frame-ancestors 'none'"
+# Browsers remember for a year that this site is HTTPS-only. Sent only when DIAGNOSIA_HTTPS=1.
+HSTS = "max-age=31536000; includeSubDomains"
+INLINE_SCRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S)
+
+
+def _public_policy(page_text: str) -> str:
+    """The public pages are a Webflow template with a few inline scripts, a web font and a map.
+
+    Each inline script is allowed by the hash of its exact text, so an injected one is refused."""
+    hashes = "".join(
+        f" 'sha256-{base64.b64encode(hashlib.sha256(body.encode('utf-8')).digest()).decode()}'"
+        for body in INLINE_SCRIPT.findall(page_text)
+    )
+    return (
+        f"default-src 'self'; script-src 'self'{hashes}; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "img-src 'self' data: blob: https://assets.website-files.com; "
+        "font-src 'self' https://assets.website-files.com https://fonts.gstatic.com; "
+        "connect-src 'self'; media-src 'self' blob:; frame-src 'self' https://www.google.com; "
+        "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
+    )
+
+
+def _page_policies() -> dict:
+    return {
+        page.name: CARE_PAGE_POLICY if page.name in STRICT_PAGES else _public_policy(page.read_text(encoding="utf-8"))
+        for page in sorted(WEB_DIR.glob("*.html"))
+    }
+
+
+# Read once at start-up: the pages don't change while the app runs.
+PAGE_POLICIES = _page_policies()
+
+
+def _policy_for(path: str) -> str:
+    if path.startswith("/api/") or path in ("/healthz", "/readyz"):
+        return API_POLICY
+    page = "index.html" if path == "/" else path.lstrip("/")
+    # Scripts, styles, images and "not found" answers get the strict policy: none of them is a page.
+    return PAGE_POLICIES.get(page, CARE_PAGE_POLICY)
 
 
 SWEEP_STEPS = (
+    ("overdue_referrals", referralloop.chase_overdue),
     ("escalate_overdue", care.escalate_overdue),
     ("reminders", reminder_service.process_due),
     ("rate_limits", ratelimit.forget_expired),
     ("expired_links", diagnofast.expire_stale),
     ("stale_reports", diagnofast.fail_stale_reports),
+    ("old_prescription_readings", prescription.forget_old_readings),
 )
 
 
@@ -107,6 +161,12 @@ async def _deliver_forever() -> None:
             await run_in_threadpool(pack_sync.run_once)
         except Exception as error:  # An optional integration must never stop the app.
             logger.warning("Patient pack pass failed: %s", type(error).__name__)
+        try:
+            # The Neo4j copy, every few seconds so a finished visit shows in the graphs quickly. Does nothing
+            # unless Neo4j is switched on.
+            await run_in_threadpool(graph_sync.background_pass)
+        except Exception as error:  # An optional integration must never stop the app.
+            logger.warning("Neo4j copy pass failed: %s", type(error).__name__)
 
 
 def _prepare_content() -> None:
@@ -140,7 +200,7 @@ async def lifespan(_: FastAPI):
         await run_in_threadpool(watching.stop)
 
 
-app = FastAPI(title="Curai", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+app = FastAPI(title="Diagnosia", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(records.router)
 app.include_router(staff.router)
@@ -148,6 +208,7 @@ app.include_router(lablens_mappings.router)
 app.include_router(settings_store.router)
 app.include_router(careflow.router)
 app.include_router(patient_pack.router)
+app.include_router(conflicts.router)  # staff-only medicine checks, off by default
 
 
 def _tool(router, name: str) -> None:
@@ -159,6 +220,8 @@ _tool(lablens.router, "lablens")
 _tool(dischargecare.router, "discharge")
 _tool(referralloop.router, "referrals")
 _tool(diagnofast.router, "diagnofast")
+_tool(opd.router, "diagnofast")  # OPD bookings are part of DiagnoFast
+_tool(slot_login.router, "diagnofast")
 _tool(prescription.router, "prescription")
 app.include_router(reminders.router)
 
@@ -184,7 +247,10 @@ def readyz() -> JSONResponse:
         checks["database"] = False
     checks["key_ring"] = vault.status()[0]
     ready = all(checks.values())
-    return JSONResponse({"ready": ready, "checks": checks}, status_code=200 if ready else 503)
+    # Things that work less well but don't stop the site. Without the medicine list, names read
+    # from a prescription are not checked against anything.
+    warnings = [] if medicine_names.installed() else ["medicine_list_missing"]
+    return JSONResponse({"ready": ready, "checks": checks, "warnings": warnings}, status_code=200 if ready else 503)
 
 
 @app.middleware("http")
@@ -216,8 +282,10 @@ async def request_guard(request: Request, call_next):
         response.headers.setdefault(name, value)
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
-    if request.url.path == "/care.html":
-        response.headers["Content-Security-Policy"] = CARE_PAGE_POLICY
+    # A route that sets its own policy keeps it: the document viewer allows the workspace to frame it.
+    response.headers.setdefault("Content-Security-Policy", _policy_for(request.url.path))
+    if settings.cookie_secure:
+        response.headers["Strict-Transport-Security"] = HSTS
     return response
 
 
@@ -254,7 +322,7 @@ app.add_exception_handler(
     speech.SpeechRejected, _friendly_failure(422, "The speech service couldn't process that audio. Please try again."),
 )
 async def _busy(request: Request, error: sqlite3.OperationalError) -> JSONResponse:
-    # Another writer held the lock for longer than CURAI_DB_BUSY_SECONDS. Anything else is a real fault.
+    # Another writer held the lock for longer than DIAGNOSIA_DB_BUSY_SECONDS. Anything else is a real fault.
     if "locked" not in str(error) and "busy" not in str(error):
         raise error
     logger.warning("Database busy on request %s", audit.request_id.get())

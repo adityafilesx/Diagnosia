@@ -168,6 +168,93 @@ def report_rules(split: str, folder: Path = OUTPUT_DIR, show: int = 12) -> int:
     return 0
 
 
+HINGLISH_FILE = OUTPUT_DIR.parent / "hinglish_dev" / "screening_dev.jsonl"
+
+# What doctors wish had been asked, grouped into themes, and the question-graph IDs that cover each.
+FEEDBACK_THEMES = {
+    "travel": (r"travel|trip|went (?:out|outside)|yatra|safar", ("fever_travel",)),
+    "duration": (r"how long|since when|duration|days|weeks", ("fever_duration", "cough_duration", "rash_duration", "stool_duration", "pain_time")),
+    "severity": (r"severity|how bad|scale|1 to 10|1-10", ("pain_severity",)),
+    "pattern": (r"pattern|comes and goes|continuous|how often|times a", ("fever_pattern", "pain_time")),
+    "chills": (r"chill|rigor|shiver", ("fever_chills",)),
+    "rash": (r"rash|spots", ("fever_rash", "rash_site")),
+    "site": (r"where|site|location|radiat", ("pain_site", "pain_radiation", "rash_site")),
+    "triggers": (r"trigger|worse|better|reliev|aggravat", ("pain_triggers",)),
+    "medicines": (r"medicine|tablet|drug|dose", ()),
+    "family history": (r"family|parents|mother|father", ()),
+    "sleep or appetite": (r"sleep|appetite|eating|weight", ("weight_loss",)),
+}
+
+
+def score_feedback(rows: Iterable[dict], seed: dict) -> dict:
+    """How often the question graph already asks what a reviewing doctor wished had been asked.
+
+    Each row is one doctor's answer to "Anything you wish had been asked?", with the complaints the
+    graph matched for that visit. A theme counts as covered when the graph has a question for it under
+    one of those complaints. This measures the graph, not the doctor, and needs reviewed real feedback
+    before it means much.
+    """
+    import re as _re
+
+    questions_by_complaint = {
+        complaint["id"]: {item["id"] for key in ("follow_ups", "associated", "red_flags") for item in complaint.get(key, [])}
+        for complaint in seed["complaints"]
+    }
+    themes: Counter = Counter()
+    covered = 0
+    total = 0
+    for row in rows:
+        total += 1
+        asked = set().union(*(questions_by_complaint.get(c, set()) for c in row.get("complaints", []))) if row.get("complaints") else set()
+        hit = False
+        for theme, (pattern, ids) in FEEDBACK_THEMES.items():
+            if _re.search(pattern, row["wished_asked"], _re.IGNORECASE):
+                themes[theme] += 1
+                hit = hit or bool(asked & set(ids))
+        covered += hit
+    return {"total": total, "covered_by_graph": covered, "themes": dict(themes)}
+
+
+def report_feedback() -> int:
+    from backend.db import connect
+    from backend.diagnofast import guidance
+
+    db = connect()
+    try:
+        rows = [
+            {"wished_asked": row["wished_asked"], "complaints": json.loads(row["graph_state"] or "{}").get("complaints", [])}
+            for row in db.execute(
+                "SELECT f.wished_asked, i.graph_state FROM diagnofast_feedback f JOIN intakes i ON i.id = f.intake_id ORDER BY f.created_at"
+            )
+        ]
+    finally:
+        db.close()
+    score = score_feedback(rows, guidance.seed())
+    print("\n== Doctors' 'Anything you wish had been asked?' against the question graph ==")
+    print(f"  answers                    {score['total']}")
+    print(f"  already in the graph       {_percent(score['covered_by_graph'], score['total'])}")
+    for theme, count in sorted(score["themes"].items(), key=lambda item: -item[1]):
+        print(f"  {theme:26} {count}")
+    print("\nMade-up patients only so far. Fine-tune nothing on this; reviewed real data comes first.")
+    return 0
+
+
+def report_hinglish(path: Path = HINGLISH_FILE, show: int = 40) -> int:
+    with open(path, encoding="utf-8") as handle:
+        rows = [json.loads(line) for line in handle if line.strip()]
+    screening = score_screening(rows)
+    print("\n== Urgent-symptom rules on Hinglish phrasings (dev only, not frozen, not clinically reviewed) ==")
+    for kind in ("urgent", "negated", "history", "ordinary"):
+        count = screening["kinds"][kind]
+        print(f"  {kind:13} {_percent(count['right'], count['right'] + count['wrong'])}")
+    print("\nBy script (right answers): " + ", ".join(f"{name} {_percent(c['right'], c['right'] + c['wrong'])}" for name, c in sorted(screening["scripts"].items())))
+    if screening["misses"]:
+        print(f"\n{len(screening['misses'])} wrong answers (the AI's own urgent list still checks each answer):")
+        for miss in screening["misses"][:show]:
+            print(f"  [{miss['kind']}] {miss['text']!r}: expected {miss['expected']}, found {miss['found']}")
+    return 0
+
+
 def report_live(split: str, limit: int, folder: Path = OUTPUT_DIR) -> int:
     items = load("interviews", split, folder)[:limit]
     print(f"\n== Whole interviews with the configured AI, {len(items)} from the {split} split ==")
@@ -187,7 +274,13 @@ def main(arguments=None) -> int:
     parser.add_argument("--split", choices=["dev", "test"], default="dev")
     parser.add_argument("--live", action="store_true", help="run whole interviews through the configured AI")
     parser.add_argument("--limit", type=int, default=50)
+    parser.add_argument("--hinglish", action="store_true", help="the dev-only Hinglish phrasings (rules only, no keys)")
+    parser.add_argument("--feedback", action="store_true", help="doctors' review feedback against the question graph")
     args = parser.parse_args(arguments)
+    if args.hinglish:
+        return report_hinglish()
+    if args.feedback:
+        return report_feedback()
     if args.split == "test":
         print("Reminder: the test split is frozen. Report it before and after a change, and never tune on it.")
     if args.live:

@@ -1,4 +1,4 @@
-# Agent context: Curai
+# Agent context: Diagnosia
 
 Read this first. It tells you what this project is, how it's built, what you must never
 break, and what's still unfinished. Where it disagrees with the code, trust the code and fix
@@ -6,12 +6,13 @@ this file.
 
 ## What it is
 
-**The project was renamed from Diagnosia to Curai** in November 2026. The domain is curai.in and the
-public contact is support@curai.in. Settings are `CURAI_*` (the old `DIAGNOSIA_*` names are no longer
-read), the default database is `backend/storage/curai.db`, and the session cookie is `curai_session`.
-The GitHub repository may still carry the old name. Use "Curai" in everything new.
+**The project is called Diagnosia.** It was briefly renamed Curai in November 2026, and the name was
+changed back on the `iiitd` branch. The domain curai.in and the public contact support@curai.in were
+kept. Settings are `DIAGNOSIA_*` (the short-lived `CURAI_*` names are no longer read), the default
+database is `backend/storage/diagnosia.db`, and the session cookie is `diagnosia_session`. Use
+"Diagnosia" in everything new.
 
-Curai is an AI-powered healthcare platform for India that brings patient records, medical
+Diagnosia is an AI-powered healthcare platform for India that brings patient records, medical
 history and clinical tools together in one place. It helps doctors make better-informed decisions
 and manage their workflows more efficiently, so care is more connected, organised and intelligent.
 It started as a school project in 2023 and is being launched as a startup. India has too few
@@ -59,15 +60,18 @@ backend/    One FastAPI app: accounts and one folder per tool.
   speech.py         Groq transcription/WAV speech; Edge neural question playback
   images.py         Upload checks (JPG/PNG, size)
   ratelimit.py      Limits on the public and costly routes, counted in SQLite
+  addons.py         Whether each hackathon add-on may run (switch, key, sign-off, made-up patients only)
+  opd/              OPD bookings, queue numbers, demo SMS outbox, slot QR login (behind DiagnoFast add-on switches)
   synthetic/        Made-up test data: seed_accounts.py (logins), diagnofast_data.py and diagnofast_eval.py (labelled
                     interviews and a scorer), diagnofast_links.py (waiting interview links for manual testing)
   config.py         Settings from environment / .env
   prescription/     analyzer.py, shorthand.py, medicines.py, routes.py
-  diagnofast/       agent.py, red_flags.py, abha.py, recordings.py, routes.py, forms/*.json
+  diagnofast/       agent.py, red_flags.py, abha.py, recordings.py, routes.py, forms/*.json,
+                    guidance.py + graph/ (question graph seed, prompt examples), graph_sync.py (Neo4j copy)
   records/          The shared patient record, access gate, audit, encrypted documents
   clinscribe/ lablens/ referralloop/ dischargecare/ reminders/   One folder per tool, each with its schema.sql
   careflow/         Activity timeline: event contract, outbox, delivery, routes
-  integrations/     Optional Meko and YugabyteDB adapters, and AI run records
+  integrations/     Optional Meko, YugabyteDB and Neo4j (graph.py) adapters, and AI run records
   patient_pack/     One searchable view of a patient's records, on Meko: render, sync, access, brief, routes
   tests/            pytest suite (no API keys needed)
 pitch/      Pitch material.
@@ -121,11 +125,38 @@ Handwriting reading is the risky part, so **nothing is explained until the patie
    disagree with the written frequency, and SOS/PRN medicines never get a fixed time.
 3. `medicines.py` checks each name against a list of about 250,000 Indian medicines (rapidfuzz).
    Found, close ("Did you mean ...?") or not found. It only flags names. It **never changes** what
-   was read. A "clear" name that isn't in the list is downgraded to "unsure".
-4. The patient ticks each medicine that matches their prescription. Unticked or unreadable ones go
-   to "ask your pharmacist" and **never reach the explanation step**.
+   was read. A "clear" name that isn't in the list is downgraded to "unsure". With no list installed
+   (`DIAGNOSIA_MEDICINE_LIST`, default under `datasets/`) every name is `unchecked`: the card says "We could
+   not check this name against a list", the tool shows a banner (`medicine_list_ready` in the config,
+   `names_checked` on the reading), and `/readyz` lists the warning `medicine_list_missing`. CI runs the
+   real checker on `backend/tests/fixtures/medicine_list_fixture.csv`, which holds invented names only.
+4. The patient ticks each medicine that matches their prescription, with their own photo beside each
+   card (a local object URL, never uploaded again). Unticked or unreadable ones go to "ask your
+   pharmacist" and **never reach the explanation step**.
 5. `/api/prescription/explain` explains only the confirmed medicines, in the patient's language.
    It never changes a dose or suggests a substitute.
+
+**The explanation is checked by rules** (`prescription/crosscheck.py`). Every number in the AI's "how to
+take" sentence (digits in either script, fractions, English and Hindi number words) must be one the
+prescription gives: an amount, a dose, times a day, or the course length. A sentence with any other
+number is replaced by the prescription's own words (`directions_rejected`), and the rule-decoded
+directions are shown beside every sentence. It compares numbers, not what each one counts, so it
+catches a number nobody wrote, not a right number in the wrong place. An explanation for a medicine
+nobody confirmed is dropped. **No course length is ever filled in:** with none written, the reminder
+repeats with no end and says "No end date written, ask your doctor".
+
+**One schedule.** `analyzer.build_schedule` is the only schedule: the explain response's `schedule` holds
+the times of day, the as-needed and unscheduled lists and a plain `.ics` built from the same stretches.
+`/calendar` returns the same thing for other reminder times. There are no links to a calendar site.
+
+**The server never trusts the page for what was read.** `/read` keeps the reading for 24 hours
+(`prescription_readings`, no photo, no doctor's notes) and returns a `reading_id` and, per medicine,
+`confirmable`: the one readability rule (`analyzer.is_explainable`), which the page uses instead of a
+rule of its own. `/explain`, `/save` and `/calendar` take `reading_id` and `confirmed` (the ticked
+positions) and rebuild the medicines from the stored reading (`analyzer.confirmed_from`); a tick on a
+medicine that isn't confirmable is a 422. Each explain and save stores the ticked set, `APP_VERSION`
+(`backend/version.py`) and the models in `prescription_confirmations`. Don't add a route that takes
+medicines from the browser.
 
 The photo isn't stored. A consent box says it goes to outside AI services, and each agreement is stored in
 `consent_records` with the version of the words (`backend/records/consent.py`).
@@ -134,7 +165,7 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
 - Six specialty forms live in `forms/*.json`: general medicine, dermatology, cardiology, orthopedics, ENT and pediatrics (no form builder).
 - Reception creates a **one-interview link** for each patient. The patient needs no account. The
   link stops working when the interview ends, after 24 hours unopened, or 2 hours after it starts
-  (`CURAI_DIAGNOFAST_LINK_HOURS`, `CURAI_DIAGNOFAST_INTERVIEW_HOURS`). Only a hash of each link is stored.
+  (`DIAGNOSIA_DIAGNOFAST_LINK_HOURS`, `DIAGNOSIA_DIAGNOFAST_INTERVIEW_HOURS`). Only a hash of each link is stored.
   A reload carries on at the current question. An answer is saved only if its question is still
   open, and the page's `answer_key` makes a retry return the stored reply instead of saving twice.
 - `intake.html` without a token opens the self-service specialty grid when
@@ -169,7 +200,7 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
   clinicians, which every staff screen polls every 5 seconds (`GET /api/diagnofast/alerts`) and shows as
   a banner until someone marks it seen. "Tell reception" raises the same kind of banner.
 - Voice: Edge neural voices read questions in Indian English (Neerja) and Hindi (Swara).
-  `CURAI_NEURAL_TTS=0` disables this service. After an 8-second neural timeout, English
+  `DIAGNOSIA_NEURAL_TTS=0` disables this service. After an 8-second neural timeout, English
   can use Groq WAV and Hindi uses the browser. Browser voice and typing remain fallbacks.
 - The two-column interview shows live browser recognition and optional answer chips. Recordings
   stop at 28 seconds. Where live recognition is unavailable or incomplete, Groq prepares a
@@ -207,6 +238,10 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
   `backend/storage/` and `*.db`. Check before you `git add`.
 - Groq receives this data in the United States, with no signed agreement yet. Keep personal details
   out of test photos. See `docs/CLINICAL_GOVERNANCE.md`.
+- Sarvam AI (optional, off) receives DiagnoFast audio, confirmed Hindi answers and text read aloud. Where
+  it keeps data is unconfirmed (its pages conflict) and its terms train on API data by default. It runs
+  only with its switch, a key and the `sarvam_terms` sign-off, and never with real patient data allowed.
+  Say "may keep data in India, to be confirmed", never "stays in India".
 - Meko has no signed agreement either, and states nothing about compliance. Patient packs stop when
   `ALLOW_REAL_PATIENT_DATA` is on. Don't remove that.
 
@@ -217,6 +252,13 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
 
 **Security**
 - All SQL uses parameters. Passwords are Argon2. Session tokens are stored hashed.
+- Every answer carries a content-security-policy (`backend/app.py`): strict for `care.html` and
+  `intake.html`, and for the public pages each inline script is allowed by the hash of its text, worked
+  out at start-up. Don't add inline event handlers, `<object>` tags or scripts from other sites. HSTS is
+  sent when `DIAGNOSIA_HTTPS=1`.
+- A session ends after 30 idle minutes (`DIAGNOSIA_SESSION_IDLE_MINUTES`, sliding, migration 14). The
+  workspace marks requests made with no recent input as background (`X-Diagnosia-Background`), so timed
+  refreshes don't keep a session alive; a new timed request that is real use passes `active: true` to `api()`.
 - Page text from patients and from the AI goes in with `textContent`, never `innerHTML`.
 - Only `web/` is served. Don't add routes that serve other folders.
 - Never log keys, patient text or full AI answers.
@@ -243,6 +285,64 @@ The photo isn't stored. A consent box says it goes to outside AI services, and e
 - Code and tests must work on both Windows and Linux. Protect sensitive files with
   `private_files.py`, because `chmod` does nothing on Windows. Pass `encoding="utf-8"` when reading
   text, because Windows otherwise uses cp1252.
+
+## Hackathon add-ons (IIITD, `iiitd` branch)
+
+`BUILD.md` is the plan; `docs/integrations/SARVAM.md` and `NEO4J.md` hold the sources. Hindi and English
+(with Hinglish) stay the only languages. Every add-on is a Settings switch that starts off
+(`settings_store.ADDON_SWITCHES`); off means the app behaves exactly as before, and the tests check that
+the interview's AI request is byte-for-byte unchanged. Sarvam and Neo4j stop completely when
+`ALLOW_REAL_PATIENT_DATA` is on (`addons.py`).
+
+- **Sarvam** (`speech.py`): Saaras v4 speech to text in its `codemix` mode, never `translate` (the
+  confirmed text is the record), then Groq Whisper. `question_audio` is Sarvam Bulbul, then Edge (demo
+  only), Groq English, the browser. `translate_to_english` is Mayura on confirmed Hindi, run in the
+  report job and shown beside the original, labelled "machine translation". Consent names Sarvam
+  (version 2026-11-21) and can be read aloud; the new Hindi line still needs a Hindi speaker (WI-101).
+- **Neo4j** (`integrations/graph.py`): one shared driver, named methods only, a fake in
+  `backend/tests/fake_graph.py`. SQLite stays the record. `graph_sync.py` queues a reference with the
+  change and re-reads SQLite; Neo4j gets IDs and coded terms only, and every word shown is re-read from
+  SQLite after the access gate. With Neo4j off or down, the views come from SQLite.
+- **Question graph** (`diagnofast/graph/questions_v2.json`, NOT clinically reviewed; one wording per question ID, because Neo4j merges on it): offered to the AI
+  after `red_flags.screen`, only while room remains for the form's required questions. Red-flag nodes
+  only add screening questions. `apply_turn`'s rules are unchanged.
+- **Doctor-like interview**: known context with its source (ABHA is simulated and only ever confirmed),
+  probes for vague answers, a Hinglish-aware tone, and examples. A doctor's suggested question becomes an
+  example only after `operator_cli feedback-promote`. No fine-tuning until there is reviewed real data.
+- **OPD** (`backend/opd/`): bookings with a queue number per doctor per day; a demo outbox that sends
+  nothing and stores "[link hidden]"; a slot QR login (segno SVG) where a phone and a one-time code,
+  shown on screen only in demo mode, list ONLY that slot's bookings with that number, masked. A name and
+  a phone number are never a login. A finished booked link becomes a read-only status page for the day;
+  the AI summary appears only after "Mark as reviewed".
+- **Walk-ins**: Neo4j suggests a department to staff only; a person confirms before the patient sees one.
+
+- **Referral network** (`referralloop/network.py`, `referrals.network_view`): referral changes queue a
+  reference in `graph_items`; SQLite's `_network_scope` decides what is in scope; Neo4j only narrows it.
+- **Medicine checks** (`backend/conflicts/`, `conflicts.medicine_checks`): reviewed DiagnoFast reports,
+  saved (patient-ticked) prescriptions and active allergies only; exact names; "Possible conflict:
+  check", never advice or another medicine. No salt matching: it needs a licensed drug database.
+- The Neo4j copy runs on the 5-second delivery loop (`graph_sync.background_pass`); tests replace it.
+
+Known gaps of the add-ons:
+- **Hinglish urgent symptoms.** On the new dev-only Hinglish set the rules catch 4 of 20 urgent answers
+  (negated, history and ordinary answers are all right). Saaras's `codemix` output mixes scripts, which
+  the rules don't read. The AI's own urgent list is the second check. Fixing this means changing
+  `red_flags.py`, which needs the owner's decision.
+- **A false urgent stop from the AI.** In two end-to-end runs (22 Nov) a calm fever interview was stopped
+  as urgent ("fever") on the turn where Gemini was rate-limited and Groq's `gpt-oss-20b` answered. Six
+  replays on Gemini, with and without the add-on guidance, never flagged it. Likely the fallback model;
+  unconfirmed (Groq was then rate-limited too). It errs safe but interrupts the patient.
+- Sarvam speech to text (Saaras v4 codemix), Bulbul voices and Mayura translation passed a live smoke test
+  on 22 Nov 2026 with made-up text. Neo4j 5.26 passed the live check (`backend/tests/live/test_live_neo4j.py`,
+  13/13) against a local Docker server on 22 Nov 2026. To run it locally: Docker Desktop, then
+  `NEO4J_URI`, `NEO4J_USER` and `NEO4J_PASSWORD` (8+ characters, never the example placeholder) in `.env`,
+  `docker compose --env-file .env -f docker-compose.integrations.yml up -d neo4j`, `pip install -r
+  backend/requirements-integrations.txt` (the driver), restart the server, turn on the Neo4j switch in
+  Settings, then `python -m backend.operator_cli graph-rebuild`. The container has no data volume, so
+  the copy goes when the container is removed; rebuild it from SQLite with the same command.
+- Live tests are deselected by `pytest.ini`. Run them with `DIAGNOSIA_LIVE_TESTS=1` and `-m live`.
+- `test_patient_pack.py` used to fail now and then in a full run (a race with the app's background loop);
+  it hasn't since the Neo4j pass moved to the delivery loop, but watch it.
 
 ## Features held for regulatory review
 
@@ -289,19 +389,48 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
   table is a numbered step in `backend/migrations.py`, which runs once at start-up. Never ask anyone
   to delete a database.
 
+## Where things stand (22 November 2026)
+
+- **`iiitd` is the working branch** for the IIITD hackathon. It sits on top of `main` (the Curai rename
+  and about 40 hardening changes, then the add-ons above). The owner may make it GitHub's default branch;
+  until the team says otherwise, branch from and open pull requests into `iiitd` for hackathon work.
+- **The name is Diagnosia again** on `iiitd` (see "What it is"). The rename back covered text,
+  `DIAGNOSIA_*` settings, logger names, the cookie, the `X-Diagnosia-Background` header and the logos
+  (`web/icons/diagnosia-logo.png` and `web/images/logo_inv.svg`, restored from before the Curai rename,
+  at their original 155 by 34 size). Still saying Curai: `BUILD.pdf` and the decks in `pitch/`, which are
+  binary, and the GitHub repository name.
+- **Open work, in order:**
+  1. **Meko memory per patient** (built on the old `main`, not yet on `iiitd`). Each finished pack record
+     is also saved to the patient's datapack memory with `{"pack_item": id, "source_type": kind}`
+     metadata; a question searches memory first, then the knowledge base, and re-reads every named
+     record from SQLite; DiagnoFast's confirmed answers go in with the patient's name removed; briefs and
+     questions are Gemini-first (`READING_TOOLS["patient_pack"]`). It added `memory_ids` and
+     `memory_hash` to `pack_items`. Port it as **migration 21**, never 9: on `iiitd`, 9 is
+     `intake_expiry_and_answer_key`, so a database that recorded 9 as `pack_memory` must not be opened
+     by `iiitd`. Both branches changed the same files (`meko.py`, `patient_pack/*`, `settings_store.py`,
+     `migrations.py`, `pack.js`, their tests), so merge by hand. This reverses the "clinical text never
+     goes in Meko memory" rule below, for made-up patients only, at the Meko judges' request.
+  2. **Line endings.** `test_diagnofast_data.py::test_the_frozen_files_match_their_recorded_hashes` fails
+     on a Windows checkout with `core.autocrlf=true`, because the frozen `.jsonl` and `.md` files under
+     `backend/tests/ai_eval/diagnofast/` get CRLF endings. Add a `.gitattributes` rule (`eol=lf` for that
+     folder) rather than changing the hashes.
+  3. `docs/integrations/PATIENT_PACKS.md` must be updated with the memory port.
+- **Test run time.** The full suite is about 2,000 tests. One Windows run took 2.5 hours; run single files
+  while working and the full suite before a pull request.
+
 ## Known gaps and open work
 
 - **SQLite contention.** One writer at a time. A request that has written anything (an audit row
   counts) holds the lock until it commits, so routes call `db.release(db)` before a slow outside call
-  (AI, speech, Meko). A lock not had within `CURAI_DB_BUSY_SECONDS` is a plain 503.
+  (AI, speech, Meko). A lock not had within `DIAGNOSIA_DB_BUSY_SECONDS` is a plain 503.
   `python -m backend.synthetic.load_test` measures it; the PostgreSQL threshold and numbers are in
   `docs/BASELINES.md`. Do the same in any new route that calls the AI after writing.
-- **Not hosted.** Netlify can't run this backend. It needs a Python host. Set `CURAI_HTTPS=1`
+- **Not hosted.** Netlify can't run this backend. It needs a Python host. Set `DIAGNOSIA_HTTPS=1`
   in production.
 - **Rate limits and the AI budget.** The kiosk, the patient interview routes, sign-up and login (per
   address), and every signed-in AI route (per account, plus a shared daily quota) are limited
   (`ratelimit.py`, counted in SQLite). `llm.ask` refuses once the deployment's daily tokens
-  (`CURAI_AI_DAILY_TOKENS`) or spend (`CURAI_AI_DAILY_SPEND_USD`, priced from `CURAI_AI_PRICES`) are
+  (`DIAGNOSIA_AI_DAILY_TOKENS`) or spend (`DIAGNOSIA_AI_DAILY_SPEND_USD`, priced from `DIAGNOSIA_AI_PRICES`) are
   used up. Each AI attempt records its token counts; `operator_cli ai-usage --days 7` prints use and
   cost per tool. Speech transcription isn't counted in the token budget yet. Seeding scripts lift the
   limits for themselves with `ratelimit.suspended()`. Behind a reverse proxy,
@@ -317,8 +446,8 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
   reading cost. Measure it with `ai_eval/run_eval.py --twice` before switching it on.
 - **Live on both, lightly.** A Hindi interview and a synthetic prescription work on Groq and Gemini.
   Reading quality on real handwriting and real Hindi speech is untested. Run `backend/tests/live/`
-  with `CURAI_LIVE_TESTS=1` after changing a model.
-- **Reading tools use Gemini first.** Prescription reading and explaining, and lab report reading, are pinned to Gemini (own settings), after a comparison on synthetic photos in `backend/tests/ai_eval/`. Re-run it when models change.
+  with `DIAGNOSIA_LIVE_TESTS=1` after changing a model.
+- **Five tools use Gemini first** (`settings_store.READING_TOOLS`): prescription reading, explaining and planning the daily times, lab report reading, and the DiagnoFast interview turn, so patient interview answers go to Gemini first by default. Each has its own setting. The photo-reading choice came from a comparison on synthetic photos in `backend/tests/ai_eval/`. Re-run it when models change. `test_docs_match_code.py` fails if `docs/PLATFORM_SETUP.md` states a different count.
 - **Model choice.** Each tool's Groq model is a setting, and Gemini has one model for the other tools. A
   failed call goes to the other provider, or providers take turns (`ai.strategy`). With one provider,
   a failed call is retried once. A DiagnoFast question times out at 45 seconds per provider.
@@ -334,6 +463,8 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
 ## Things that look wrong but aren't
 
 - Many tests patch `llm.ask`, `speech.speak` and the medicine list on purpose.
+- `curai.in`, `support@curai.in` and `data-wf-domain="curai.in"` stay after the rename back to Diagnosia.
+  The owner chose to keep the domain and contact. Don't "fix" them.
 
 ## Related
 

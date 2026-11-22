@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-VERSION = "lablens-parser-1"
+VERSION = "lablens-parser-2"
 
 NUMBER = r"\d[\d,]*(?:\.\d+)?"
 RANGE = re.compile(rf"({NUMBER})\s*(?:-|–|—|to)\s*({NUMBER})", re.IGNORECASE)
@@ -26,6 +26,21 @@ UNIT_TOKEN = re.compile(
     r"^(%|[a-zA-Zµμ^/0-9.]*/[a-zA-Zµμ^0-9.]+|fl|pg|gm%|mm/1st\s*hr|[a-zA-Zµμ]+/[a-zA-Zµμ]+)$", re.IGNORECASE
 )
 GENERIC_ROW = re.compile(rf"^([A-Za-z][A-Za-z ,()/\-]{{2,48}}?)\s*[:\-]?\s+({NUMBER})\s+(.*)$")
+# A result given in words. Longer phrases first, so "Non Reactive" isn't read as "Reactive".
+QUALITATIVE_WORDS = (
+    r"non[\s-]?reactive|not\s+detected|not\s+seen|weakly\s+positive|positive|negative|reactive|detected|"
+    r"trace|traces|nil|absent|present|[1-4]\s?\+|\+{1,4}"
+)
+QUALITATIVE = re.compile(rf"^[\s:\-.]*({QUALITATIVE_WORDS})(?=\s|$)(.*)$", re.IGNORECASE)
+# A test this parser doesn't know, written with a result in words: "Dengue NS1 Antigen : Positive".
+# The name must look like a test (not "Remarks" or "Method"), and the word must come straight after it.
+GENERIC_QUALITATIVE = re.compile(
+    rf"^([A-Za-z][A-Za-z0-9 ,&()/\-]{{2,48}}?)\s*[:\-]?\s+({QUALITATIVE_WORDS})(?=\s|$)(.*)$", re.IGNORECASE
+)
+NOT_A_TEST = re.compile(r"^(remarks?|method|note|notes|comment|comments|interpretation|result|results|impression|specimen|sample|test)\b", re.IGNORECASE)
+IN_WORDS = "Result in words, not a number: compare with the original"
+# Lines inside the table that are not results: page marks and the like.
+FURNITURE = re.compile(r"\bpage\s+\d+(\s+of\s+\d+)?\b|^-+$|^=+$", re.IGNORECASE)
 PARENTHETICAL = re.compile(r"^\s*\([^)]*\)")
 SAMPLE_PREFIX = re.compile(r"^(?:sr\.?|s\.|serum|plasma|blood)\s+", re.IGNORECASE)
 
@@ -202,9 +217,44 @@ def _second_column(line: str) -> Optional[int]:
     return None
 
 
+def build_qualitative(original_name: str, line: str, value: str, rest: str, analyte: Optional[dict]) -> dict:
+    """A result written as a word. It has no number, so it gets no unit, range or high/low status,
+    and it always goes to a person."""
+    reference = QUALITATIVE.match(rest)
+    issues = [IN_WORDS]
+    if analyte is None:
+        issues.append("Test not recognised: not mapped to a standard code")
+    return {
+        "original_name": original_name,
+        "original_line": line.strip()[:300],
+        "loinc_code": analyte["loinc"] if analyte else None,
+        "standard_name": analyte["name"] if analyte else None,
+        "value_text": " ".join(value.split()),
+        "value_number": None,
+        "reported_flag": "",
+        "unit": "",
+        # The report's own "normal" word, when it prints one beside the result.
+        "reference_text": " ".join(reference.group(1).split()) if reference else "",
+        "reference_low": None,
+        "reference_high": None,
+        "issues": issues,
+        "confidence": "review",
+    }
+
+
 def parse_results(text: str) -> List[dict]:
+    return parse_report(text)[0]
+
+
+def parse_report(text: str) -> Tuple[List[dict], List[str]]:
+    """The results, and the lines that look like results but could not be read.
+
+    A line counts as unread when it names a test this parser knows but gives nothing it can read,
+    or when it sits between the results and holds a number. Headings and page marks don't count.
+    The count is a prompt to look at the original, not a measure of what was missed."""
     results = []
     lines = []
+    outcomes: List[Tuple[str, str]] = []  # (what happened, the line), in the order printed
     for line in text.splitlines():
         split = _second_column(line) if _match_analyte(line) else None
         if split is None:
@@ -218,12 +268,17 @@ def parse_results(text: str) -> List[dict]:
         if matched:
             analyte, name, remainder = matched
             parsed = _split_row(remainder)
+            words = None if parsed else QUALITATIVE.match(remainder)
             if parsed:
                 result = build_result(name, line, parsed, analyte)
                 if from_columns:
                     result["issues"].append("Read from a line holding two tests: check the columns")
                     result["confidence"] = "review"
                 results.append(result)
+            elif words:
+                results.append(build_qualitative(name, line, words.group(1), words.group(2), analyte))
+            # A test we know, with nothing after it we can read: always worth a look.
+            outcomes.append(("result" if parsed or words else "missed", line))
             continue
         generic = GENERIC_ROW.match(line.strip())
         # Unknown tests are kept only when the line clearly has a range, so headers stay out.
@@ -231,7 +286,24 @@ def parse_results(text: str) -> List[dict]:
             parsed = _split_row(line.strip()[len(generic.group(1)):])
             if parsed:
                 results.append(build_result(generic.group(1).strip(), line, parsed, None))
-    return results
+                outcomes.append(("result", line))
+                continue
+        worded = GENERIC_QUALITATIVE.match(line.strip())
+        if worded and not NOT_A_TEST.match(worded.group(1)):
+            name = re.sub(r"\s*\([^)]*\)\s*$", "", worded.group(1)).strip(" :-")
+            results.append(build_qualitative(name, line, worded.group(2), worded.group(3), None))
+            outcomes.append(("result", line))
+            continue
+        outcomes.append(("other", line))
+
+    found = [index for index, (kind, _line) in enumerate(outcomes) if kind == "result"]
+    unread = []
+    for index, (kind, line) in enumerate(outcomes):
+        inside = bool(found) and found[0] < index < found[-1]
+        looks_like_a_result = re.search(r"\d", line) and not FURNITURE.search(line.strip())
+        if kind == "missed" or (kind == "other" and inside and looks_like_a_result):
+            unread.append(line.strip()[:300])
+    return results, unread
 
 
 def parse_date(text: str) -> Optional[str]:

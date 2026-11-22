@@ -1,6 +1,9 @@
 // DiagnoFast: reception sends a link for one interview, and the doctor reads the report.
 import { act, api, form, h, show, when } from './ui.js';
 import { packPanel } from './pack.js';
+import { renderBookings } from './opd.js';
+import { graphsPanel } from './graphs.js';
+import { icon, initials } from './icons.js';
 
 const STATUS_TEXT = {
     waiting: 'Not started',
@@ -83,6 +86,41 @@ function problemList(detail) {
         h('ul', {}, detail.report_problems.map((item) => h('li', {}, `${PROBLEM_FIELD[item.field] || item.field}, ${label(item)}: ${item.problem}`))));
 }
 
+// Possible medicine and allergy conflicts across doctors, for staff only. Each is "check", never advice.
+function conflictsPanel(found) {
+    return h('section', { class: 'no-print conflicts-panel' },
+        h('h3', {}, 'Medicine checks (staff only)'),
+        found.flags.length
+            ? h('ul', {}, found.flags.map((flag) => h('li', {}, h('strong', {}, flag.message),
+                h('ul', {}, flag.records.map((entry) => h('li', { class: 'muted' }, `${entry.text} · ${entry.where}${entry.doctor ? ` · ${entry.doctor}` : ''}`))))))
+            : h('p', { class: 'muted' }, `No possible conflicts in ${found.checked.medicines} confirmed medicine${found.checked.medicines === 1 ? '' : 's'} and ${found.checked.allergies} allerg${found.checked.allergies === 1 ? 'y' : 'ies'}.`),
+        h('p', { class: 'muted' }, found.salt_check.reason));
+}
+
+// "Anything you wish had been asked?" It changes nothing in the report; it helps the questions improve.
+function feedbackPanel(detail, context) {
+    const done = ['done', 'report_failed'].includes(detail.status);
+    const list = h('ul', {}, detail.feedback.answers.map((answer) => h('li', {}, answer.wished_asked,
+        answer.good_question && h('span', { class: 'muted' }, ` · suggested: “${answer.good_question}”`))));
+    const box = form(
+        [
+            { name: 'wished_asked', label: detail.feedback.question, type: 'textarea', required: true, maxlength: 1000 },
+            { name: 'good_question', label: 'A question you would have asked (optional)', maxlength: 300 },
+        ],
+        'Save feedback',
+        async (values, element) => {
+            const saved = await act(() => api(`/api/diagnofast/intakes/${detail.id}/feedback`, {
+                method: 'POST', body: { wished_asked: values.wished_asked, good_question: values.good_question || null },
+            }), context, 'Thank you. This helps the questions improve.');
+            if (!saved) return;
+            list.append(h('li', {}, values.wished_asked, values.good_question && h('span', { class: 'muted' }, ` · suggested: “${values.good_question}”`)));
+            element.reset();
+        },
+    );
+    return h('section', { class: 'no-print feedback-panel' }, h('h3', {}, 'Your feedback on the questions'), list,
+        done ? box : h('p', { class: 'muted' }, 'Feedback opens when the interview is finished.'));
+}
+
 export function reportView(detail, context) {
     const pack = h('div', { class: 'no-print' });
     const { report, patient, records } = detail;
@@ -90,18 +128,18 @@ export function reportView(detail, context) {
     const history = [];
     if (report) {
         history.push(['Past history', report.past_history || 'Not stated', 'Interview / see provenance']);
-        (report.current_medicines || []).forEach((item) => history.push(['Current medicine', item, 'Patient reported']));
-        (report.allergies || []).forEach((item) => history.push(['Allergy', item, 'Patient reported · verify']));
+        (report.current_medicines || []).forEach((item) => history.push(['Current medicine', item, 'Patient said']));
+        (report.allergies || []).forEach((item) => history.push(['Allergy', item, 'Patient said · verify']));
     }
     if (records) {
-        const source = 'ABHA record';
+        const source = 'From ABHA (simulated)';
         (records.conditions || []).forEach((item) => history.push(['Condition', item, source]));
         (records.prescriptions || []).forEach((item) => history.push(['Prescription record', item, source]));
         (records.lab_reports || []).forEach((item) => history.push(['Past result', item, source]));
     }
     return h('article', { class: 'sheet requisition' },
         h('header', { class: 'requisition-header' },
-            h('div', {}, h('p', { class: 'requisition-brand' }, 'CURAI / DIAGNOFAST'),
+            h('div', {}, h('p', { class: 'requisition-brand' }, 'DIAGNOSIA / DIAGNOFAST'),
                 h('h2', {}, 'Clinical intake requisition'),
                 h('p', { class: 'muted' }, 'Pre-consultation history · For physician review')),
             barcode(detail.id)),
@@ -155,13 +193,17 @@ export function reportView(detail, context) {
             h('p', {}, 'Provisional / differential diagnosis: ', h('span', { class: 'writing-line' })),
             h('p', { class: 'plan-line' }, 'Prescription / plan: ', h('span', { class: 'writing-line' })),
             h('div', { class: 'signoff' }, h('p', {}, 'Doctor signature: ____________________'), h('p', {}, 'Date: ____________________'))),
+        detail.graphs && graphsPanel(detail.graphs),
+        detail.feedback && feedbackPanel(detail, context),
+        detail.conflicts && conflictsPanel(detail.conflicts),
         h('details', { class: 'no-print requisition-original', open: !report },
             h('summary', {}, 'Original form answers & patient transcript'),
             h('h3', {}, `${detail.form_title} form`),
             detail.answers.map((answer) => row(answer.label, answer.value)),
             h('h3', {}, "The patient’s own words"),
             detail.transcript.map((turn, index) => h('div', { class: 'medicine-card' },
-                h('p', {}, turn.question), h('strong', {}, turn.answer),
+                h('p', {}, turn.question), h('strong', { lang: /[\u0900-\u097F]/.test(turn.answer) ? 'hi' : null }, turn.answer),
+                turn.english && h('p', { class: 'translation-line' }, h('span', { class: 'status' }, turn.english_label), ' ', turn.english),
                 turn.has_audio && h('audio', { class: 'no-print', controls: true, preload: 'none', src: `/api/diagnofast/intakes/${detail.id}/audio/${index}` })))),
         h('p', { class: 'requisition-legend' }, `DiagnoFast · Intake #${detail.id} · Clinical decisions and sign-off remain with the examining physician.`),
         h('div', { class: 'row no-print' },
@@ -194,7 +236,7 @@ export function preparePrintReport(container, detail) {
     };
     const section = (title) => entries.push(h('h3', {}, title));
     entries.push(h('div', { class: 'intake-print-header' },
-        h('div', {}, h('strong', {}, 'CURAI / DIAGNOFAST'), h('h2', {}, 'Clinical intake summary'),
+        h('div', {}, h('strong', {}, 'DIAGNOSIA / DIAGNOFAST'), h('h2', {}, 'Clinical intake summary'),
             h('span', {}, 'AI-generated intake summary · clinician review required')), barcode(detail.id)));
     add('Patient', patient.name);
     add('Age / sex', `${patient.age ?? 'Not stated'} / ${patient.sex || 'Not stated'}`);
@@ -252,6 +294,10 @@ export function preparePrintReport(container, detail) {
 async function renderReport(container, id, context) {
     const load = async () => {
         const detail = await api(`/api/diagnofast/intakes/${id}`);
+        if (detail.status === 'done') detail.graphs = await api(`/api/diagnofast/intakes/${id}/graph`).catch(() => null);
+        if (detail.patient.record_id && context.config?.addons?.['conflicts.medicine_checks']) {
+            detail.conflicts = await api(`/api/conflicts/patients/${detail.patient.record_id}`).catch(() => null);
+        }
         show(container, h('h1', { class: 'no-print' }, 'DiagnoFast'), reportView(detail, context));
         preparePrintReport(container, detail);
         return detail;
@@ -265,6 +311,33 @@ function ageFrom(birthDate) {
     return Math.floor((Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 }
 
+// One queue row: who, when, and where the interview stands, in words as well as colour.
+export function queueRow(intake) {
+    const urgent = intake.urgent.length > 0;
+    const review = ['done', 'report_failed'].includes(intake.status) && !intake.reviewed;
+    const stateTag = intake.reviewed ? h('span', { class: 'status good' }, 'Reviewed')
+        : review ? h('span', { class: 'status warn' }, 'To review')
+            : h('span', { class: 'status' }, STATUS_TEXT[intake.status] || intake.status);
+    return h('a', { class: `queue-item${urgent ? ' urgent' : ''}`, href: `#/diagnofast/${intake.id}` },
+        h('span', { class: 'q-avatar', 'aria-hidden': 'true' }, urgent ? icon('alert', 'nav-icon') : initials(intake.patient_name)),
+        h('span', { class: 'q-main' },
+            h('span', { class: 'q-name' }, intake.patient_name),
+            h('span', { class: 'q-when' }, when(intake.created_at))),
+        h('span', { class: 'q-tags' },
+            urgent && h('span', { class: 'status bad' }, `Urgent: ${intake.urgent.join(', ')}`),
+            intake.needs_help && h('span', { class: 'status warn' }, 'Asked for help'),
+            stateTag));
+}
+
+// The queue's filters, by route name: a label and the test. Home's counts use the same tests.
+export const QUEUE_FILTERS = {
+    waiting: ['Waiting or answering', (item) => ['waiting', 'in_progress'].includes(item.status)],
+    urgent: ['Urgent', (item) => item.urgent.length > 0],
+    urgent_open: ['Urgent, not reviewed', (item) => item.urgent.length > 0 && !item.reviewed],
+    review: ['To review', (item) => ['done', 'report_failed'].includes(item.status) && !item.reviewed],
+    reviewed: ['Reviewed', (item) => item.reviewed],
+};
+
 export async function renderDiagnoFast(container, context) {
     clearInterval(poll);
     const { patient, route } = context;
@@ -272,23 +345,40 @@ export async function renderDiagnoFast(container, context) {
         show(container, h('h1', {}, 'DiagnoFast'), h('p', { class: 'empty' }, 'Your clinic sends you a link for this interview. You need no account to answer it.'));
         return;
     }
-    if (route) {
+    if (route === 'bookings') {
+        await renderBookings(container, context);
+        return;
+    }
+    // A filtered queue is a route of its own, so Home can link straight to it.
+    const preset = QUEUE_FILTERS[route] !== undefined ? route : '';
+    if (route && !preset) {
         await renderReport(container, route, context);
         return;
     }
     const forms = await api('/api/diagnofast/forms');
     const queue = h('div', {});
     const created = h('div', { 'aria-live': 'polite' });
+    let intakes = [];
+    const count = h('p', { class: 'queue-count', role: 'status' });
+    const search = h('input', { type: 'search', placeholder: 'Search patient name', 'aria-label': 'Search queue', oninput: () => drawQueue() });
+    const filter = h('select', { 'aria-label': 'Filter queue', onchange: () => drawQueue() },
+        h('option', { value: '' }, 'All interviews'),
+        Object.entries(QUEUE_FILTERS).map(([value, [label]]) => h('option', { value, selected: value === preset }, label)));
+    const drawQueue = () => {
+        const found = intakes.filter((item) => item.patient_name.toLowerCase().includes(search.value.trim().toLowerCase()))
+            .filter((item) => !filter.value || QUEUE_FILTERS[filter.value][1](item));
+        count.textContent = `${found.length} of ${intakes.length} interviews · ${intakes.filter((item) => item.urgent.length).length} urgent`;
+        show(queue, found.length
+            ? h('div', { class: 'queue-list' }, found.map(queueRow))
+            : h('div', { class: 'empty' }, h('strong', {}, intakes.length ? 'No interviews match' : 'No interviews yet'),
+                intakes.length ? 'Try another name or filter.' : 'Create an interview link and the patient answers by voice while they wait.'));
+    };
 
     const loadQueue = async () => {
-        const url = patient ? `/api/diagnofast/intakes?patient_id=${patient.id}` : '/api/diagnofast/intakes';
-        const intakes = await api(url);
-        show(queue, intakes.length
-            ? intakes.map((intake) => h('a', { class: `queue-item${intake.urgent.length ? ' urgent' : ''}`, href: `#/diagnofast/${intake.id}` },
-                h('span', {}, `${intake.urgent.length ? 'Urgent: ' : ''}${intake.patient_name}`,
-                    intake.needs_help && h('mark', { style: 'margin-left:8px' }, 'Asked for help')),
-                h('span', { class: 'muted' }, `${intake.reviewed ? 'Reviewed' : STATUS_TEXT[intake.status] || intake.status}, ${when(intake.created_at)}`)))
-            : h('p', { class: 'muted' }, patient ? 'No interviews for this patient yet.' : 'No patients yet. Send a link to start.'));
+        // A filtered route (from Home's counts) shows the whole queue, which is what Home counted.
+        const url = patient && !preset ? `/api/diagnofast/intakes?patient_id=${patient.id}` : '/api/diagnofast/intakes';
+        intakes = await api(url);
+        drawQueue();
     };
 
     const sendLink = form(
@@ -299,7 +389,7 @@ export async function renderDiagnoFast(container, context) {
             { name: 'patient_sex', label: 'Sex', type: 'select', value: patient?.sex, options: [['', 'Not recorded'], ['female', 'Female'], ['male', 'Male'], ['other', 'Other']] },
             { name: 'abha_id', label: 'ABHA ID (optional)', maxlength: 32 },
         ],
-        'Create patient link',
+        'Create interview link',
         async (values, element) => {
             const made = await act(() => api('/api/diagnofast/intakes', {
                 method: 'POST',
@@ -319,9 +409,13 @@ export async function renderDiagnoFast(container, context) {
     show(container,
         h('h1', {}, 'DiagnoFast'),
         h('p', { class: 'lede' }, 'The patient answers by voice while they wait. You get a one-page report, and urgent symptoms come to the top.'),
-        h('div', { class: 'columns' },
-            h('div', { class: 'sheet' }, h('h2', {}, patient ? `New link for ${patient.first_name}` : 'New patient link'), sendLink, created),
-            h('div', { class: 'sheet' }, h('h2', {}, patient ? `${patient.first_name}'s interviews` : 'Queue'), queue)),
-        h('p', { class: 'muted' }, h('a', { href: 'intake.html', target: '_blank', rel: 'noopener' }, 'Open self-service kiosk'), ' · ', h('a', { href: 'diagnofast_hiw.html' }, 'How it works')));
+        h('div', { class: 'queue-layout' },
+            h('section', { class: 'sheet' }, h('h2', {}, patient && !preset ? `${patient.first_name}'s interviews` : 'Patient queue'),
+                h('div', { class: 'queue-toolbar' }, search, filter), count, queue),
+            h('section', { class: 'sheet' }, h('h2', {}, patient ? `New link for ${patient.first_name}` : 'New patient link'),
+                h('p', { class: 'muted' }, 'Start a voice interview. The patient can open the link without an account.'), sendLink, created)),
+        h('p', { class: 'muted' },
+            context.config?.addons?.['diagnofast.bookings'] && [h('a', { href: '#/diagnofast/bookings' }, 'OPD bookings and queue'), ' · '],
+            h('a', { href: 'intake.html', target: '_blank', rel: 'noopener' }, 'Open self-service kiosk'), ' · ', h('a', { href: 'diagnofast_hiw.html' }, 'How it works')));
     keepFresh(loadQueue);
 }

@@ -18,12 +18,17 @@ from pydantic import BaseModel, EmailStr, Field
 from backend.config import settings
 from backend.db import connect, get_db
 
-SESSION_COOKIE = "curai_session"
+SESSION_COOKIE = "diagnosia_session"
 SESSION_LIFETIME = timedelta(days=14)
 STAFF_SESSION_LIFETIME = timedelta(hours=12)  # staff accounts reach many patients' records
 BAD_LOGIN = "Incorrect email or password."
 MAX_FAILED_LOGINS = 10
 FAILED_LOGIN_WINDOW = timedelta(minutes=15)
+
+# A session's last use is rewritten no more often than this, to keep reads from becoming writes.
+TOUCH_EVERY = timedelta(minutes=1)
+# Sent by the pages on their own timed refreshes, which are not a person using the app.
+BACKGROUND_HEADER = "X-Diagnosia-Background"
 
 router = APIRouter(prefix="/api")
 hasher = PasswordHasher()
@@ -68,8 +73,8 @@ def _start_session(db: sqlite3.Connection, response: Response, user_id: int, rol
     lifetime = STAFF_SESSION_LIFETIME if role == "doctor" else SESSION_LIFETIME
     db.execute("DELETE FROM sessions WHERE expires_at <= ?", (_now().isoformat(),))
     db.execute(
-        "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
-        (_hash_token(token), user_id, (_now() + lifetime).isoformat()),
+        "INSERT INTO sessions (token_hash, user_id, expires_at, last_seen_at) VALUES (?, ?, ?, ?)",
+        (_hash_token(token), user_id, (_now() + lifetime).isoformat(), _now().isoformat()),
     )
     response.set_cookie(
         SESSION_COOKIE,
@@ -83,20 +88,40 @@ def _start_session(db: sqlite3.Connection, response: Response, user_id: int, rol
 
 
 def current_user(
-    curai_session: Optional[str] = Cookie(default=None),
+    request: Request,
+    diagnosia_session: Optional[str] = Cookie(default=None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> Optional[sqlite3.Row]:
-    if not curai_session:
+    if not diagnosia_session:
         return None
-    return db.execute(
+    token_hash = _hash_token(diagnosia_session)
+    now = _now()
+    row = db.execute(
         """
-        SELECT users.* FROM sessions
+        SELECT users.*, sessions.last_seen_at AS session_last_seen FROM sessions
         JOIN users ON users.id = sessions.user_id
         WHERE sessions.token_hash = ? AND sessions.expires_at > ?
           AND users.account_status != 'suspended'
         """,
-        (_hash_token(curai_session), _now().isoformat()),
+        (token_hash, now.isoformat()),
     ).fetchone()
+    if row is None:
+        return None
+    idle = timedelta(minutes=settings.session_idle_minutes)
+    seen = datetime.fromisoformat(row["session_last_seen"]) if row["session_last_seen"] else None
+    if idle and seen is not None and now - seen > idle:
+        # Left idle too long. The session is removed, so it can't be picked up again later.
+        db.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+        db.commit()
+        return None
+    # Activity slides the limit. A page's own background polling (it says so in a header) doesn't,
+    # or an unattended screen would stay signed in for ever. Written at most once a minute, and
+    # committed at once so this request holds no write lock because of it.
+    background = request.headers.get(BACKGROUND_HEADER) == "1"
+    if not background and (seen is None or now - seen >= TOUCH_EVERY):
+        db.execute("UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", (now.isoformat(), token_hash))
+        db.commit()
+    return row
 
 
 def require_user(user: Optional[sqlite3.Row] = Depends(current_user)) -> sqlite3.Row:
@@ -215,11 +240,11 @@ def login(
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     response: Response,
-    curai_session: Optional[str] = Cookie(default=None),
+    diagnosia_session: Optional[str] = Cookie(default=None),
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
-    if curai_session:
-        db.execute("DELETE FROM sessions WHERE token_hash = ?", (_hash_token(curai_session),))
+    if diagnosia_session:
+        db.execute("DELETE FROM sessions WHERE token_hash = ?", (_hash_token(diagnosia_session),))
     response.delete_cookie(SESSION_COOKIE, path="/")
 
 

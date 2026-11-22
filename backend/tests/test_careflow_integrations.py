@@ -91,7 +91,7 @@ def test_each_event_has_every_required_field(wide_journey):
         event = json.loads(row["event"])
         assert REQUIRED <= set(event)
         assert event["schema_version"] == contract.SCHEMA_VERSION
-        assert event["source_system"] == "curai"
+        assert event["source_system"] == "diagnosia"
 
 
 def test_events_from_audit_name_the_real_operation(wide_journey):
@@ -132,9 +132,9 @@ def test_a_switch_reads_both_ways_of_writing_it(monkeypatch, value, expected):
 def test_the_database_name_has_a_safe_default_and_can_be_set(monkeypatch):
     monkeypatch.delenv("MONGODB_DATABASE_NAME", raising=False)
     monkeypatch.delenv("MONGODB_DATABASE", raising=False)
-    assert Settings().mongodb_database == "curai_atlas"
-    monkeypatch.setenv("MONGODB_DATABASE_NAME", "curai_other")
-    assert Settings().mongodb_database == "curai_other"
+    assert Settings().mongodb_database == "diagnosia_atlas"
+    monkeypatch.setenv("MONGODB_DATABASE_NAME", "diagnosia_other")
+    assert Settings().mongodb_database == "diagnosia_other"
 
 
 @pytest.mark.parametrize("name, attribute", [("MONGODB_ATLAS_URI", "mongodb_uri"), ("YUGABYTEDB_YSQL_DSN", "yugabyte_dsn"), ("MEKO_API_KEY", "meko_api_key")])
@@ -555,7 +555,7 @@ class Server(FakeMcp):
 def test_meko_identifies_itself_as_the_docs_ask():
     server = Server()
     client_for(server).knowledge("a query")
-    assert server.calls[0]["headers"]["User-Agent"].startswith("curai")
+    assert server.calls[0]["headers"]["User-Agent"].startswith("diagnosia")
 
 
 def test_meko_says_it_is_ready_before_listing_tools():

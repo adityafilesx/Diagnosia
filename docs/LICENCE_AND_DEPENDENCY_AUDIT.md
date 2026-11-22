@@ -1,6 +1,6 @@
 # Licence and dependency audit
 
-Curai is Apache-2.0. Not legal advice: have counsel confirm before distribution.
+Diagnosia is Apache-2.0. Not legal advice: have counsel confirm before distribution.
 
 ## Third-party code in this repository
 

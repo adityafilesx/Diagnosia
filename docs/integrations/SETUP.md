@@ -1,6 +1,6 @@
 # Integration setup
 
-MongoDB Atlas, YugabyteDB and Meko are all optional. With none of them, Curai runs as normal, and CareFlow reads a local copy and says so.
+MongoDB Atlas, YugabyteDB and Meko are all optional. With none of them, Diagnosia runs as normal, and CareFlow reads a local copy and says so.
 
 ## What you need
 
@@ -80,6 +80,6 @@ The Groq and Gemini keys used so far were pasted into a chat, so treat them as e
 2. Replace `GROQ_API_KEY` and `GEMINI_API_KEY` in `.env`.
 3. Restart the server, because `.env` is read at start-up.
 4. Revoke the old keys in each provider's console.
-5. Run `CURAI_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_services.py`.
+5. Run `DIAGNOSIA_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_services.py`.
 
 The app reads these only from the environment or from Settings, where they're stored encrypted.

@@ -9,6 +9,7 @@ With both providers set up, a failed call moves on to the other one, or provider
 take turns, as Settings say. Any OpenAI-compatible service can stand in for Groq
 by setting AI_BASE_URL.
 """
+import contextvars
 import itertools
 import json
 import logging
@@ -26,7 +27,20 @@ from backend import settings_store
 from backend.config import settings
 from backend.integrations import execution
 
-logger = logging.getLogger("curai")
+logger = logging.getLogger("diagnosia")
+# The provider and model that answered the last call in this request, for records that must name it.
+_answered_by: contextvars.ContextVar = contextvars.ContextVar("answered_by", default="")
+
+
+def last_model() -> str:
+    """ "provider/model" for the last successful call in this request, or "" if there was none."""
+    return _answered_by.get()
+
+
+def forget_last_model() -> None:
+    """Called before a step whose record must name its own model, so an earlier call's name can't stand in."""
+    _answered_by.set("")
+
 
 Schema = TypeVar("Schema", bound=BaseModel)
 
@@ -169,10 +183,25 @@ def _providers_in_order(tool: str) -> List[str]:
     return names
 
 
-def _attempts(tool: str, prefer_other: bool = False) -> List[Tuple[str, str]]:
+def _sarvam_chat_ready() -> bool:
+    """Sarvam as a third provider: its own switch as well as Sarvam's switch, key and sign-off."""
+    from backend import addons
+    from backend.db import connect
+
+    db = connect()
+    try:
+        return addons.sarvam_ready(db) and bool(settings_store.get("sarvam.llm", db))
+    except Exception:
+        return False
+    finally:
+        db.close()
+
+
+def _attempts(tool: str, prefer_other: bool = False, content: Union[str, list, None] = None) -> List[Tuple[str, str]]:
     """Each (provider, model) to try, in order. Gemini may appear twice, with a backup model.
 
     `prefer_other` starts with the provider that would normally be second, for an independent second opinion.
+    Sarvam, when switched on, is always last and never gets images.
     """
     attempts = []
     providers = _providers_in_order(tool)
@@ -183,6 +212,8 @@ def _attempts(tool: str, prefer_other: bool = False) -> List[Tuple[str, str]]:
             attempts += [("gemini", model) for model in settings_store.gemini_models(tool)]
         else:
             attempts.append(("groq", settings_store.model_for(tool)))
+    if not _has_image(content or "") and _sarvam_chat_ready():
+        attempts.append(("sarvam", settings_store.get("sarvam.chat_model")))
     return attempts
 
 
@@ -190,8 +221,11 @@ def _ask_model(
     provider: str, model: str, system: str, content: Union[str, list], schema: Type[Schema], max_tokens: int, timeout: int, attempts: int
 ) -> Schema:
     key = settings_store.api_key(None, provider)
-    base_url = settings.gemini_base_url if provider == "gemini" else None
-    response = _post(build_request(system, content, schema, model, max_tokens), key, timeout, base_url, attempts)
+    base_url = {"gemini": settings.gemini_base_url, "sarvam": f"{settings.sarvam_base_url}/v1"}.get(provider)
+    body = build_request(system, content, schema, model, max_tokens)
+    if provider == "sarvam":
+        body["max_tokens"] = body.pop("max_completion_tokens")  # Sarvam's chat API names it this way
+    response = _post(body, key, timeout, base_url, attempts)
     if response.status_code in (401, 403):
         raise AIUnavailable(f"status {response.status_code}")
     if response.status_code != 200:
@@ -209,7 +243,7 @@ def _ask_model(
 
 
 def cost(model: str, prompt_tokens: int, completion_tokens: int) -> Optional[float]:
-    """US dollars, from the operator's price table (CURAI_AI_PRICES). None when the model has no price."""
+    """US dollars, from the operator's price table (DIAGNOSIA_AI_PRICES). None when the model has no price."""
     price = settings.ai_prices.get(model)
     if not price:
         return None
@@ -243,7 +277,7 @@ def ask(
     prefer_other: bool = False,
 ) -> Schema:
     """Calls the model chosen for this tool, and the next choice if that one fails."""
-    attempts = _attempts(tool, prefer_other)
+    attempts = _attempts(tool, prefer_other, content)
     if not attempts:
         raise AINotConfigured("no API key")
     check_budget()
@@ -256,6 +290,7 @@ def ask(
             answer, usage = _ask_model(provider, model, system, content, schema, max_tokens, timeout, tries)
             run.tried(provider, model, "succeeded", usage)
             run.finish("succeeded")
+            _answered_by.set(f"{provider}/{model}")
             return answer
         except (AIUnavailable, AIDeclined) as error:
             failure = error

@@ -724,7 +724,8 @@ def list_notifications(user=Depends(require_user), db: sqlite3.Connection = Depe
     care.escalate_overdue(db)
     return rows(
         db.execute(
-            "SELECT * FROM notifications WHERE recipient_user_id = ? ORDER BY created_at DESC LIMIT ?",
+            # Times are kept to the second, so the insertion order breaks a tie: newest first, always.
+            "SELECT * FROM notifications WHERE recipient_user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
             (user["id"], 50),
         )
     )

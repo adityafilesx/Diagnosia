@@ -5,9 +5,9 @@ readiness report says otherwise. Run `python -m backend.operator_cli readiness` 
 
 ## Before any deployment, including a synthetic pilot
 
-- [ ] Create a key ring outside the repository, and set `CURAI_DOCUMENT_KEY_FILE`
+- [ ] Create a key ring outside the repository, and set `DIAGNOSIA_DOCUMENT_KEY_FILE`
 - [ ] Store two offline copies of the key ring, held by named people
-- [ ] Set `CURAI_ENV` and `CURAI_HTTPS=1`
+- [ ] Set `DIAGNOSIA_ENV` and `DIAGNOSIA_HTTPS=1`
 - [ ] Confirm `ALLOW_REAL_PATIENT_DATA`, and `ENABLE_EXTERNAL_MESSAGING` are unset
 - [ ] Bootstrap the first organization with `bootstrap-organization`
 - [ ] Confirm the pilot banner shows

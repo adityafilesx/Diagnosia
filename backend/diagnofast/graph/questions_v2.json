@@ -1,0 +1,466 @@
+{
+  "version": "questions_v2",
+  "clinically_reviewed": false,
+  "status": "NOT CLINICALLY REVIEWED. Drafted for the IIITD hackathon demo from common history-taking frameworks (SOCRATES for pain; duration, pattern, chills, rash and travel for fever). A clinician must review and sign this off before any real use. Red-flag screening questions only ASK; they never decide, and red_flags.screen still runs first on every answer. v2 (22 Nov 2026): question IDs that had two wordings were split, because Neo4j keeps one node per ID.",
+  "complaints": [
+    {
+      "id": "fever",
+      "department": "general_physician",
+      "keywords": [
+        "fever",
+        "temperature",
+        "feverish",
+        "bukhar",
+        "bukhaar",
+        "taap",
+        "बुखार",
+        "ताप"
+      ],
+      "follow_ups": [
+        {
+          "id": "fever_duration",
+          "en": "How many days have you had the fever?",
+          "hi": "आपको कितने दिनों से बुखार है?"
+        },
+        {
+          "id": "fever_pattern",
+          "en": "Is the fever there all the time, or does it come and go?",
+          "hi": "बुखार हर समय रहता है, या आता-जाता है?"
+        },
+        {
+          "id": "fever_measured",
+          "en": "Did you measure it? What was the highest reading?",
+          "hi": "क्या आपने बुखार नापा? सबसे ज़्यादा कितना था?"
+        },
+        {
+          "id": "fever_chills",
+          "en": "Do you get chills or shivering with the fever?",
+          "hi": "क्या बुखार के साथ ठंड लगती है या कंपकंपी होती है?"
+        },
+        {
+          "id": "fever_rash",
+          "en": "Have you noticed any rash on your skin?",
+          "hi": "क्या आपकी त्वचा पर कोई दाने या चकत्ते दिखे हैं?"
+        },
+        {
+          "id": "fever_travel",
+          "en": "Have you travelled anywhere in the last few weeks?",
+          "hi": "क्या आप पिछले कुछ हफ़्तों में कहीं बाहर गए थे?"
+        }
+      ],
+      "associated": [
+        {
+          "id": "cough",
+          "en": "Do you have a cough?",
+          "hi": "क्या आपको खाँसी है?"
+        },
+        {
+          "id": "body_ache",
+          "en": "Do you have body aches?",
+          "hi": "क्या शरीर में दर्द है?"
+        },
+        {
+          "id": "urine_burning",
+          "en": "Is there any burning when you pass urine?",
+          "hi": "क्या पेशाब करते समय जलन होती है?"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "fever_confusion",
+          "en": "Has anyone noticed you being confused or very drowsy?",
+          "hi": "क्या किसी ने देखा कि आप उलझन में हैं या बहुत सुस्त हैं?"
+        },
+        {
+          "id": "fever_neck",
+          "en": "Do you have a stiff neck that hurts when you bend it?",
+          "hi": "क्या गर्दन अकड़ी हुई है, जो मोड़ने पर दर्द करती है?"
+        }
+      ]
+    },
+    {
+      "id": "headache",
+      "department": "general_physician",
+      "keywords": [
+        "headache",
+        "head ache",
+        "head pain",
+        "migraine",
+        "sar dard",
+        "sir dard",
+        "sar me dard",
+        "sir me dard",
+        "सिर दर्द",
+        "सिरदर्द",
+        "सिर में दर्द"
+      ],
+      "follow_ups": [
+        {
+          "id": "pain_site",
+          "en": "Where exactly is the pain? Can you point to it?",
+          "hi": "दर्द ठीक कहाँ है? क्या आप उंगली से बता सकते हैं?"
+        },
+        {
+          "id": "pain_onset",
+          "en": "Did it start suddenly or slowly?",
+          "hi": "यह अचानक शुरू हुआ या धीरे-धीरे?"
+        },
+        {
+          "id": "pain_character",
+          "en": "What does the pain feel like: throbbing, pressing, or sharp?",
+          "hi": "दर्द कैसा लगता है: धड़कता हुआ, दबाव जैसा, या तेज़ चुभन?"
+        },
+        {
+          "id": "pain_time",
+          "en": "How long does it last, and how often does it come?",
+          "hi": "यह कितनी देर रहता है, और कितनी बार होता है?"
+        },
+        {
+          "id": "pain_triggers",
+          "en": "Does anything make it better or worse?",
+          "hi": "क्या किसी चीज़ से यह बढ़ता या घटता है?"
+        },
+        {
+          "id": "pain_severity",
+          "en": "From 1 to 10, how bad is it at its worst?",
+          "hi": "1 से 10 में, सबसे ज़्यादा कितना तेज़ होता है?"
+        }
+      ],
+      "associated": [
+        {
+          "id": "vomiting",
+          "en": "Have you vomited or felt like vomiting?",
+          "hi": "क्या उल्टी हुई या उल्टी जैसा लगा?"
+        },
+        {
+          "id": "vision_change",
+          "en": "Any blurred vision, or does light bother your eyes?",
+          "hi": "क्या धुंधला दिखता है, या रोशनी से आँखों में तकलीफ़ होती है?"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "headache_thunderclap",
+          "en": "Did this headache start very suddenly, like the worst headache of your life?",
+          "hi": "क्या यह सिरदर्द बहुत अचानक शुरू हुआ, जीवन के सबसे तेज़ सिरदर्द जैसा?"
+        },
+        {
+          "id": "headache_weakness",
+          "en": "Have you had any weakness, numbness or trouble speaking?",
+          "hi": "क्या कोई कमज़ोरी, सुन्नपन या बोलने में दिक्कत हुई?"
+        }
+      ]
+    },
+    {
+      "id": "abdominal_pain",
+      "department": "general_physician",
+      "keywords": [
+        "stomach pain",
+        "abdominal pain",
+        "tummy pain",
+        "belly pain",
+        "stomach ache",
+        "pet dard",
+        "pet me dard",
+        "pet mein dard",
+        "पेट दर्द",
+        "पेट में दर्द"
+      ],
+      "follow_ups": [
+        {
+          "id": "pain_site",
+          "en": "Where exactly is the pain? Can you point to it?",
+          "hi": "दर्द ठीक कहाँ है? क्या आप उंगली से बता सकते हैं?"
+        },
+        {
+          "id": "pain_onset",
+          "en": "Did it start suddenly or slowly?",
+          "hi": "यह अचानक शुरू हुआ या धीरे-धीरे?"
+        },
+        {
+          "id": "abdomen_character",
+          "en": "What does the pain feel like: cramping, burning, or sharp?",
+          "hi": "दर्द कैसा लगता है: मरोड़, जलन, या तेज़ चुभन?"
+        },
+        {
+          "id": "pain_radiation",
+          "en": "Does the pain move anywhere else, like your back?",
+          "hi": "क्या दर्द कहीं और भी जाता है, जैसे पीठ में?"
+        },
+        {
+          "id": "pain_food",
+          "en": "Is it related to eating?",
+          "hi": "क्या इसका खाने से कोई संबंध है?"
+        },
+        {
+          "id": "pain_severity",
+          "en": "From 1 to 10, how bad is it at its worst?",
+          "hi": "1 से 10 में, सबसे ज़्यादा कितना तेज़ होता है?"
+        }
+      ],
+      "associated": [
+        {
+          "id": "vomiting",
+          "en": "Have you vomited or felt like vomiting?",
+          "hi": "क्या उल्टी हुई या उल्टी जैसा लगा?"
+        },
+        {
+          "id": "bowel_change",
+          "en": "Any loose motions or constipation?",
+          "hi": "क्या दस्त या कब्ज़ है?"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "abdomen_blood",
+          "en": "Have you seen any blood in vomit or stools, or black stools?",
+          "hi": "क्या उल्टी या मल में खून, या काला मल दिखा?"
+        }
+      ]
+    },
+    {
+      "id": "cough",
+      "department": "general_physician",
+      "keywords": [
+        "cough",
+        "coughing",
+        "khansi",
+        "khaansi",
+        "खाँसी",
+        "खांसी"
+      ],
+      "follow_ups": [
+        {
+          "id": "cough_duration",
+          "en": "How many days have you had the cough?",
+          "hi": "खाँसी कितने दिनों से है?"
+        },
+        {
+          "id": "cough_sputum",
+          "en": "Is it dry, or do you bring up phlegm? What colour?",
+          "hi": "सूखी है या बलगम आता है? किस रंग का?"
+        },
+        {
+          "id": "cough_time",
+          "en": "Is it worse at night or in the morning?",
+          "hi": "क्या रात में या सुबह ज़्यादा होती है?"
+        }
+      ],
+      "associated": [
+        {
+          "id": "fever_any",
+          "en": "Have you had any fever with it?",
+          "hi": "क्या इसके साथ बुखार भी रहा?"
+        },
+        {
+          "id": "weight_loss",
+          "en": "Have you lost weight without trying?",
+          "hi": "क्या बिना कोशिश के वज़न कम हुआ है?"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "cough_blood",
+          "en": "Have you coughed up any blood?",
+          "hi": "क्या खाँसी में खून आया?"
+        }
+      ]
+    },
+    {
+      "id": "joint_pain",
+      "department": "orthopedics",
+      "keywords": [
+        "joint pain",
+        "knee pain",
+        "back pain",
+        "shoulder pain",
+        "ghutne",
+        "ghutna",
+        "kamar dard",
+        "jodon",
+        "घुटने",
+        "कमर दर्द",
+        "जोड़ों",
+        "जोड़ में दर्द"
+      ],
+      "follow_ups": [
+        {
+          "id": "joint_site",
+          "en": "Which joint or part hurts? Can you point to it?",
+          "hi": "कौन सा जोड़ या हिस्सा दर्द करता है? उंगली से बताइए।"
+        },
+        {
+          "id": "joint_onset",
+          "en": "Did it start after an injury, or on its own?",
+          "hi": "क्या यह चोट के बाद शुरू हुआ, या अपने आप?"
+        },
+        {
+          "id": "joint_swelling",
+          "en": "Is there any swelling or stiffness in the morning?",
+          "hi": "क्या सूजन है, या सुबह अकड़न रहती है?"
+        },
+        {
+          "id": "pain_severity",
+          "en": "From 1 to 10, how bad is it at its worst?",
+          "hi": "1 से 10 में, सबसे ज़्यादा कितना तेज़ होता है?"
+        }
+      ],
+      "associated": [
+        {
+          "id": "other_joints",
+          "en": "Do any other joints hurt?",
+          "hi": "क्या और जोड़ों में भी दर्द है?"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "back_bladder",
+          "en": "Any new trouble controlling your bladder or bowels, or numbness between the legs?",
+          "hi": "क्या पेशाब या मल रोकने में नई दिक्कत है, या जांघों के बीच सुन्नपन?"
+        }
+      ]
+    },
+    {
+      "id": "skin_rash",
+      "department": "dermatologist",
+      "keywords": [
+        "rash",
+        "itching",
+        "itch",
+        "skin",
+        "pimples",
+        "khujli",
+        "daane",
+        "chakatte",
+        "खुजली",
+        "दाने",
+        "चकत्ते",
+        "त्वचा"
+      ],
+      "follow_ups": [
+        {
+          "id": "rash_site",
+          "en": "Where on your body is it?",
+          "hi": "यह शरीर पर कहाँ है?"
+        },
+        {
+          "id": "rash_duration",
+          "en": "How long have you had it?",
+          "hi": "यह कितने समय से है?"
+        },
+        {
+          "id": "rash_itch",
+          "en": "Does it itch, burn, or hurt?",
+          "hi": "क्या इसमें खुजली, जलन या दर्द होता है?"
+        },
+        {
+          "id": "rash_spread",
+          "en": "Is it spreading or changing?",
+          "hi": "क्या यह फैल रहा है या बदल रहा है?"
+        }
+      ],
+      "associated": [
+        {
+          "id": "new_products",
+          "en": "Have you started any new soap, cream or medicine recently?",
+          "hi": "क्या हाल में कोई नया साबुन, क्रीम या दवा शुरू की?"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "rash_mouth_eyes",
+          "en": "Any blisters in your mouth or eyes, or peeling skin?",
+          "hi": "क्या मुँह या आँखों में छाले हैं, या त्वचा उतर रही है?"
+        }
+      ]
+    },
+    {
+      "id": "ear_problem",
+      "department": "ent",
+      "keywords": [
+        "ear pain",
+        "earache",
+        "ear",
+        "hearing",
+        "kaan",
+        "कान"
+      ],
+      "follow_ups": [
+        {
+          "id": "ear_side",
+          "en": "Which ear: left, right, or both?",
+          "hi": "कौन सा कान: बायाँ, दायाँ, या दोनों?"
+        },
+        {
+          "id": "ear_discharge",
+          "en": "Is there any discharge from the ear?",
+          "hi": "क्या कान से कुछ बहता है?"
+        },
+        {
+          "id": "ear_hearing",
+          "en": "Has your hearing changed?",
+          "hi": "क्या सुनने में कोई बदलाव आया है?"
+        }
+      ],
+      "associated": [
+        {
+          "id": "throat_pain",
+          "en": "Do you have a sore throat or blocked nose?",
+          "hi": "क्या गले में दर्द या नाक बंद है?"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "ear_face",
+          "en": "Any weakness on one side of your face?",
+          "hi": "क्या चेहरे के एक तरफ़ कमज़ोरी है?"
+        }
+      ]
+    },
+    {
+      "id": "loose_motions",
+      "department": "general_physician",
+      "keywords": [
+        "diarrhoea",
+        "diarrhea",
+        "loose motion",
+        "loose motions",
+        "dast",
+        "patle dast",
+        "दस्त",
+        "पतले दस्त"
+      ],
+      "follow_ups": [
+        {
+          "id": "stool_count",
+          "en": "How many times a day are you passing stools?",
+          "hi": "दिन में कितनी बार मल त्याग हो रहा है?"
+        },
+        {
+          "id": "stool_duration",
+          "en": "How many days has this been going on?",
+          "hi": "यह कितने दिनों से हो रहा है?"
+        },
+        {
+          "id": "fluid_intake",
+          "en": "Are you able to drink water and keep it down?",
+          "hi": "क्या आप पानी पी पा रहे हैं और वह रुक रहा है?"
+        }
+      ],
+      "associated": [
+        {
+          "id": "vomiting",
+          "en": "Have you vomited or felt like vomiting?",
+          "hi": "क्या उल्टी हुई या उल्टी जैसा लगा?"
+        }
+      ],
+      "red_flags": [
+        {
+          "id": "dehydration",
+          "en": "Are you passing much less urine than usual, or feeling faint when you stand?",
+          "hi": "क्या पेशाब बहुत कम आ रहा है, या खड़े होने पर चक्कर आता है?"
+        }
+      ]
+    }
+  ]
+}

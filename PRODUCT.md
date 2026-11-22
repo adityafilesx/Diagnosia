@@ -1,4 +1,4 @@
-# Curai
+# Diagnosia
 
 ## Register
 

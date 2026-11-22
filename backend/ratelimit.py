@@ -47,6 +47,10 @@ INTERVIEW_ANSWERS = "interview_answers"
 INTERVIEW_PREVIEWS = "interview_previews"
 INTERVIEW_STARTS_PER_DEVICE = "interview_starts_per_device"
 INTERVIEW_HELP = "interview_help"
+CONSENT_AUDIO = "consent_audio"
+OTP_PER_PHONE = "otp_per_phone"
+OTP_PER_SLOT = "otp_per_slot"
+OTP_VERIFY_PER_PHONE = "otp_verify_per_phone"
 SPEECH_PER_USER = "speech_per_user"
 REGISTER_PER_ADDRESS = "register_per_address"
 LOGIN_PER_ADDRESS = "login_per_address"
@@ -71,6 +75,12 @@ RULES: Dict[str, Rule] = {
     INTERVIEW_PREVIEWS: Rule(INTERVIEW_PREVIEWS, 60, 6 * HOUR, _BUSY),
     INTERVIEW_STARTS_PER_DEVICE: Rule(INTERVIEW_STARTS_PER_DEVICE, 60, HOUR, _BUSY),
     INTERVIEW_HELP: Rule(INTERVIEW_HELP, 10, HOUR, _BUSY),
+    # Consent words read aloud, with replays. Each one can cost a paid voice call.
+    CONSENT_AUDIO: Rule(CONSENT_AUDIO, 20, HOUR, _BUSY),
+    # Slot QR login. A family shares a phone, so a few codes an hour; a slot has at most a few dozen patients.
+    OTP_PER_PHONE: Rule(OTP_PER_PHONE, 5, HOUR, "Too many codes for this number. Please ask reception."),
+    OTP_PER_SLOT: Rule(OTP_PER_SLOT, 120, HOUR, "This slot's QR code is busy. Please ask reception."),
+    OTP_VERIFY_PER_PHONE: Rule(OTP_VERIFY_PER_PHONE, 15, HOUR, "Too many tries for this number. Please ask reception."),
     # Reading a prescription aloud, a section at a time, with replays.
     SPEECH_PER_USER: Rule(SPEECH_PER_USER, 120, HOUR, "You have played a lot of audio. Please try again later."),
     # A clinic's staff and patients may share one address, so these leave room for a busy morning.

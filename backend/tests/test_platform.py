@@ -224,7 +224,9 @@ def test_a_note_can_go_from_transcript_to_signed_record(journey, monkeypatch):
     )
     monkeypatch.setattr(llm, "ask", FakeAI(draft))
     note = doctor.post(f"/api/addons/clinscribe/sessions/{ids['session']}/draft-note", json={}).json()
-    signed = doctor.post(f"/api/addons/clinscribe/notes/{note['id']}/approve", json={"acknowledge_flags": True})
+    from backend.tests.test_clinscribe import sign
+
+    signed = sign(doctor, note)
     assert signed.status_code == 200
     assert any(event["module"] == "clinscribe" for event in doctor.get(f"/api/patients/{ids['ravi']}/timeline").json())
 
@@ -266,7 +268,7 @@ def test_setup_local_writes_env_lines_without_changing_others(client, tmp_path_f
     assert operator(["setup-local", "--home", str(home), "--env-file", str(env)]) == 0
     lines = env.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "KEEP_ME=1"
-    assert any(line.startswith("CURAI_DOCUMENT_KEY_FILE=") for line in lines)
+    assert any(line.startswith("DIAGNOSIA_DOCUMENT_KEY_FILE=") for line in lines)
     assert "GROQ_API_KEY=your-groq-key" in lines
 
 
@@ -279,13 +281,15 @@ def test_setup_local_never_approves_clinical_content(client, tmp_path_factory):
 
 
 def test_nothing_mentions_the_old_providers_in_code():
+    # Sarvam was removed on 31 October 2026 and deliberately brought back on 21 November 2026 for the
+    # hackathon build (BUILD.md, docs/integrations/SARVAM.md), behind a switch and a sign-off. Anthropic
+    # stays out.
     root = Path(__file__).parents[1]
     for path in root.rglob("*.py"):
         if "tests" in path.parts or "training" in path.parts:
             continue
         text = path.read_text(encoding="utf-8").lower()
         assert "anthropic" not in text, path
-        assert "sarvam" not in text, path
 
 
 def test_requirements_hold_no_anthropic_client():

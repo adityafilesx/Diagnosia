@@ -70,7 +70,7 @@ def test_every_ai_route_shares_one_daily_quota(client, details, small, monkeypat
     monkeypatch.setattr(llm, "ask", RecordingAI(read_result()))
     signed_in(client, details)
     assert post_photo(client).status_code == 200
-    explained = client.post("/api/prescription/explain", json={"medicines": [], "language": "en-IN", "doctor_notes": ""})
+    explained = client.post("/api/prescription/explain", json={"reading_id": "any", "confirmed": [], "language": "en-IN", "doctor_notes": ""})
     assert explained.status_code == 429
 
 

@@ -2,8 +2,8 @@
 import os
 import sys
 
-if 'test-run' not in os.environ.get('CURAI_DB', ''):
-    sys.exit('Use a throwaway CURAI_DB containing test-run.')
+if 'test-run' not in os.environ.get('DIAGNOSIA_DB', ''):
+    sys.exit('Use a throwaway DIAGNOSIA_DB containing test-run.')
 
 import uvicorn
 from backend import app as app_module, llm, speech

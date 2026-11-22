@@ -1,0 +1,9 @@
+{
+  "note": "Examples of good follow-up questions, used as prompt examples when the doctor-like interview is on. The first ones are hand-written for the demo, not from doctors. Reviewed doctor feedback (the 'Anything you wish had been asked?' answers) is added with source 'doctor_feedback' only after a person checks it. No fine-tuning until there is reviewed real data.",
+  "examples": [
+    {"source": "hand_written_demo", "patient_said": "Kabhi kabhi sar dard hota hai", "good_question": "Samajh gaya. Hafte mein kitni baar sar dard hota hai?"},
+    {"source": "hand_written_demo", "patient_said": "Pet mein bahut dard hai", "good_question": "I understand. From 1 to 10, how bad is the pain at its worst?"},
+    {"source": "hand_written_demo", "patient_said": "मुझे तीन दिन से बुखार है", "good_question": "धन्यवाद। क्या बुखार के साथ ठंड लगती है या कंपकंपी होती है?"},
+    {"source": "hand_written_demo", "patient_said": "I take my sugar tablets", "good_question": "Thank you. Do you know the name of the tablet, and how many times a day you take it?"}
+  ]
+}

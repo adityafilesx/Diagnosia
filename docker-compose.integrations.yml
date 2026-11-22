@@ -14,3 +14,10 @@ services:
     image: yugabytedb/yugabyte:latest
     command: ["bin/yugabyted", "start", "--background=false"]
     ports: ["127.0.0.1:5433:5433"]
+  neo4j:
+    # Community Edition (GPL v3), run unmodified as its own service. 5.26 is the long-term support line.
+    # Bound to this machine only, so no data leaves it. Set NEO4J_PASSWORD in .env (8+ characters).
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}"
+    ports: ["127.0.0.1:7474:7474", "127.0.0.1:7687:7687"]

@@ -93,11 +93,35 @@ plus the network. Not yet measured on a real kiosk tablet and clinic network.
 
 No longer open from the first table: token accounting exists (WI-105), and this alert latency.
 
+## 15 November 2026, lab report reading after the parser change (WI-230)
+
+`python -m backend.tests.lab_validation.score`, same synthetic text-PDF layouts, parser version
+`lablens-parser-2` (unread lines counted, results in words read). Every figure is unchanged from 13 November:
+test found 37/37, value 37/37, unit 35/36, reference low 30/30, reference high 34/34, patient name 9/9,
+collection date 9/9, and each case reads exactly the number of results it expects, so the word-result
+rules add no false results on these layouts. No wrong values and no silent misses.
+
+## Scanned lab reports, the AI reading path (WI-231): not yet measured
+
+The set and the scorer exist (15 November 2026): 40 synthetic scans, 150 results
+(`backend/tests/lab_validation/scan_set.py`, `scan_score.py`). **No number is recorded here because no
+model has been run against it.** The tests use a stand-in reader, which checks the counting only. To
+measure, with a real key in `.env`:
+
+```bash
+python -m backend.tests.lab_validation.scan_set /tmp/lab-scans
+python -m backend.tests.lab_validation.scan_score /tmp/lab-scans --out /tmp/lab-scans/score.json
+```
+
+Then add a dated section below with the table it prints, the models it names, the commit, and the lists
+of wrong rows and wrong values. Put it beside the 37/37 text-PDF figure wherever that figure is quoted:
+the text figure says nothing about scans.
+
 ## 13 November 2026, SQLite write contention (WI-261)
 
 `python -m backend.synthetic.load_test`: a throwaway database, 20 staff each saving every second (new patients
 and tasks), 5 ClinScribe drafts in flight through a fake AI that takes 3 seconds, 30 seconds, one process,
-4 CPUs. Busy wait 5 s (`CURAI_DB_BUSY_SECONDS`).
+4 CPUs. Busy wait 5 s (`DIAGNOSIA_DB_BUSY_SECONDS`).
 
 | | Writes | Refused as busy | p50 | p95 | Max | Notes drafted |
 |---|---|---|---|---|---|---|
@@ -110,3 +134,22 @@ busy. The pilot load now passes (125 ms, none refused), so SQLite stays for a si
 fails the threshold and shows where the limit is: one writer at a time, with Python's own lock between threads.
 Re-run before adding a second worker process or a second clinic, and on the real host.
 
+
+
+## Hinglish phrasings, urgent-symptom rules (21 November 2026, dev only)
+
+`python -m backend.synthetic.diagnofast_eval --hinglish`, on the new hand-written, dev-only, not-frozen set
+`backend/tests/ai_eval/diagnofast/hinglish_dev/` (34 answers; v1 untouched). The rules were not changed.
+
+| Check | Result |
+|---|---|
+| Urgent answers, exact flags | 4/20 (20.0%) |
+| Negated, no flag | 5/5 |
+| History, no flag | 2/2 |
+| Ordinary, no flag | 7/7 |
+| By script | romanised Hinglish 10/19, mixed script (Saaras `codemix` style) 8/15 |
+
+The rules match whole English, Devanagari or romanised-Hindi phrases, so mixed phrases such as "chest
+mein bahut pain hai" or "मुझे chest में pain है" pass unflagged. The AI's `urgent_symptoms` is the
+second check. The frozen v1 test split still scores 68/68 urgent interviews caught and 0 of 175 calm ones
+stopped.

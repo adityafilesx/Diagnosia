@@ -1,5 +1,5 @@
 // CareFlow: what happened across the tools, in order. A read-only activity view, not a clinical record.
-import { api, badge, h, loading, show, when } from './ui.js';
+import { api, badge, emptyState, h, listRow, loading, loadingRows, show, when } from './ui.js';
 
 const REFRESH_MS = 15000;
 const STATUS_LABEL = { started: 'Started', completed: 'Completed', review_required: 'Needs review', failed: 'Failed' };
@@ -20,14 +20,31 @@ function words(eventType) {
     return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+const MODULE_ICON = {
+    DiagnoFast: 'diagnofast', ClinScribe: 'clinscribe', LabLens: 'lablens', 'Prescription Analyzer': 'prescription',
+    ReferralLoop: 'referrals', DischargeCare: 'discharge',
+};
+
+// One event as a row of the same kind as the DiagnoFast queue. Its details open in place.
 function row(event) {
-    return h('li', {},
-        h('strong', {}, words(event.event_type)),
-        ' ',
-        badge(STATUS_LABEL[event.status] ?? event.status, STATUS_KIND[event.status] ?? ''),
-        event.review_required && event.status !== 'review_required' ? [' ', badge('Needs review', 'bad')] : null,
-        h('div', { class: 'muted' },
-            `${event.module}${event.target_module ? ` to ${event.target_module}` : ''}, ${when(event.occurred_at)}`));
+    const review = event.status === 'review_required' || event.review_required;
+    return h('li', {}, listRow({
+        leadIcon: MODULE_ICON[event.module] || 'activity',
+        tone: event.status === 'failed' ? 'urgent' : review ? 'warn' : event.status === 'completed' ? 'good' : '',
+        title: words(event.event_type),
+        meta: `${event.module}${event.target_module ? ` to ${event.target_module}` : ''}, ${when(event.occurred_at)}`,
+        tags: [
+            badge(STATUS_LABEL[event.status] ?? event.status, STATUS_KIND[event.status] ?? ''),
+            event.review_required && event.status !== 'review_required' ? badge('Needs review', 'bad') : null,
+        ],
+        details: h('dl', { class: 'facts-list' },
+            h('dt', {}, 'Tool'), h('dd', {}, event.module),
+            event.target_module ? [h('dt', {}, 'Handed to'), h('dd', {}, event.target_module)] : null,
+            h('dt', {}, 'When'), h('dd', {}, when(event.occurred_at)),
+            h('dt', {}, 'Status'), h('dd', {}, STATUS_LABEL[event.status] ?? event.status),
+            event.workflow_ref ? [h('dt', {}, 'Workflow'), h('dd', { class: 'mono' }, event.workflow_ref)] : null,
+            h('dt', {}, 'Record'), h('dd', {}, 'The patient record stays the official source. This row holds no clinical text.')),
+    }));
 }
 
 function counts(events, pending) {
@@ -38,11 +55,13 @@ function counts(events, pending) {
 }
 
 function handoffList(handoffs) {
-    if (!handoffs.length) return h('p', { class: 'muted' }, 'No handoffs between tools in this workflow.');
-    return h('ul', { class: 'plain-list' }, handoffs.map((item) => h('li', {},
-        h('strong', {}, `${item.source_module} to ${item.target_module}`),
-        h('div', { class: 'muted' }, `${when(item.occurred_at)}. The receiving tool re-reads the source record.`),
-        h('div', { class: 'muted' }, Object.entries(item.records).map(([channel, record]) => `${channel}: ${record.state}`).join(', ')))));
+    if (!handoffs.length) return emptyState('No handoffs between tools in this workflow.', '');
+    return h('div', { class: 'queue-list' }, handoffs.map((item) => listRow({
+        leadIcon: 'referrals',
+        title: `${item.source_module} to ${item.target_module}`,
+        meta: `${when(item.occurred_at)}. The receiving tool re-reads the source record.`,
+        details: h('p', { class: 'muted' }, Object.entries(item.records).map(([channel, record]) => `${channel}: ${record.state}`).join(', ')),
+    })));
 }
 
 function sourceNote(reply) {
@@ -80,9 +99,9 @@ export async function renderCareFlow(container, context) {
     stream?.close();
     const { patient, isStaff } = context;
     const list = await api('/api/careflow/workflows');
-    const results = h('div', { 'aria-live': 'polite' });
+    const results = h('div', { 'aria-live': 'polite' }, loadingRows('Loading the timeline…'));
     const handoffPanel = h('div', {});
-    const status = h('div', {});
+    const status = h('div', {}, loadingRows('Checking the services…', 2));
     const own = list.workflows.find((item) => item.patient_id && item.patient_id === patient?.id);
     const choice = { workflow: own?.workflow_ref ?? '', module: '', status: '' };
 
@@ -103,8 +122,8 @@ export async function renderCareFlow(container, context) {
                 ]);
                 const shown = reply.events.filter((event) => (!choice.module || event.module === choice.module) && (!choice.status || event.status === choice.status));
                 show(results, sourceNote(reply), counts(shown, reply.activity.pending_review), shown.length
-                    ? h('ol', { class: 'timeline' }, shown.map(row))
-                    : h('p', { class: 'empty' }, 'Nothing matches these filters.'));
+                    ? h('ol', { class: 'timeline event-rows' }, shown.map(row))
+                    : emptyState('Nothing matches these filters', 'Try another tool or status.'));
                 show(handoffPanel, h('h2', {}, 'Handoffs between tools'), handoffList(handed.handoffs));
                 return;
             }
@@ -112,10 +131,10 @@ export async function renderCareFlow(container, context) {
             const query = new URLSearchParams(Object.entries({ module: choice.module, status: choice.status }).filter(([, value]) => value));
             const reply = await api(`/api/careflow/events?${query}`);
             show(results, sourceNote(reply), counts(reply.events), reply.events.length
-                ? h('ol', { class: 'timeline' }, reply.events.map(row))
-                : h('p', { class: 'empty' }, 'No activity yet. Using a tool on a patient adds it here.'));
+                ? h('ol', { class: 'timeline event-rows' }, reply.events.map(row))
+                : emptyState('No activity yet', 'Using a tool on a patient adds it here.'));
         } catch (error) {
-            show(results, h('p', { class: 'error', role: 'alert' }, `The timeline couldn't load. ${error.message}`));
+            show(results, h('div', { class: 'empty error-state', role: 'alert' }, h('strong', {}, "The timeline couldn't load."), h('span', {}, `${error.message} It tries again on its own every 15 seconds.`)));
         }
     };
     const picker = (label, key, options) => h('label', {}, label, h('select', {
@@ -145,8 +164,11 @@ export async function renderCareFlow(container, context) {
             load();
         }
     }, REFRESH_MS);
-    // Instant updates where the deployment supports them. Without them the timer above carries on.
-    stream = new EventSource('/api/careflow/stream');
-    stream.onmessage = () => load();
-    stream.onerror = () => stream.close();
+    // Instant updates where the deployment supports them. Without them the timer above carries on, and
+    // the stream isn't opened at all (it would only answer 404).
+    if (context.config?.careflow_stream) {
+        stream = new EventSource('/api/careflow/stream');
+        stream.onmessage = () => load();
+        stream.onerror = () => stream.close();
+    }
 }

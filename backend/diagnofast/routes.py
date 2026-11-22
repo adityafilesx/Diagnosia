@@ -2,8 +2,8 @@
 
 Reception creates a link for one interview for each patient. The patient needs no
 account, and the link stops working when the interview ends or when it expires:
-a link nobody opens lasts CURAI_DIAGNOFAST_LINK_HOURS, and a started interview
-has CURAI_DIAGNOFAST_INTERVIEW_HOURS to finish. Everything the
+a link nobody opens lasts DIAGNOSIA_DIAGNOFAST_LINK_HOURS, and a started interview
+has DIAGNOSIA_DIAGNOFAST_INTERVIEW_HOURS to finish. Everything the
 patient says is visible to the doctor who created the link and, once the link
 belongs to a patient record, to that patient's care team.
 """
@@ -33,9 +33,9 @@ from pydantic import BaseModel, Field
 from backend import llm, ratelimit, settings_store, speech
 from backend.auth import require_doctor
 from backend.careflow import events
-from backend.config import neural_tts_allowed, settings
-from backend.db import connect, get_db
-from backend.diagnofast import abha, agent, recordings, validate
+from backend.config import settings
+from backend.db import connect, get_db, release
+from backend.diagnofast import abha, agent, graph_sync, recordings, validate
 from backend.patient_pack import sync as pack
 from backend.records import audit, care, consent
 from backend.records.access import READ, WRITE, lookup, open_patient
@@ -50,7 +50,7 @@ MODULE = "DiagnoFast"
 ALERT_URGENT = "diagnofast_urgent"
 ALERT_HELP = "diagnofast_help"
 
-logger = logging.getLogger("curai.diagnofast")
+logger = logging.getLogger("diagnosia.diagnofast")
 router = APIRouter(prefix="/api/diagnofast")
 
 
@@ -69,6 +69,22 @@ class StartRequest(BaseModel):
     # The version of the words the patient agreed to, from GET /patient/{token}.
     consent_version: Optional[str] = Field(default=None, max_length=32)
     abha_consent: bool = False
+
+
+class ConsentAudio(BaseModel):
+    language: speech.Language
+    kind: Literal["interview", "abha"] = "interview"
+
+
+class KioskConsentAudio(BaseModel):
+    model_config = {"extra": "forbid"}
+    language: speech.Language
+
+
+def _consent_audio(kind: str, language: speech.Language) -> dict:
+    """The consent words read aloud, for patients who can't read them easily. The page reads them in
+    the browser's voice when this returns no audio."""
+    return {"audio": _spoken(" ".join(consent.WORDS[kind][language]), language)}
 
 
 class KioskIntake(BaseModel):
@@ -107,19 +123,13 @@ def _hash(token: str) -> str:
 
 
 def _spoken(text: str, language: speech.Language) -> Optional[str]:
-    """The question as audio. Without it, the page reads the words in the browser's voice."""
-    if neural_tts_allowed():
-        try:
-            return "data:audio/mpeg;base64," + base64.b64encode(speech.speak_neural(text, language)).decode()
-        except (speech.SpeechUnavailable, speech.SpeechRejected):
-            pass
-    if language not in speech.VOICED_LANGUAGES:
+    """The text as audio: Sarvam when it is on, then Edge, then Groq for English. Without any, the
+    page reads the words in the browser's voice."""
+    audio = speech.question_audio(text, language)
+    if audio is None:
         return None
-    try:
-        return "data:audio/wav;base64," + base64.b64encode(speech.speak(text, language)).decode()
-    except (speech.SpeechUnavailable, speech.SpeechRejected) as error:
-        logger.warning("Couldn't speak a question: %s", error)
-        return None
+    data, media_type = audio
+    return f"data:{media_type};base64," + base64.b64encode(data).decode()
 
 
 def _intake_by_token(token: str, db: sqlite3.Connection) -> Optional[sqlite3.Row]:
@@ -242,6 +252,16 @@ def forms(_doctor=Depends(require_doctor)) -> List[dict]:
 def kiosk_config(db: sqlite3.Connection = Depends(get_db)) -> dict:
     _kiosk_doctor(db)
     return {"forms": agent.list_forms(), "consent": consent.words(consent.INTERVIEW)}
+
+
+@router.post(
+    "/kiosk/consent-audio",
+    dependencies=[Depends(ratelimit.per_client(ratelimit.CONSENT_AUDIO)), Depends(ratelimit.overall(ratelimit.KIOSK_OVERALL))],
+)
+def kiosk_consent_audio(request: KioskConsentAudio, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    _kiosk_doctor(db)
+    release(db)  # no lock held while a voice is made
+    return _consent_audio(consent.INTERVIEW, request.language)
 
 
 @router.post(
@@ -372,9 +392,14 @@ def intake_detail(
         "records": json.loads(row["records"]) if row["records"] else None,
         "report": report,
         "transcript": [
-            {"question": turn["question"], "answer": turn["answer"], "has_audio": bool(turn.get("audio"))}
+            {
+                "question": turn["question"], "answer": turn["answer"], "has_audio": bool(turn.get("audio")),
+                # Only when there is one, so with Sarvam off the answer is exactly as before.
+                **({"english": turn["english"], "english_label": "machine translation"} if turn.get("english") else {}),
+            }
             for turn in transcript
         ],
+        "feedback": _feedback_view(db, row),
     }
 
 
@@ -410,9 +435,63 @@ def review_report(
     ).rowcount
     if not stamped:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only a finished interview that hasn't been reviewed can be stamped.")
+    if row["status"] == "done":
+        graph_sync.enqueue(db, "intake", row["id"])  # the copy shows it reviewed
     if not row["patient_id"]:  # with a chart, the gate above has already written this to the audit log
         audit.record(db, doctor, "diagnofast.report.reviewed", None, "intake", str(row["id"]))
     return {"reviewed": True}
+
+
+FEEDBACK_QUESTION = "Anything you wish had been asked?"
+
+
+class Feedback(BaseModel):
+    wished_asked: str = Field(min_length=1, max_length=1000)
+    good_question: Optional[str] = Field(default=None, max_length=300)
+
+
+def _feedback_view(db: sqlite3.Connection, row: sqlite3.Row) -> Optional[dict]:
+    from backend import addons
+
+    if not addons.enabled("diagnofast.review_feedback", db):
+        return None
+    answers = db.execute(
+        "SELECT wished_asked, good_question, created_at FROM diagnofast_feedback WHERE intake_id = ? ORDER BY id", (row["id"],)
+    ).fetchall()
+    return {"question": FEEDBACK_QUESTION, "answers": [dict(answer) for answer in answers]}
+
+
+@router.post("/intakes/{intake_id}/feedback", status_code=status.HTTP_201_CREATED)
+def review_feedback(
+    intake_id: int, request: Feedback, doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    """The reviewing doctor's answer to "Anything you wish had been asked?". It changes nothing in the report."""
+    from backend import addons
+
+    if not addons.enabled("diagnofast.review_feedback", db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": "addon_off", "message": "Review feedback is switched off."})
+    row = _readable_intake(intake_id, doctor, db, "diagnofast.report.viewed", WRITE)
+    if row["status"] not in ("done", "report_failed"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Feedback comes after the interview is finished.")
+    wished = request.wished_asked.strip()
+    if not wished:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Please write what you wish had been asked.")
+    good = (request.good_question or "").strip() or None
+    db.execute(
+        "INSERT INTO diagnofast_feedback (intake_id, doctor_id, wished_asked, good_question, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+        (row["id"], doctor["id"], wished, good),
+    )
+    if not row["patient_id"]:
+        audit.record(db, doctor, "diagnofast.report.feedback", None, "intake", str(row["id"]))
+    return {"saved": True}
+
+
+@router.get("/intakes/{intake_id}/graph")
+def intake_graphs(intake_id: int, doctor: sqlite3.Row = Depends(require_doctor), db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """The evidence and history graphs. Neo4j says which items link; every word comes from SQLite."""
+    row = _readable_intake(intake_id, doctor, db, "diagnofast.report.viewed")
+    release(db)  # no lock held while Neo4j answers
+    return graph_sync.views(db, row)
 
 
 @router.post("/intakes/{intake_id}/report/retry", status_code=status.HTTP_202_ACCEPTED)
@@ -456,6 +535,131 @@ def patient_page(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
         page["questions_asked"] = row["questions_asked"]
         page["audio"] = _spoken(row["current_question"], row["language"])
     return page
+
+
+FINISHED_STATUSES = ("preparing_report", "done", "report_failed")
+STATUS_TEXT = {
+    "en-IN": "Your queue number is {number}. Please go to {department}.",
+    "hi-IN": "आपका नंबर {number} है। कृपया {department} विभाग में जाइए।",
+}
+WAIT_FOR_DEPARTMENT = {
+    "en-IN": "Your queue number is {number}. Reception will tell you which department to go to.",
+    "hi-IN": "आपका नंबर {number} है। रिसेप्शन आपको बताएगा कि किस विभाग में जाना है।",
+}
+
+
+def _guidance(
+    db: sqlite3.Connection, row: sqlite3.Row, form: dict, answers: dict, conversation: list, language: speech.Language, graph_state: dict
+) -> Optional[dict]:
+    """Advice for the next question (guidance.py), or None with both switches off: then the request to
+    the AI is exactly what it always was. It only runs after red_flags.screen found nothing urgent."""
+    from backend import addons
+    from backend.diagnofast import guidance
+
+    graph_on = addons.enabled("diagnofast.graph_followups", db)
+    doctor_like = addons.enabled("diagnofast.doctor_like_interview", db)
+    if not graph_on and not doctor_like:
+        return None
+    advice: dict = {}
+    if doctor_like:
+        advice.update(
+            doctor_like=True,
+            known_context=guidance.known_context(db, row),
+            vague_answer=guidance.vague_probe(conversation[-1]["answer"]) if conversation else None,
+            examples=guidance.examples(db),
+        )
+    if graph_on:
+        graph_state["complaints"] = guidance.match_complaints([turn["answer"] for turn in conversation])
+        # Room is kept for the form's required questions, so the graph never crowds them out.
+        room = agent.MAX_QUESTIONS - row["questions_asked"] - len(agent.missing_required(form, answers))
+        if graph_state["complaints"] and room > 0:
+            release(db)  # no lock held while Neo4j answers
+            suggestion = guidance.graph_suggestion(db, graph_state["complaints"], graph_state.get("asked", []), language)
+            if suggestion:
+                graph_state.setdefault("asked", []).append(suggestion["id"])
+                advice["graph_suggestion"] = suggestion
+    return advice or None
+
+
+def _has_status_page(db: sqlite3.Connection, row: sqlite3.Row) -> bool:
+    from backend import addons
+    from backend.opd import routes as opd
+
+    return addons.enabled("diagnofast.bookings", db) and opd.booking_for_intake(db, row["id"]) is not None
+
+
+def _finished_intake(token: str, db: sqlite3.Connection) -> tuple:
+    """The gate for the status page: a finished, booked interview, on the day it finished, with bookings on.
+    It is read-only: nothing here can answer a question or change the visit."""
+    from backend.opd import routes as opd
+
+    row = db.execute(
+        """
+        SELECT * FROM intakes WHERE token_hash = ? AND status IN (?, ?, ?)
+            AND date(COALESCE(report_requested_at, created_at), 'localtime') = date('now', 'localtime')
+        """,
+        (_hash(token), *FINISHED_STATUSES),
+    ).fetchone()
+    booking = opd.booking_for_intake(db, row["id"]) if row is not None else None
+    if booking is None or not _has_status_page(db, row):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This page isn't available. Please ask reception.")
+    return row, booking
+
+
+def _status_words(row: sqlite3.Row, booking: sqlite3.Row) -> str:
+    from backend.opd import routes as opd
+
+    language = row["language"] or "en-IN"
+    names = opd.department_names(booking["form_id"])
+    if names is None:
+        return WAIT_FOR_DEPARTMENT[language].format(number=booking["queue_number"])
+    return STATUS_TEXT[language].format(number=booking["queue_number"], department=names[language])
+
+
+@router.get("/patient/{token}/status")
+def patient_status(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """What the patient sees after the interview. The AI summary only after a doctor's review."""
+    from backend.opd import routes as opd
+
+    row, booking = _finished_intake(token, db)
+    language = row["language"] or "en-IN"
+    urgent = json.loads(row["urgent"])
+    if urgent:
+        # The urgent stop is unchanged: where to go, nothing about seriousness, and nothing else.
+        return {"urgent": True, "language": language, "message": agent.URGENT_MESSAGE[language]}
+    summary = None
+    if row["reviewed_at"] and row["report"]:
+        report = json.loads(row["report"])
+        summary = {key: report.get(key) for key in ("chief_complaint", "present_illness", "current_medicines", "allergies")}
+    return {
+        "urgent": False,
+        "language": language,
+        "patient_name": row["patient_name"],
+        "queue_number": booking["queue_number"],
+        "department": opd.department_names(booking["form_id"]),
+        "words": _status_words(row, booking),
+        "told": [{"question": turn["question"], "answer": turn["answer"]} for turn in json.loads(row["transcript"])],
+        "reviewed": bool(row["reviewed_at"]),
+        "summary": summary,
+    }
+
+
+@router.post("/patient/{token}/status-audio", dependencies=[Depends(ratelimit.per_path_value(ratelimit.CONSENT_AUDIO, "token"))])
+def patient_status_audio(token: str, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    row, booking = _finished_intake(token, db)
+    language = row["language"] or "en-IN"
+    words = agent.URGENT_MESSAGE[language] if json.loads(row["urgent"]) else _status_words(row, booking)
+    release(db)  # no lock held while a voice is made
+    return {"audio": _spoken(words, language)}
+
+
+@router.post("/patient/{token}/consent-audio", dependencies=[Depends(ratelimit.per_path_value(ratelimit.CONSENT_AUDIO, "token"))])
+def consent_audio(token: str, request: ConsentAudio, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    row = _open_intake(token, db)
+    if request.kind == "abha" and not row["abha_id"]:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "There is no ABHA question for this visit.")
+    release(db)  # no lock held while a voice is made
+    return _consent_audio(consent.ABHA if request.kind == "abha" else consent.INTERVIEW, request.language)
 
 
 @router.post("/patient/{token}/help", dependencies=[Depends(ratelimit.per_path_value(ratelimit.INTERVIEW_HELP, "token"))])
@@ -525,7 +729,9 @@ def preview_transcript(token: str, audio: UploadFile = File(...), db: sqlite3.Co
     if row["status"] != "in_progress":
         raise HTTPException(status.HTTP_409_CONFLICT, "Please start the interview first.")
     data, content_type = _read_audio(audio)
-    said = speech.transcribe(data, content_type, row["language"]).strip()
+    language = row["language"]
+    release(db)  # no lock held while the speech service listens
+    said = speech.transcribe(data, content_type, language).strip()
     if not said:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "We couldn't hear that. Please try again, or type your answer.")
     if len(said) > MAX_TYPED_ANSWER:
@@ -534,10 +740,32 @@ def preview_transcript(token: str, audio: UploadFile = File(...), db: sqlite3.Co
     return {"text": said}
 
 
+def _translate_answers(db: sqlite3.Connection, row: sqlite3.Row) -> None:
+    """An English machine translation beside each Hindi answer the patient confirmed, for the doctor.
+
+    Runs in the report job, so the patient never waits for it. Only with Sarvam ready (speech.py decides);
+    a failure leaves the line untranslated. The patient's own words are never changed, and the report AI
+    still reads those, not the translation.
+    """
+    transcript = json.loads(row["transcript"])
+    changed = False
+    for turn in transcript:
+        if "english" in turn:
+            continue
+        english = speech.translate_to_english(turn["answer"])
+        turn["english"] = english
+        changed = changed or english is not None
+    if changed:
+        db.execute("UPDATE intakes SET transcript = ? WHERE id = ?", (json.dumps(transcript, ensure_ascii=False), row["id"]))
+        db.commit()
+
+
 def _build_report(intake_id: int) -> None:
     """Runs after the patient has their thank-you, so they aren't kept waiting."""
     db = connect()
     try:
+        row = db.execute("SELECT * FROM intakes WHERE id = ?", (intake_id,)).fetchone()
+        _translate_answers(db, row)
         row = db.execute("SELECT * FROM intakes WHERE id = ?", (intake_id,)).fetchone()
         try:
             report = agent.write_report(
@@ -557,6 +785,7 @@ def _build_report(intake_id: int) -> None:
             )
             if row["patient_id"]:  # an intake with no record has no patient to attach it to
                 pack.enqueue(db, row["patient_id"], "intake", intake_id)
+            graph_sync.enqueue(db, "intake", intake_id)  # a reference only, with the change
             events.emit(db, MODULE, "intake.review_required", _workflow(db, row), "review_required", key=str(intake_id), metadata={"review_required": True}, used_ai=True)
         except Exception as error:  # any failure, so the intake never stays "preparing" for ever
             # The doctor can still read the answers and transcript, and can retry.
@@ -596,6 +825,8 @@ def answer(
     if audio is not None:
         data, content_type = _read_audio(audio)
         # Explicitly confirmed/edited text wins over automatic speech recognition.
+        if text is None:
+            release(db)  # no lock held while the speech service listens
         said = text.strip() if text is not None else speech.transcribe(data, content_type, language).strip()
         if not said:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "We couldn't hear that. Please try again, or type your answer.")
@@ -610,8 +841,12 @@ def answer(
     form = agent.load_form(row["form_id"])
     answers = json.loads(row["answers"])
     conversation = [{"question": turn["question"], "answer": turn["answer"]} for turn in transcript]
+    graph_state = json.loads(row["graph_state"] or "{}")
     try:
-        step = agent.advance(form, answers, conversation, row["questions_asked"], language)
+        step = agent.advance(
+            form, answers, conversation, row["questions_asked"], language,
+            guide=lambda: _guidance(db, row, form, answers, conversation, language, graph_state),
+        )
     except (llm.AIUnavailable, llm.AIDeclined) as error:
         events.emit_separately(MODULE, "intake.failed", lambda connection: _workflow(connection, row), "failed", metadata={"error_category": events.category_of(error)})
         raise
@@ -622,7 +857,7 @@ def answer(
     finished = step.question is None
     if finished:
         message = agent.URGENT_MESSAGE[language] if step.urgent else agent.THANK_YOU[language]
-        reply = {"finished": True, "urgent": bool(step.urgent), "message": message}
+        reply = {"finished": True, "urgent": bool(step.urgent), "message": message, "status_page": _has_status_page(db, row)}
     else:
         reply = {"finished": False, "question": step.question, "suggested_chips": [chip.model_dump() for chip in step.suggested_chips]}
     # Only saved if nothing else answered this question while the AI was thinking: two tabs, or a
@@ -630,7 +865,7 @@ def answer(
     saved = db.execute(
         """
         UPDATE intakes SET answers = ?, transcript = ?, urgent = ?, current_question = ?,
-            questions_asked = ?, status = ?, last_answer_key = ?, last_answer_reply = ?
+            questions_asked = ?, status = ?, last_answer_key = ?, last_answer_reply = ?, graph_state = ?
         WHERE id = ? AND status = 'in_progress' AND questions_asked = ?
         """,
         (
@@ -642,6 +877,7 @@ def answer(
             "preparing_report" if finished else "in_progress",
             answer_key,
             json.dumps(reply, ensure_ascii=False),
+            json.dumps(graph_state) if graph_state else row["graph_state"],
             row["id"],
             row["questions_asked"],
         ),

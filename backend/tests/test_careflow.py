@@ -1084,3 +1084,18 @@ def test_the_stream_is_off_unless_asked_for(doctor):
 
 def test_nothing_is_watched_unless_switched_on():
     assert live.start() is None
+
+
+def test_the_page_is_told_whether_live_updates_exist(client, doctor, monkeypatch):
+    """Without change streams the stream route is a 404, so the page must not open it at all."""
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "mongodb_change_streams", False)
+    assert doctor.get("/api/platform/config").json()["careflow_stream"] is False
+    monkeypatch.setattr(settings, "mongodb_change_streams", True)
+    assert doctor.get("/api/platform/config").json()["careflow_stream"] is True
+
+
+def test_the_page_opens_the_stream_only_when_told_it_exists(client):
+    source = client.get("/js/care/careflow.js").text
+    assert "config?.careflow_stream" in source

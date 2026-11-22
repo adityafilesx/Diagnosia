@@ -1,4 +1,4 @@
-# Curai: MVL '27 Qualifier Video (2 minutes)
+# Diagnosia: MVL '27 Qualifier Video (2 minutes)
 
 Flow and script for the 2-minute video pitch. Numbers come from
 [MVL27_PITCH_STATS.md](MVL27_PITCH_STATS.md).
@@ -19,7 +19,7 @@ whole consultation.* The judges feel how short two minutes is, because they
 have just sat through one.
 
 The story in one line: **India's doctors have two minutes per patient and spend
-them on questions a machine could ask, so we built Curai.**
+them on questions a machine could ask, so we built Diagnosia.**
 
 ---
 
@@ -89,9 +89,9 @@ doctor's questions: "Kya bimari hai?" · "Kab se?" · "Pehle koi bimari?"]*
 
 ### 3. Solution (0:35–1:20), Speaker C
 
-*[Cut to the Solution slide: the Curai logo and four tool cards.]*
+*[Cut to the Solution slide: the Diagnosia logo and four tool cards.]*
 
-> **C:** So we're building Curai: four AI tools that give doctors their
+> **C:** So we're building Diagnosia: four AI tools that give doctors their
 > time back.
 
 *[DiagnoFast demo, about 18 seconds. A patient in a waiting room holds a phone
@@ -172,9 +172,9 @@ below.]*
 *[Wide shot with all team members in frame. The stopwatch in the corner reaches
 2:00 and stops.]*
 
-> **C:** We're Curai. Doctors get their time back. Patients get answers.
+> **C:** We're Diagnosia. Doctors get their time back. Patients get answers.
 
-*[End card: Curai logo · college / E-Cell name · contact email. The stopwatch
+*[End card: Diagnosia logo · college / E-Cell name · contact email. The stopwatch
 freezes on 2:00.]*
 
 ---
@@ -230,7 +230,7 @@ Health Dynamics of India 2022-23 · Peterson et al., West J Med 1992
 ### Solution slide
 
 ```
-                         CURAI
+                         DIAGNOSIA
           AI tools that give doctors their time back
 
   FOR DOCTORS                       FOR PATIENTS

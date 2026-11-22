@@ -37,7 +37,7 @@ def run(staff: int, drafters: int, seconds: float, ai_seconds: float, pause: flo
     from backend.config import settings
     from backend.tests.conftest import Person, grant
 
-    folder = Path(tempfile.mkdtemp(prefix="curai-load-"))
+    folder = Path(tempfile.mkdtemp(prefix="diagnosia-load-"))
     settings.db_path = folder / "load.db"
     settings.documents_dir = folder / "documents"
     settings.document_key_file = ""
@@ -56,7 +56,7 @@ def run(staff: int, drafters: int, seconds: float, ai_seconds: float, pause: flo
     latencies: List[float] = []
     outcomes: Dict[str, int] = {"ok": 0, "busy": 0, "error": 0, "drafts": 0, "draft_errors": 0}
     lock = threading.Lock()
-    stop = time.monotonic() + seconds
+    stop = 0.0  # set once setup is done, so a slow start-up can't eat the measured window
 
     with ratelimit.suspended(), TestClient(app):
         doctors = [Person("doctor", "Load", f"Doctor{n}", f"load{n}@example.com") for n in range(staff + drafters)]
@@ -102,6 +102,7 @@ def run(staff: int, drafters: int, seconds: float, ai_seconds: float, pause: flo
                 with lock:
                     outcomes["drafts" if drafted else "draft_errors"] += 1
 
+        stop = time.monotonic() + seconds
         threads = [threading.Thread(target=writer, args=(n,)) for n in range(staff)]
         threads += [threading.Thread(target=drafter, args=(staff + n,)) for n in range(drafters)]
         for thread in threads:
@@ -127,7 +128,7 @@ def main(arguments=None) -> int:
     parser.add_argument("--ai-seconds", type=float, default=3)
     parser.add_argument("--pause", type=float, default=1.0, help="seconds each person waits between saves")
     args = parser.parse_args(arguments)
-    os.environ.setdefault("CURAI_NEURAL_TTS", "0")
+    os.environ.setdefault("DIAGNOSIA_NEURAL_TTS", "0")
     result = run(args.staff, args.drafters, args.seconds, args.ai_seconds, args.pause)
     print(f"{result['staff']} staff writing (a save every {result['pause']} s each), {result['drafters']} notes drafting "
           f"at a time ({result['ai_seconds']} s AI), {result['seconds']} s")

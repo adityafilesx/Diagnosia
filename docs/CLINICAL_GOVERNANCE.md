@@ -139,7 +139,8 @@ were not researched in this review, and counsel should add them.
 
 **No real patient data is permitted today.** No signed agreement is on file, and a free plan key is
 not an agreement. An API existing does not make it safe for patient data. Anthropic and Sarvam were
-removed from the code on 31 October 2026.
+removed from the code on 31 October 2026. Sarvam came back on 21 November 2026 for the hackathon build,
+for made-up patients only (section C2b).
 
 Source: [Groq, Your Data](https://console.groq.com/docs/your-data), checked 31 October 2026.
 
@@ -171,10 +172,31 @@ and images. Turning the second key on doubles the number of vendors that need an
 | Model | `gemini-3.5-flash-lite` by default, chosen in Settings. Google changes and retires models often |
 | Failure behaviour | Tested live: a deliberately wrong Groq key was answered by Gemini |
 
+### C2b. AI vendor: Sarvam AI (added 21 November 2026, made-up patients only)
+
+Sarvam was removed on 31 October 2026 and brought back for the IIITD hackathon build as a deliberate
+product decision. It is off by default, Hindi and English only, and stops completely when
+`ALLOW_REAL_PATIENT_DATA` is on. Details and sources: `docs/integrations/SARVAM.md`.
+
+| Question | Sarvam AI |
+|---|---|
+| Used for | DiagnoFast speech to text (Saaras v4), voice (Bulbul), and translation of confirmed Hindi answers to English (Mayura) |
+| Data sent | Patient audio, question and consent text, the patient's confirmed answers |
+| Identifiable? | **Yes, likely.** Voices, and names or details said aloud |
+| Location | **Unconfirmed.** The Trust Center says "In India, for Indian customers" (Azure Central India), but the Privacy Policy lists transfers to the United States and the EU |
+| Retention | **Conflicting.** Privacy Policy: 30 days after last access by default. Data-retention docs: kept indefinitely until the owner sets a period. Zero retention is available for Model APIs. **The account owner must set it to 0 days** |
+| Training | **On by default.** Privacy Policy: "Default Policy: Opt-In" unless the account opts out. **The account owner must opt out** |
+| Health data | Not stated for API inputs. The Privacy Policy says Sarvam does not knowingly collect health data |
+| Certifications | ISO 27001:2022 and SOC 2 Type II claimed; DPDP Act compliance "In progress" (Trust Center) |
+| Failure behaviour | Falls back to Groq Whisper, today's voices, or no translation. Invents nothing |
+| Protections to secure | Signed Data Processing Addendum (offered on request), written confirmation of India-only processing, zero retention, training opt-out |
+
+Pitch wording: Sarvam "may keep data in India, to be confirmed in writing". Never say it stays in India.
+
 ### C3. DiagnoFast speech additions (1 November 2026)
 
 The kiosk can send question text to Microsoft through `edge-tts` (Neerja/Swara voices).
-This is enabled by default and can be disabled with `CURAI_NEURAL_TTS=0`.
+This is enabled by default and can be disabled with `DIAGNOSIA_NEURAL_TTS=0`.
 Browser SpeechRecognition may also send patient audio to the browser's recognition provider.
 In demo mode there is no consent screen, so nothing tells the patient about either path. One is needed before real use. Neither service has a reviewed data agreement or
 retention assessment here; the existing **synthetic-data-only** rule applies. Patient confirmation

@@ -11,9 +11,17 @@ Code: `backend/dischargecare/`, `web/js/care/discharge.js`. Tests: `test_dischar
 2. They add the summary, emergency contact, instructions, barriers, pending results
    and tasks. Tasks are held until approval.
 3. The responsible clinician approves. Tasks open and the patient is told.
-4. The patient or caregiver sees the checklist. The team works from the board.
-5. Closing requires required tasks done, and pending results final, or a written
-   exception.
+4. The patient or caregiver sees the checklist. The team works from the board. The checklist puts
+   "Who to call" first (the emergency contact, and 112), then the approved plan with who checked it
+   and when, then one step at a time with a large "Done" and "I couldn't do this" (which tells the
+   team). It shows only what a family needs: no priority, owner or clinical problem list. A step for
+   the family added after approval is marked "New", and the family is notified
+   (`discharge_late_steps` records which steps came late).
+5. Only the responsible clinician closes it. Closing requires required tasks done, pending
+   results final and no barrier still open, or a written exception. Each open barrier is
+   listed in the warning with its target date ("no target date" if none was set).
+6. Any clinician on the care team can reopen a closed discharge with a reason. The
+   responsible clinician is told, and is still the only one who can close it again.
 
 States: `draft`, `active`, `closed`.
 
@@ -27,7 +35,7 @@ States: `draft`, `active`, `closed`.
 Under `/api/addons/dischargecare`: `POST episodes`, `GET board`,
 `GET patients/{id}/episodes`, `GET`/`PATCH episodes/{id}`,
 `POST episodes/{id}/instructions`, `/barriers`, `/pending-results`, `/tasks`,
-`/approve`, `/close`, `GET episodes/{id}/checklist`, `POST barriers/{id}/resolve`,
+`/approve`, `/close`, `/reopen`, `GET episodes/{id}/checklist`, `POST barriers/{id}/resolve`,
 `POST pending-results/{id}/finalise`.
 
 ## Safety

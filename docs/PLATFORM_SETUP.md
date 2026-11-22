@@ -1,6 +1,6 @@
 # Platform setup
 
-How to get Curai working end to end on one machine, and what can be configured.
+How to get Diagnosia working end to end on one machine, and what can be configured.
 
 ## First run
 
@@ -12,11 +12,11 @@ uv pip install -r backend/requirements.txt
 
 `setup-local` runs in development only, and only once. It:
 
-- creates the document encryption key at `~/.curai/document-keys.json`, outside the project
+- creates the document encryption key at `~/.diagnosia/document-keys.json`, outside the project
 - adds the settings it needs to `.env`
 - creates a verified demo clinic, a demo specialist centre, and demo accounts
 - runs a synthetic patient journey through the record-based tools and leaves a DiagnoFast link waiting, using the real API
-- saves the logins to `~/.curai/local-accounts.txt`
+- saves the logins to `~/.diagnosia/local-accounts.txt`
 
 **Back up the key file.** Losing it makes stored documents unreadable.
 
@@ -40,11 +40,17 @@ place, or as `GEMINI_API_KEY`. With both keys:
 | When both providers have a key | **fallback**: the other one answers only when the first fails. **round_robin**: they take turns, and a failure still falls back to the other |
 | Gemini model | One model for every tool. Default `gemini-3.5-flash-lite` |
 
-Three tools prefer Gemini whichever general setting is chosen, because it read photos better in
-our comparison (`backend/tests/ai_eval/README.md`): reading prescription photos, reading scanned lab
-reports, and explaining a prescription. Each has its own provider and Gemini model setting. The
-reading ones default to `gemini-3.5-flash`, which is often busy or over its free limit, so they back
-up to `gemini-3.5-flash-lite` and then to Groq. Round robin never moves these three.
+Five tools prefer Gemini whichever general setting is chosen (`READING_TOOLS` in
+`backend/settings_store.py`): reading prescription photos, explaining a prescription, planning a
+prescription's daily times, reading scanned lab reports, and understanding a patient's confirmed
+answer in a DiagnoFast interview. The photo-reading ones were chosen because Gemini read photos
+better in our comparison (`backend/tests/ai_eval/README.md`). Each has its own provider and Gemini
+model setting. The reading ones default to `gemini-3.5-flash`, which is often busy or over its free
+limit, so they back up to `gemini-3.5-flash-lite` and then to Groq. Round robin never moves these
+five.
+
+**Patient interview answers go to Gemini first by default**, and to Groq only when Gemini fails.
+Change "DiagnoFast: understanding confirmed answers" in Settings to send them to Groq first.
 
 Gemini carries text and images. Speech to text and the English voice stay on Groq. In demo mode,
 DiagnoFast questions use Microsoft Edge voices (question text only, never answers); outside demo mode
@@ -75,6 +81,9 @@ says what is missing.
 | LabLens | Whether AI reads reports we can't read locally |
 | ReferralLoop | Suggested reply times |
 | Reminders | Hours a patient has to confirm |
+| Sarvam AI | On or off, the speech-to-text and voice models, the Hindi and English voices, the translation model. Needs a key and the `sarvam_terms` sign-off |
+| Neo4j | On or off. Needs `NEO4J_URI` and a password |
+| DiagnoFast add-ons | Graph follow-ups, the doctor-like interview, OPD bookings (with the status page and demo outbox), slot QR login, walk-in suggestions, review feedback. Each starts off |
 
 Only an administrator of a verified organization can change these, and each change is audited.
 Safety switches, such as allowing real patient data, are deliberately not settings.
@@ -107,6 +116,79 @@ exceed that, and the app then reports the limit rather than failing silently. Sp
 
 Any OpenAI-compatible service can replace Groq by setting `AI_BASE_URL`, such as a local model
 server. Choose models in Settings. This route hasn't been tested with a real alternative.
+
+## The hackathon add-ons (Sarvam AI, Neo4j, bookings)
+
+Everything below is for made-up patients only, starts switched off, and stops completely when
+`ALLOW_REAL_PATIENT_DATA` is on. With each one off, the app behaves exactly as before. The plan is in
+`BUILD.md`; the sources are in `integrations/SARVAM.md` and `integrations/NEO4J.md`.
+
+**Sarvam AI** (Hindi and English speech to text, voice and translation):
+
+1. In the Sarvam dashboard, set the workspace's data retention to "No retention (0 days)" and opt out of
+   model training. Sarvam's own terms train on API data unless you opt out.
+2. Record that you did it: `python -m backend.operator_cli signoff --item sarvam_terms --signed-by "<name>" --role "Account owner" --document-reference "<where it's written down>" --operator "<you>"`.
+3. Put `SARVAM_API_KEY` in `.env`, or save it in Settings, AI keys.
+4. Turn on Settings, Sarvam AI. Speech to text then tries Saaras v4 first (its mixed-language mode),
+   questions are read by Bulbul, and confirmed Hindi answers get an English machine translation for
+   the doctor. Any Sarvam failure falls back to Groq, Edge and the browser.
+
+**Neo4j** (the question graph, history and evidence graphs, walk-in suggestions):
+
+1. `pip install -r backend/requirements-integrations.txt` (the `neo4j` driver).
+2. Set `NEO4J_PASSWORD` (8 characters or more) and `NEO4J_URI=neo4j://127.0.0.1:7687` in `.env`.
+3. `docker compose -f docker-compose.integrations.yml up neo4j`. It listens on this machine only.
+4. Turn on Settings, Neo4j, then the DiagnoFast add-ons you want. The question graph loads itself from
+   `backend/diagnofast/graph/questions_v2.json` (not clinically reviewed). Finished visits are copied by
+   the app's sweep; `python -m backend.operator_cli graph-rebuild` empties the copy and sends them again.
+
+**OPD bookings and the slot QR login**: turn on DiagnoFast add-ons, OPD bookings (and slot QR login),
+then open DiagnoFast, "OPD bookings and queue". Nothing is sent to a phone: the demo outbox shows the
+message. One-time codes are shown on the screen, and only in demo mode.
+
+**A phone's microphone needs HTTPS.** Browsers only allow the microphone on HTTPS or `localhost`, and a
+LAN address such as `http://192.168.1.20:8000` doesn't count. Two ways:
+
+- A tunnel, for example `cloudflared tunnel --url http://localhost:8000`. Easiest, but every request,
+  made-up data included, passes through Cloudflare, and the address changes each run. Run uvicorn with
+  `--proxy-headers` so rate limits see real visitors.
+- A local certificate with `mkcert` for your LAN address. Nothing goes to a third party, but each phone
+  must install and trust mkcert's `rootCA.pem` by hand. Never share `rootCA-key.pem`.
+
+Typing always works without a microphone.
+
+## Running the hackathon demo, step by step
+
+Made-up patients only. Commands are for macOS or Linux from the repository folder.
+
+1. **Keys.** `.env` needs `GROQ_API_KEY` and/or `GEMINI_API_KEY`, `SARVAM_API_KEY`, and the three `NEO4J_*`
+   lines (see above). Never commit `.env`.
+2. **Neo4j.** Start Docker (with Colima: `colima start`), then
+   `set -a; . ./.env; set +a; docker compose -f docker-compose.integrations.yml up -d neo4j`.
+   Install the driver once: `.venv/bin/python -m pip install -r backend/requirements-integrations.txt`.
+3. **A fresh demo database**, so your own data is untouched:
+   ```bash
+   export DIAGNOSIA_DB=$PWD/backend/storage/demo/diagnosia.db DIAGNOSIA_DOCUMENTS=$PWD/backend/storage/demo/documents DIAGNOSIA_DEMO_MODE=1
+   .venv/bin/python -m backend.synthetic.seed_accounts
+   ```
+4. **The Sarvam sign-off**, only if the Sarvam workspace really is on zero retention with training opted
+   out: `.venv/bin/python -m backend.operator_cli signoff --item sarvam_terms --signed-by "<you>" --role "Account owner" --document-reference "<where noted>" --operator "<you>"`.
+5. **Start it:** `.venv/bin/python -m backend.synthetic.serve --port 8000`. Keep the same `DIAGNOSIA_*` exports in
+   that terminal.
+6. **Switch the add-ons on.** Sign in as `doctor01@example.com` (password `Synthetic-demo-only-1`), the hospital's
+   administrator, open Settings, and turn on: Sarvam AI, Neo4j,
+   and every switch under DiagnoFast add-ons, ReferralLoop add-ons and Medicine checks.
+7. **The phone's microphone needs HTTPS.** In a second terminal:
+   `cloudflared tunnel --url http://localhost:8000` (install with `brew install cloudflared`). Open the
+   `https://...trycloudflare.com` address it prints on the phone. Everything, made-up data included, then
+   passes through Cloudflare. Restart uvicorn with `--proxy-headers` if rate limits matter. Typing works
+   without HTTPS.
+8. **The flow.** DiagnoFast, "OPD bookings and queue": add a slot, book a made-up patient with a phone
+   number, and press "Show QR". On the phone, scan the QR, enter the number and the code shown on screen,
+   pick the masked name, choose Hindi or English and answer. The phone then shows the queue number and
+   department and reads them aloud. Add a walk-in with "Not sure", press "Suggest (staff only)" and
+   "Confirm". Open the report: translation, graphs, "Mark as reviewed", feedback and medicine checks.
+   ReferralLoop shows the referral network for staff.
 
 ## Moving beyond a local demo
 

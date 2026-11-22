@@ -92,7 +92,7 @@ def test_a_failing_sweep_step_is_logged_and_the_rest_still_run(client, monkeypat
         raise RuntimeError("synthetic")
 
     monkeypatch.setattr(app_module, "SWEEP_STEPS", (("broken", broken), ("after", lambda db: ran.append(True))))
-    with caplog.at_level(logging.WARNING, logger="curai"):
+    with caplog.at_level(logging.WARNING, logger="diagnosia"):
         app_module._sweep_once()
     assert ran == [True]
     assert "Sweep step broken failed: RuntimeError" in caplog.text
@@ -102,7 +102,10 @@ def test_health_checks_say_nothing_about_patients(client, monkeypatch):
     assert client.get("/healthz").json() == {"status": "ok"}
     ready = client.get("/readyz")
     assert ready.status_code == 200
-    assert ready.json() == {"ready": True, "checks": {"database": True, "key_ring": True}}
+    body = ready.json()
+    # Warnings are fixed words about the deployment (WI-212), never anything about a patient or a path.
+    assert set(body.pop("warnings")) <= {"medicine_list_missing"}
+    assert body == {"ready": True, "checks": {"database": True, "key_ring": True}}
     monkeypatch.setattr(app_module.vault, "status", lambda: (False, "no key ring"))
     not_ready = client.get("/readyz")
     assert not_ready.status_code == 503

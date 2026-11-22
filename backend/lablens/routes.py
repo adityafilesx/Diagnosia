@@ -68,6 +68,7 @@ def _payload(db: sqlite3.Connection, report: sqlite3.Row) -> dict:
     results = _results(db, report["id"])
     return {
         **dict(report),
+        "unread_lines": json.loads(report["unread_lines"] or "[]"),
         "results": results,
         "to_review": sum(1 for row in results if row["review_status"] == "pending" and row["confidence"] == "review"),
     }
