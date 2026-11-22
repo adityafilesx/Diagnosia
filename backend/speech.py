@@ -41,6 +41,10 @@ VOICED_LANGUAGES = ("en-IN",)  # anything else is read by the browser
 NEURAL_VOICES = {"en-IN": "en-IN-NeerjaNeural", "hi-IN": "hi-IN-SwaraNeural"}
 NEURAL_TIMEOUT_SECONDS = 8
 SARVAM_TIMEOUT_SECONDS = 20  # a patient is waiting on each of these
+# A patient who may be unwell is listening: a little slower than Bulbul's 1.0, and a lower
+# temperature (default 0.6) for a steadier, calmer delivery rather than an expressive one.
+SARVAM_PACE = 0.9
+SARVAM_TEMPERATURE = 0.4
 MAYURA_MAX_CHARS = 1000  # Mayura's limit per request; longer answers go in pieces
 DEVANAGARI = re.compile(r"[\u0900-\u097F]")
 SENTENCE_END = re.compile(r"(?<=[.!?।|])\s+")
@@ -265,7 +269,10 @@ def speak_sarvam(text: str, language: Language) -> bytes:
     try:
         response = _sarvam_post(
             "/text-to-speech",
-            json={"text": text, "language_code": language, "speaker": voice, "model": model, "output_audio_codec": "mp3"},
+            json={
+                "text": text, "language_code": language, "speaker": voice, "model": model, "output_audio_codec": "mp3",
+                "pace": SARVAM_PACE, "temperature": SARVAM_TEMPERATURE,
+            },
         )
         try:
             audio = base64.b64decode(response.json()["audios"][0])

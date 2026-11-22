@@ -10,6 +10,10 @@ const TEXT = {
         browserConfidence: 'Browser recognition estimate', edited: 'Edited / typed answer · review before confirming',
         fallback: 'Live words unavailable. We’ll transcribe the recording when you stop.',
         microphone: 'Microphone unavailable. You can type your answer below.',
+        micInsecure: 'The microphone works only on a secure (https) link. Please type your answer below, or tell reception.',
+        micDenied: 'Microphone permission is blocked. Allow it from the lock icon in the address bar, or type your answer below.',
+        micMissing: 'No microphone was found. You can type your answer below.',
+        micBusy: 'The microphone is being used by another app. Close it, or type your answer below.',
         partial: 'We could not transcribe the full recording. Check that your answer is complete, or type it below.',
         name: 'Please enter your name and check your age.', placeholder: 'Your words will appear here. You can also type.',
         statusTitle: 'Your queue number', toldTitle: 'What you told us', summaryTitle: 'Summary checked by your doctor',
@@ -31,6 +35,10 @@ const TEXT = {
         browserConfidence: 'ब्राउज़र की आवाज़ पहचान का अनुमान', edited: 'लिखा / बदला हुआ जवाब · पुष्टि से पहले जाँचें',
         fallback: 'शब्द अभी नहीं दिख रहे। रोकने पर रिकॉर्डिंग लिखी जाएगी।',
         microphone: 'माइक्रोफ़ोन उपलब्ध नहीं है। नीचे अपना जवाब लिख सकते हैं।',
+        micInsecure: 'माइक्रोफ़ोन केवल सुरक्षित (https) लिंक पर चलता है। नीचे अपना जवाब लिखें, या रिसेप्शन को बताएँ।',
+        micDenied: 'माइक्रोफ़ोन की अनुमति बंद है। पता-पट्टी में ताले के निशान से अनुमति दें, या नीचे जवाब लिखें।',
+        micMissing: 'कोई माइक्रोफ़ोन नहीं मिला। नीचे अपना जवाब लिख सकते हैं।',
+        micBusy: 'माइक्रोफ़ोन किसी और ऐप में चल रहा है। उसे बंद करें, या नीचे जवाब लिखें।',
         partial: 'पूरी रिकॉर्डिंग लिखी नहीं जा सकी। जवाब पूरा है या नहीं जाँचें, या नीचे लिखें।',
         name: 'कृपया नाम भरें और उम्र जाँचें।', placeholder: 'आपके शब्द यहाँ दिखेंगे। आप लिख भी सकते हैं।',
         statusTitle: 'आपका नंबर', toldTitle: 'आपने हमें यह बताया', summaryTitle: 'डॉक्टर द्वारा जाँचा गया सारांश',
@@ -500,10 +508,22 @@ async function finishRecording(chunks) {
     }
 }
 
+// Browsers expose the microphone only on https or localhost. On a plain http address, such as a
+// phone opening the laptop's LAN address, navigator.mediaDevices is missing altogether.
+function micProblem(error) {
+    if (!window.isSecureContext) return words().micInsecure;
+    switch (error?.name) {
+    case 'NotAllowedError': case 'SecurityError': return words().micDenied;
+    case 'NotFoundError': case 'OverconstrainedError': return words().micMissing;
+    case 'NotReadableError': case 'AbortError': return words().micBusy;
+    default: return words().microphone;
+    }
+}
+
 async function startRecording() {
     if (busy || acquiring || stopping || disposed) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-        showError($('answer-error'), words().microphone);
+        showError($('answer-error'), micProblem());
         return;
     }
     acquiring = true;
@@ -531,10 +551,10 @@ async function startRecording() {
         startRecognition();
         startMeter(stream);
         stopTimer = setTimeout(stopRecording, MAX_RECORDING_MS);
-    } catch (_) {
+    } catch (failure) {
         recorder = null;
         releaseMic();
-        if (!disposed) showError($('answer-error'), words().microphone);
+        if (!disposed) showError($('answer-error'), micProblem(failure));
     } finally {
         acquiring = false;
         syncControls();

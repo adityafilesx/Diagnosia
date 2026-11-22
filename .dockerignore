@@ -1,0 +1,24 @@
+# Keys, patient data and datasets never go into the image.
+.env
+.env.*
+*.pem
+*.key
+*.db
+*.sqlite3
+backend/storage/
+datasets/
+Prescriptions*
+
+# Not needed to run the app.
+.git/
+.github/
+.venv/
+venv/
+.vscode/
+node_modules/
+**/__pycache__/
+.pytest_cache/
+backend/tests/
+pitch/
+docs/
+*.pdf

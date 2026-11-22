@@ -79,7 +79,12 @@ every transcript before it is saved.
 
 **How we use it.** `bulbul:v4-flash` as the default model, MP3 output (matching the Edge path, so the
 page plays it the same way), and one Hindi and one English voice from Settings. The defaults are
-`ritu_hi_customer` and `neha_en_customer`. Both models and voices are settings, because they change.
+`aparna_hi_customer` (Sarvam's first pick for empathetic support in Hindi, chosen on 22 November 2026
+because the owner asked for a gentler Hindi voice than `ritu_hi_customer`) and `neha_en_customer`. Every
+request sends `pace` 0.9 and `temperature` 0.4 (`speech.SARVAM_PACE`, `speech.SARVAM_TEMPERATURE`): a
+little slower and steadier than Bulbul's defaults of 1.0 and 0.6. Other calm-sounding Hindi voices to
+audition: `roopa_hi_companion`, `ritu_hi_customer_warm`, `ritu_hi_medical`, `shalini_hi_companion`. Both
+models and voices are settings, because they change.
 Our longest spoken text (a consent line, a question) is well under 2,500 characters, and longer text is
 refused, as `speech.MAX_SPEECH_CHARS` already does.
 

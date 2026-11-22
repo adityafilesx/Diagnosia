@@ -296,7 +296,8 @@ the interview's AI request is byte-for-byte unchanged. Sarvam and Neo4j stop com
 
 - **Sarvam** (`speech.py`): Saaras v4 speech to text in its `codemix` mode, never `translate` (the
   confirmed text is the record), then Groq Whisper. `question_audio` is Sarvam Bulbul, then Edge (demo
-  only), Groq English, the browser. `translate_to_english` is Mayura on confirmed Hindi, run in the
+  only), Groq English, the browser. The Hindi voice is `aparna_hi_customer` with pace 0.9 and
+  temperature 0.4, chosen as gentler than `ritu_hi_customer` at the owner's request. `translate_to_english` is Mayura on confirmed Hindi, run in the
   report job and shown beside the original, labelled "machine translation". Consent names Sarvam
   (version 2026-11-21) and can be read aloud; the new Hindi line still needs a Hindi speaker (WI-101).
 - **Neo4j** (`integrations/graph.py`): one shared driver, named methods only, a fake in
@@ -425,8 +426,21 @@ One Meko datapack per patient, used as a search index. See `docs/integrations/PA
   (AI, speech, Meko). A lock not had within `DIAGNOSIA_DB_BUSY_SECONDS` is a plain 503.
   `python -m backend.synthetic.load_test` measures it; the PostgreSQL threshold and numbers are in
   `docs/BASELINES.md`. Do the same in any new route that calls the AI after writing.
-- **Not hosted.** Netlify can't run this backend. It needs a Python host. Set `DIAGNOSIA_HTTPS=1`
-  in production.
+- **Hosting.** Netlify can't run this backend. The `Dockerfile` runs it on any container host with
+  HTTPS and a disk at `/data`; `docs/DEPLOY.md` has the steps. One instance, one worker.
+- **Judge mode** (`DIAGNOSIA_JUDGE_MODE=1`, `backend/judge.py`): a public demo for the IIITD judges on
+  Render's free tier (`render.yaml`, `docs/DEPLOY_RENDER.md`). `/demo/open?tool=<catalogue id>` starts a
+  normal session for a seeded account (doctor07, a verified non-admin GP, for the five staff tools;
+  patient007 for the Prescription Analyzer) and lands on that tool with patient007's chart open.
+  `web/js/judge.js` points the home page's tool buttons at it. It needs demo mode on and real patient
+  data off, or the app refuses to start; off, both routes are 404 / "off". AI limits are keyed per
+  account and address while it is on. `backend/deploy_boot.py` seeds in the build (the free disk is
+  wiped on every boot) and restores settings and the key ring at boot; the Sarvam sign-off is recorded
+  only from `DIAGNOSIA_SARVAM_SIGNED_OFF_BY`, which the owner sets. Never run it with real data.
+- **The microphone needs HTTPS.** Browsers expose it only on `https` or `localhost`. A phone opening the
+  laptop's `http://192.168.x.x:8000` gets no microphone at all (this was the "mic not working" report of
+  22 Nov). For phones on the Wi-Fi, run `python -m backend.synthetic.serve --host 0.0.0.0 --https`
+  (self-signed certificate, accepted once on the phone). The intake page now says why the mic failed.
 - **Rate limits and the AI budget.** The kiosk, the patient interview routes, sign-up and login (per
   address), and every signed-in AI route (per account, plus a shared daily quota) are limited
   (`ratelimit.py`, counted in SQLite). `llm.ask` refuses once the deployment's daily tokens

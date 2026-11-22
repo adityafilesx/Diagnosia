@@ -339,12 +339,16 @@ async function start() {
         return;
     }
     await reloadConfig();
+    // Judge mode (a public demo): say the patients are made up, and open the demo chart so each tool works at once.
+    document.getElementById('demo-note').hidden = !state.config.judge_mode;
     await reloadPatients();
     let remembered = null;
     try {
         remembered = sessionStorage.getItem('care-patient');
     } catch (storageBlocked) { /* the page works without it */ }
-    const first = state.me.role === 'patient' ? state.patients.find((item) => item.relationship === 'self') : null;
+    const first = state.me.role === 'patient'
+        ? state.patients.find((item) => item.relationship === 'self')
+        : state.patients.find((item) => item.id === state.config.judge_patient_id);
     await openPatient(state.patients.some((item) => item.id === remembered) ? remembered : first?.id ?? '');
     refreshInbox();
     if (state.me.role === 'doctor') {

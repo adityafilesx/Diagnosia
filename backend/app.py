@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.formparsers import MultiPartParser
 
-from backend import auth, llm, ratelimit, safety, settings_store, speech
+from backend import auth, judge, llm, ratelimit, safety, settings_store, speech
 from backend.careflow import delivery as careflow_delivery
 from backend.careflow import events as careflow_events
 from backend.careflow import live as careflow_live
@@ -202,6 +202,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Diagnosia", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.include_router(auth.router)
+app.include_router(judge.router)  # answers 404 unless judge mode is on
 app.include_router(records.router)
 app.include_router(staff.router)
 app.include_router(lablens_mappings.router)

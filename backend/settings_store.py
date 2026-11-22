@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from backend import judge
 from backend.auth import require_doctor, require_user
 from backend.config import settings
 from backend.db import connect, get_db
@@ -75,7 +76,7 @@ SETTINGS: Dict[str, dict] = {
     **{key: {"section": section, "label": label, "type": "bool", "default": False} for key, (section, label) in ADDON_SWITCHES.items()},
     "sarvam.stt_model": {"section": "Sarvam AI", "label": "Speech to text model", "type": "model", "choices": ["saaras:v4", "saaras:v3"], "default": "saaras:v4"},
     "sarvam.tts_model": {"section": "Sarvam AI", "label": "Voice model", "type": "model", "choices": ["bulbul:v4-flash", "bulbul:v3"], "default": "bulbul:v4-flash"},
-    "sarvam.voice_hi": {"section": "Sarvam AI", "label": "Hindi voice", "type": "text", "max_length": 60, "default": "ritu_hi_customer"},
+    "sarvam.voice_hi": {"section": "Sarvam AI", "label": "Hindi voice", "type": "text", "max_length": 60, "default": "aparna_hi_customer"},
     "sarvam.voice_en": {"section": "Sarvam AI", "label": "English voice", "type": "text", "max_length": 60, "default": "neha_en_customer"},
     "sarvam.chat_model": {"section": "Sarvam AI", "label": "Chat model (third provider)", "type": "model", "choices": ["sarvam-105b", "sarvam-105b-conversations"], "default": "sarvam-105b"},
     "sarvam.translate_model": {"section": "Sarvam AI", "label": "Translation model", "type": "model", "choices": ["mayura:v1", "sarvam-translate:v1"], "default": "mayura:v1"},
@@ -291,6 +292,9 @@ def public_config(user=Depends(require_user), db: sqlite3.Connection = Depends(g
         "features": {key.split(".", 1)[1]: bool(get(key, db)) for key in HELD_FEATURES},
         "addons": {key: bool(get(key, db)) for key in ADDON_SWITCHES},
         "can_administer": user["role"] == "doctor" and user["account_status"] == "verified" and is_platform_admin(db, user),
+        # Judge mode: the workspace says the patients are made up, and opens the demo patient's chart.
+        "judge_mode": judge.active(),
+        "judge_patient_id": judge.demo_chart_id(db, user),
     }
 
 

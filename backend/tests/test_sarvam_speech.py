@@ -97,15 +97,15 @@ def test_sarvam_is_inactive_by_default(client):
     assert speech.sarvam_active() is False
 
 
-def test_bulbul_reads_hindi_in_the_chosen_voice(sarvam_on, calls):
+def test_bulbul_reads_hindi_in_the_chosen_gentle_voice(sarvam_on, calls):
     mp3 = b"ID3-hindi"
     seen = calls(lambda url, options: FakeResponse(body={"request_id": "r", "audios": [base64.b64encode(mp3).decode()]}))
     assert speech.speak_sarvam("आपको कब से बुखार है?", "hi-IN") == mp3
     url, options = seen[0]
     assert url == "https://api.sarvam.ai/text-to-speech"
     assert options["json"] == {
-        "text": "आपको कब से बुखार है?", "language_code": "hi-IN", "speaker": "ritu_hi_customer",
-        "model": "bulbul:v4-flash", "output_audio_codec": "mp3",
+        "text": "आपको कब से बुखार है?", "language_code": "hi-IN", "speaker": "aparna_hi_customer",
+        "model": "bulbul:v4-flash", "output_audio_codec": "mp3", "pace": 0.9, "temperature": 0.4,
     }
 
 

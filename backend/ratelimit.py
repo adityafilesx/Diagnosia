@@ -27,6 +27,7 @@ from typing import Callable, Dict, Iterator
 from fastapi import Depends, HTTPException, Request, status
 
 from backend.auth import require_user
+from backend.config import judge_mode_active
 from backend.db import connect
 
 HOUR = 60 * 60
@@ -61,6 +62,8 @@ SCRIBE_CALLS = "scribe_calls"
 LAB_READS = "lab_reads"
 PACK_QUESTIONS = "pack_questions"
 AI_DAILY_PER_USER = "ai_daily_per_user"
+# Judge mode's demo door, which starts a session for anyone who asks (backend/judge.py).
+DEMO_OPENS = "demo_opens"
 
 _BUSY = "Too many requests. Please ask the reception staff for help."
 
@@ -93,6 +96,8 @@ RULES: Dict[str, Rule] = {
     LAB_READS: Rule(LAB_READS, 30, HOUR, "You have uploaded a lot of lab reports this hour. Please try again later."),
     PACK_QUESTIONS: Rule(PACK_QUESTIONS, 60, HOUR, "You have asked a lot of questions this hour. Please try again later."),
     AI_DAILY_PER_USER: Rule(AI_DAILY_PER_USER, 2000, DAY, "You have reached today's limit for AI help. Please try again tomorrow."),
+    # A judging room may share one address: six tools each for a few dozen judges, with reloads.
+    DEMO_OPENS: Rule(DEMO_OPENS, 300, HOUR, "The demo has been opened a lot from here. Please try again later."),
 }
 
 _suspended = False
@@ -192,11 +197,18 @@ def per_path_value(rule_name: str, name: str) -> Callable:
     return check
 
 
+def account_key(user, address: str) -> str:
+    """Whose allowance a call uses. In judge mode every judge shares one demo account, so each address
+    gets its own; the deployment's daily AI budget (DIAGNOSIA_AI_DAILY_TOKENS) still caps them all."""
+    key = f"user:{user['id']}"
+    return f"{key}:{address}" if judge_mode_active() else key
+
+
 def per_user(rule_name: str) -> Callable:
     """A dependency that signs the user in and limits each account."""
 
-    def check(user: sqlite3.Row = Depends(require_user)) -> sqlite3.Row:
-        hit(rule_name, f"user:{user['id']}")
+    def check(request: Request, user: sqlite3.Row = Depends(require_user)) -> sqlite3.Row:
+        hit(rule_name, account_key(user, _client_address(request)))
         return user
 
     return check
@@ -205,9 +217,10 @@ def per_user(rule_name: str) -> Callable:
 def per_user_ai(rule_name: str) -> Callable:
     """An AI route: its own hourly limit, and the account's shared daily quota."""
 
-    def check(user: sqlite3.Row = Depends(require_user)) -> sqlite3.Row:
-        hit(rule_name, f"user:{user['id']}")
-        hit(AI_DAILY_PER_USER, f"user:{user['id']}")
+    def check(request: Request, user: sqlite3.Row = Depends(require_user)) -> sqlite3.Row:
+        key = account_key(user, _client_address(request))
+        hit(rule_name, key)
+        hit(AI_DAILY_PER_USER, key)
         return user
 
     return check

@@ -1,8 +1,8 @@
 """Makes synthetic doctors and patients with logins, so each tool can be tested by hand.
 
 Everything here is made up: names come from short lists, phone numbers use a reserved
-test pattern, and every email is @example.com. Development only. It refuses to run
-with real patient data switched on, or outside the development environment.
+test pattern, and every email is @example.com. Development, or a judge-mode demo
+(backend/judge.py). It refuses to run with real patient data switched on.
 
     python -m backend.synthetic.seed_accounts            # creates what's missing
     python -m backend.synthetic.seed_accounts --patients 80
@@ -22,14 +22,17 @@ from fastapi.testclient import TestClient
 
 from backend import ratelimit
 from backend.app import app
-from backend.config import settings
+from backend.config import judge_mode_active, settings
 from backend.db import connect, init_db
 from backend.records import staff
 from backend.records.store import now_iso
 
-# One shared password keeps manual testing quick. These accounts exist only on a local,
-# development, synthetic database.
+# One shared password keeps manual testing quick. These accounts exist only on a synthetic
+# database: a local development one, or a judge-mode demo whose made-up data is wiped on restart.
 PASSWORD = "Synthetic-demo-only-1"
+# The seed talks to the app through its own API. Over https, because with DIAGNOSIA_HTTPS=1 the
+# session cookie is Secure and a client only sends it back on an https address.
+BASE_URL = "https://testserver"
 ORGANIZATION = "Synthetic Test Hospital"
 CONSENTS = ("ai_processing", "ai_scribe", "referral_sharing")
 
@@ -74,8 +77,12 @@ def _check(response, expected=(200, 201, 204)):
     return response.json() if response.content else None
 
 
+def _client() -> TestClient:
+    return TestClient(app, base_url=BASE_URL)
+
+
 def _register(email: str, first: str, last: str, role: str) -> int:
-    with TestClient(app) as client:
+    with _client() as client:
         response = client.post(
             "/api/auth/register",
             json={"first_name": first, "last_name": last, "email": email, "password": PASSWORD, "role": role},
@@ -136,8 +143,8 @@ def run(patients: int, with_login: int, seed: int) -> int:
 
 
 def _run(patients: int, with_login: int, seed: int) -> int:
-    if settings.environment != "development" or settings.allow_real_patient_data:
-        print("Synthetic accounts only run in development, without real patient data.", file=sys.stderr)
+    if settings.allow_real_patient_data or not (settings.environment == "development" or judge_mode_active()):
+        print("Synthetic accounts only run in development or judge mode, without real patient data.", file=sys.stderr)
         return 1
     rng = random.Random(seed)
     init_db()
@@ -175,13 +182,13 @@ def _run(patients: int, with_login: int, seed: int) -> int:
 
         # Patients: each record is made by one doctor. The first `with_login` are then claimed
         # by a patient account, so the patient portal and the doctor chart show the same person.
-        with TestClient(app) as http:
+        with _client() as http:
             clients: Dict[str, TestClient] = {}
             login_doctors = [item for item in doctors if item["form_id"]]
             for index, person in enumerate(people):
                 owner = login_doctors[index % len(login_doctors)]
                 if owner["email"] not in clients:
-                    clients[owner["email"]] = TestClient(app)
+                    clients[owner["email"]] = _client()
                     _check(clients[owner["email"]].post("/api/auth/login", json={"email": owner["email"], "password": PASSWORD}))
                 doctor = clients[owner["email"]]
                 record = _check(doctor.post("/api/patients", json={
@@ -200,7 +207,7 @@ def _run(patients: int, with_login: int, seed: int) -> int:
                 if person["role"] == "patient":
                     _register(person["email"], person["first_name"], person["last_name"], "patient")
                     code = _check(doctor.post(f"/api/patients/{record['id']}/share-codes", json={"purpose": "claim"}))["code"]
-                    with TestClient(app) as patient:
+                    with _client() as patient:
                         _check(patient.post("/api/auth/login", json={"email": person["email"], "password": PASSWORD}))
                         _check(patient.post("/api/patients/join", json={"code": code}))
             for client in clients.values():

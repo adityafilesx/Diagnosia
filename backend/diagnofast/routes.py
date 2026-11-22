@@ -30,7 +30,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
-from backend import llm, ratelimit, settings_store, speech
+from backend import judge, llm, ratelimit, settings_store, speech
 from backend.auth import require_doctor
 from backend.careflow import events
 from backend.config import settings
@@ -104,6 +104,9 @@ def _kiosk_doctor(db: sqlite3.Connection) -> sqlite3.Row:
             "SELECT * FROM users WHERE id = ? AND role = 'doctor' AND account_status = 'verified'",
             (settings.diagnofast_kiosk_doctor_id,),
         ).fetchone()
+    if doctor is None and judge.active():
+        # Judge mode: kiosk visits go to the demo doctor, so they show in the queue a judge is looking at.
+        doctor = judge.demo_account(db, judge.DOCTOR_EMAIL)
     if doctor is None and settings.demo_mode:
         doctor = db.execute(
             "SELECT * FROM users WHERE role = 'doctor' AND account_status = 'verified' ORDER BY id ASC LIMIT 1"

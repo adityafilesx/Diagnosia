@@ -76,6 +76,9 @@ def _start_session(db: sqlite3.Connection, response: Response, user_id: int, rol
         "INSERT INTO sessions (token_hash, user_id, expires_at, last_seen_at) VALUES (?, ?, ?, ?)",
         (_hash_token(token), user_id, (_now() + lifetime).isoformat(), _now().isoformat()),
     )
+    # Committed here, not by get_db: a dependency's exit runs after the response has gone out, so on a
+    # slow host the browser's next request could arrive before the session exists and be refused.
+    db.commit()
     response.set_cookie(
         SESSION_COOKIE,
         token,
@@ -85,6 +88,11 @@ def _start_session(db: sqlite3.Connection, response: Response, user_id: int, rol
         secure=settings.cookie_secure,
         path="/",
     )
+
+
+# Judge mode's demo door (backend/judge.py) starts sessions through exactly this code.
+start_session = _start_session
+hash_token = _hash_token
 
 
 def current_user(

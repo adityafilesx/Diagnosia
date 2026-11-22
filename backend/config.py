@@ -116,6 +116,9 @@ class Settings:
     # DIAGNOSIA_DEMO_OUTSIDE_DEVELOPMENT=1, or the app refuses to start (safety.assert_safe_to_start).
     demo_mode: bool = field(default_factory=lambda: _demo_mode(os.environ.get("DIAGNOSIA_DEMO_MODE")))
     demo_outside_development: bool = field(default_factory=lambda: _flag("DIAGNOSIA_DEMO_OUTSIDE_DEVELOPMENT"))
+    # A public demo for judges: each tool on the home page opens signed in to a seeded made-up account.
+    # Only with demo mode on and real patient data off; otherwise the app refuses to start (backend/judge.py).
+    judge_mode: bool = field(default_factory=lambda: _flag("DIAGNOSIA_JUDGE_MODE"))
     mongodb_enabled: bool = field(default_factory=lambda: _flag("ENABLE_MONGODB_ATLAS_INTEGRATION"))
     mongodb_uri: str = field(default_factory=lambda: _real_key(os.environ.get("MONGODB_ATLAS_URI", "")))
     mongodb_database: str = field(default_factory=lambda: os.environ.get("MONGODB_DATABASE_NAME") or os.environ.get("MONGODB_DATABASE") or "diagnosia_atlas")
@@ -141,6 +144,11 @@ class Settings:
 
 
 settings = Settings()
+
+
+def judge_mode_active() -> bool:
+    """Judge mode takes effect only with demo mode on and real patient data off."""
+    return settings.judge_mode and settings.demo_mode and not settings.allow_real_patient_data
 
 
 def neural_tts_allowed() -> bool:

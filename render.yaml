@@ -1,0 +1,47 @@
+# Render Blueprint: the judge-mode demo on a free web service. See docs/DEPLOY_RENDER.md.
+# Made-up patients only. Keys are never written here: each "sync: false" value is typed into the
+# Render dashboard when the Blueprint is first created.
+services:
+  - type: web
+    name: diagnosia
+    runtime: python
+    plan: free
+    # Pinned packages (the same lock CI installs and audits), then the made-up data is seeded into the
+    # build, so every boot and every wake from sleep starts from it (backend/deploy_boot.py). Secret
+    # files exist only at runtime, so the build has no key ring; seeding stores no documents, so it runs
+    # as staging, which keeps the demo and judge-mode checks but not production's key-ring check.
+    buildCommand: pip install -r backend/requirements.lock && DIAGNOSIA_ENV=staging python -m backend.deploy_boot --build
+    startCommand: bash scripts/render_start.sh
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: DIAGNOSIA_ENV
+        value: production
+      - key: DIAGNOSIA_HTTPS
+        value: "1"
+      - key: DIAGNOSIA_DEMO_MODE
+        value: "1"
+      - key: DIAGNOSIA_DEMO_OUTSIDE_DEVELOPMENT
+        value: "1"
+      - key: DIAGNOSIA_JUDGE_MODE
+        value: "1"
+      - key: DIAGNOSIA_DEMO_PATIENTS
+        value: "30"
+      # About 40 judges trying every tool, with room for retries. The providers' own free limits
+      # usually bind first. 0 would turn the cap off; don't.
+      - key: DIAGNOSIA_AI_DAILY_TOKENS
+        value: "15000000"
+      # The key ring, uploaded as a Secret File named document-keys.json. render_start.sh copies it
+      # to a folder only the service can read.
+      - key: DIAGNOSIA_DOCUMENT_KEY_SOURCE
+        value: /etc/secrets/document-keys.json
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SARVAM_API_KEY
+        sync: false
+      # Your name, set only after the Sarvam workspace is on zero retention and opted out of training.
+      - key: DIAGNOSIA_SARVAM_SIGNED_OFF_BY
+        sync: false

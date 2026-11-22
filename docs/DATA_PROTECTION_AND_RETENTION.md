@@ -120,6 +120,7 @@ than sending patient text to an unnamed service.
 | `api.sarvam.ai` | Sarvam speech to text, voice and translation, only when switched on and signed off |
 | `mcp.mekodata.ai` | Meko, only when switched on |
 | `speech.platform.bing.com` | Edge voices, demo mode only (inside the `edge-tts` library) |
+| `testserver` | Not a network host: the synthetic seed's test client calls the app inside the same process, over a pretend https address so Secure cookies work. Nothing leaves the machine |
 | MongoDB Atlas, YugabyteDB and Neo4j | Only the addresses an operator configures, only when switched on |
 
 Some addresses appear in the code but are opened by the visitor's browser, not by the server:

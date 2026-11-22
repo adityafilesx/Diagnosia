@@ -123,6 +123,11 @@ def assert_safe_to_start(db: sqlite3.Connection) -> None:
             "Demo mode is on outside development. Set DIAGNOSIA_DEMO_MODE=0, or DIAGNOSIA_DEMO_OUTSIDE_DEVELOPMENT=1 "
             "if this really is a public demo with made-up patients"
         )
+    if settings.judge_mode and (not settings.demo_mode or settings.allow_real_patient_data):
+        problems.append(
+            "DIAGNOSIA_JUDGE_MODE signs any visitor in to a demo account, so it needs demo mode on "
+            "and ALLOW_REAL_PATIENT_DATA off"
+        )
     if is_production():
         problems += [f"{check.name}: {check.detail}" for check in _configuration_checks() if not check.passed]
     if settings.allow_real_patient_data or not settings.clinical_pilot_mode:

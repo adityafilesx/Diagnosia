@@ -24,6 +24,10 @@ PUBLIC |= {("GET", "/api/opd/qr/{slot_code}"), ("POST", "/api/opd/qr/{slot_code}
            ("POST", "/api/opd/qr/{slot_code}/verify"), ("POST", "/api/opd/qr/{slot_code}/choose")}
 # Health checks for a host or load balancer. They say only ok, or which of two checks failed.
 PUBLIC |= {("GET", "/healthz"), ("GET", "/readyz")}
+# Judge mode's demo door and its status. Both are 404 or "off" unless judge mode is on, which needs
+# demo mode and made-up patients only (backend/judge.py, tested in test_judge_mode.py).
+JUDGE_ROUTES = {("GET", "/demo/open"), ("GET", "/api/demo/status")}
+PUBLIC |= JUDGE_ROUTES
 # DiagnoFast's patient has no account. The one-interview link in the path is the credential.
 LINK_ROUTES = {
     ("GET", "/api/diagnofast/patient/{token}"),
@@ -74,7 +78,7 @@ NEEDS_NO_RECORD = {
     "mark_notification_read", "get_practitioner", "save_practitioner", "create_organization", "list_organizations",
     "list_mappings", "inbox", "sent", "exception_queue", "board", "follow_up", "call_list", "read", "explain",
     "read_aloud", "calendar", "upload_report", "create_referral", "create_episode",
-    "public_config", "list_settings", "forms", "queue",
+    "public_config", "list_settings", "forms", "queue", "demo_status",
 }
 
 
@@ -105,6 +109,18 @@ def test_a_made_up_link_opens_nothing(client, method, path):
         body = {"json": {"language": "en-IN", "kind": "interview"}}
     response = client.request(method, filled(path), **({} if method == "GET" else body))
     assert response.status_code == 404
+
+
+def test_the_sweep_sees_the_judge_routes():
+    assert JUDGE_ROUTES <= set(ALL_ROUTES)
+
+
+@pytest.mark.parametrize("tool", ["diagnofast", "clinscribe", "lablens", "prescription", "referrals", "discharge", "nope"])
+def test_with_judge_mode_off_the_demo_door_signs_nobody_in(client, tool):
+    client.cookies.clear()
+    response = client.get(f"/demo/open?tool={tool}", follow_redirects=False)
+    assert response.status_code == 404
+    assert "set-cookie" not in response.headers
 
 
 @pytest.mark.parametrize("method, path", [route for route in ALL_ROUTES if route not in PUBLIC | LINK_ROUTES])
