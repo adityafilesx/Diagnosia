@@ -346,6 +346,22 @@ export function listRow({ lead, leadIcon, title, meta, tags, details, href, oncl
     return h('div', { class: kind, ...attrs }, body);
 }
 
+// Where a piece of the record came from, as a small outlined label beside it. The words are fixed so
+// they mean the same thing on every screen. ABHA is simulated in this build, and says so.
+const PROVENANCE = {
+    patient: ['user', 'Patient said'],
+    patient_confirmed: ['user', 'Patient confirmed'],
+    doctor: ['shield', 'Doctor confirmed'],
+    doctor_recorded: ['shield', 'Recorded by the care team'],
+    checked: ['check', 'Checked against the original'],
+    abha: ['file', 'From ABHA (simulated)'],
+    ai: ['spark', 'AI summary, not reviewed'],
+};
+export function provenance(kind) {
+    const [mark, words] = PROVENANCE[kind] || ['file', kind];
+    return h('span', { class: `prov prov-${kind}` }, icon(mark, 'prov-icon'), words);
+}
+
 export function rowList(rows, empty) {
     if (!rows.length) return empty;
     return h('div', { class: 'queue-list' }, rows);

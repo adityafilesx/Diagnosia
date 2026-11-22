@@ -1,5 +1,6 @@
 // The shared record: patient choice, consent, care team, timeline, documents, tasks and inbox.
-import { act, api, ask, badge, emptyState, form, h, listRow, rowList, section, table, when, show } from './ui.js';
+import { act, api, ask, badge, emptyState, form, h, listRow, provenance, rowList, when, show } from './ui.js';
+import { icon, initials } from './icons.js';
 import { canUse } from './catalogue.js';
 import { visitStrip } from './home.js';
 import { packPanel } from './pack.js';
@@ -43,8 +44,8 @@ function startScreen(container, context) {
             ? 'Choose a patient from the bar above, or add one here. You only see patients who are on your list or have shared their record with you.'
             : 'Create your record, or use the code your clinic gave you.'),
         h('div', { class: 'columns' },
-            h('div', { class: 'sheet' }, h('h2', { style: 'margin-top:0' }, me.role === 'doctor' ? 'Add a patient' : 'Create my record'), newRecord),
-            h('div', { class: 'sheet' }, h('h2', { style: 'margin-top:0' }, 'I have a code'), joinForm)),
+            h('div', { class: 'sheet' }, h('h2', {}, me.role === 'doctor' ? 'Add a patient' : 'Create my record'), newRecord),
+            h('div', { class: 'sheet' }, h('h2', {}, 'I have a code'), joinForm)),
     );
 }
 
@@ -60,30 +61,23 @@ async function careTeamPanel(context) {
     };
     const canShare = patient.relationship !== 'caregiver';
     return [
-        table(
-            [
-                { label: 'Name', cell: (row) => `${row.first_name} ${row.last_name}` },
-                { label: 'Role', cell: (row) => row.role },
-                { label: 'Access', cell: (row) => (row.scope === 'full' ? 'Can update' : 'View only') },
-                {
-                    label: '',
-                    cell: (row) => ((patient.relationship === 'self' || row.user_id === me.id)
-                        ? h('button', {
-                            type: 'button',
-                            class: 'quiet',
-                            onclick: async () => {
-                                await act(() => api(`/api/patients/${patient.id}/care-team/${row.id}`, { method: 'DELETE' }), context, 'Access removed');
-                                if (row.user_id === me.id) window.location.reload();
-                                else refresh();
-                            },
-                        }, row.user_id === me.id ? 'Leave' : 'Remove')
-                        : ''),
-                },
-            ],
-            team,
-            'Only the patient can see this record.',
-        ),
-        canShare && h('div', { class: 'row', style: 'margin-top:8px' },
+        rowList(team.map((row) => listRow({
+            lead: initials(`${row.first_name} ${row.last_name}`),
+            title: `${row.first_name} ${row.last_name}`,
+            meta: `${row.role} · ${row.scope === 'full' ? 'Can update' : 'View only'}`,
+            tags: [(patient.relationship === 'self' || row.user_id === me.id)
+                ? h('button', {
+                    type: 'button',
+                    class: 'quiet',
+                    onclick: async () => {
+                        await act(() => api(`/api/patients/${patient.id}/care-team/${row.id}`, { method: 'DELETE' }), context, 'Access removed');
+                        if (row.user_id === me.id) window.location.reload();
+                        else refresh();
+                    },
+                }, row.user_id === me.id ? 'Leave' : 'Remove')
+                : null],
+        })), emptyState('Only the patient can see this record', '')),
+        canShare && h('div', { class: 'row share-codes' },
             h('button', { type: 'button', class: 'quiet', onclick: issue('clinician', 'full') }, 'Code for a clinician'),
             (patient.relationship === 'self' || !patient.user_id) && h('button', { type: 'button', class: 'quiet', onclick: issue('caregiver', 'read') }, 'Code for a caregiver (view only)'),
             patient.relationship === 'clinician' && !patient.user_id && h('button', { type: 'button', class: 'quiet', onclick: issue('claim', 'full') }, 'Code for the patient to claim this record')),
@@ -144,48 +138,78 @@ export async function renderOverview(container, context) {
         { inline: true },
     );
 
+    // Where each journey entry came from. Only reviewed and approved events reach the journey.
+    const JOURNEY_SOURCE = { encounters: 'doctor_recorded', clinscribe: 'doctor', dischargecare: 'doctor', referralloop: 'doctor_recorded', lablens: 'checked', diagnofast: 'patient', prescription: 'patient_confirmed' };
+    const allergies = await api(`/api/patients/${patient.id}/allergies`).catch(() => []);
+    const sections = [
+        ['journey', 'Journey'], ['visits', 'Visits'], showInterviews && ['interviews', 'Interviews'],
+        ['allergies', 'Allergies'], ['documents', 'Documents'],
+        patient.relationship !== 'caregiver' && ['pack', 'Patient pack'], ['access', 'Who can see this'],
+    ].filter(Boolean);
+    // Buttons, not links: the address bar holds the workspace route.
+    const jump = h('nav', { class: 'jump-nav', 'aria-label': 'Sections of this record' },
+        sections.map(([id, label]) => h('button', { type: 'button', class: 'quiet', onclick: () => document.getElementById(`record-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, label)));
+    const part = (id, title, ...children) => h('section', { class: 'sheet record-part', id: `record-${id}`, 'aria-labelledby': `record-${id}-title` },
+        h('h2', { id: `record-${id}-title` }, title), ...children);
+    const folded = (label, formElement) => (formElement ? h('details', { class: 'quiet-details' }, h('summary', {}, label), formElement) : null);
+    [allergyForm, visitForm, upload].forEach((item) => item?.querySelector('button[type="submit"]').classList.add('quiet'));
+
     show(container,
         h('h1', {}, 'Patient record'),
-        h('p', { class: 'lede' }, 'Everything in this journey, in order. Only reviewed and approved events appear here.'),
+        h('p', { class: 'lede' }, 'Everything in this journey, in order. Each entry says where it came from: what the patient said, what a doctor confirmed, and what came from ABHA.'),
         visitStrip(context),
-        ...section('Journey',
-            timeline.length
-                ? h('ol', { class: 'timeline' }, timeline.map((event) => h('li', {},
-                    h('strong', {}, event.title), event.detail ? ` ${event.detail}` : '',
-                    h('div', { class: 'muted' }, `${when(event.occurred_at)}, ${event.module}`))))
-                : h('p', { class: 'empty' }, 'Nothing yet. Visits, confirmed lab reports, signed notes and referrals will appear here.')),
-        ...section('Visits',
-            visitForm,
-            table(
-                [
-                    { label: 'Started', cell: (row) => when(row.started_at) },
-                    { label: 'Type', cell: (row) => row.type },
-                    { label: 'Reason', cell: (row) => row.reason },
-                    { label: 'Status', cell: (row) => badge(row.status) },
-                ],
-                encounters,
-                'No visits recorded.',
-            )),
-        showInterviews ? section('Pre-visit interviews',
-            interviews.length
-                ? interviews.map((item) => h('a', { class: `queue-item${item.urgent.length ? ' urgent' : ''}`, href: `#/diagnofast/${item.id}` },
-                    h('span', {}, item.urgent.length ? `Urgent: ${item.urgent.join(', ')}` : 'DiagnoFast interview'),
-                    h('span', { class: 'muted' }, when(item.created_at))))
-                : h('p', { class: 'muted' }, 'None yet. ', h('a', { href: '#/diagnofast' }, 'Send a DiagnoFast link'))) : null,
-        patient.relationship !== 'caregiver' ? section('Patient pack', await packPanel(patient.id, context)) : null,
-        ...section('Allergies', allergyForm),
-        ...section('Who can see this record', await careTeamPanel(context)),
-        ...section('Documents',
-            patient.relationship !== 'caregiver' ? upload : null,
-            table(
-                [
-                    { label: 'File', cell: (row) => h('a', { href: `/api/documents/${row.id}/file` }, row.filename) },
-                    { label: 'Type', cell: (row) => row.document_type.replaceAll('_', ' ') },
-                    { label: 'Added', cell: (row) => when(row.created_at) },
-                ],
-                documents,
-                'No documents yet.',
-            )),
+        jump,
+        h('div', { class: 'record-layout' },
+            h('div', { class: 'record-main' },
+                part('journey', 'Journey',
+                    h('p', { class: 'muted' }, 'Only reviewed and approved events appear here.'),
+                    timeline.length
+                        ? h('ol', { class: 'timeline record-timeline' }, timeline.map((event) => h('li', {},
+                            h('div', { class: 'journey-line' }, h('strong', {}, event.title), event.detail ? h('span', {}, ` ${event.detail}`) : null),
+                            h('div', { class: 'row journey-meta' },
+                                h('span', { class: 'muted' }, `${when(event.occurred_at)} · ${event.module}`),
+                                JOURNEY_SOURCE[event.module] ? provenance(JOURNEY_SOURCE[event.module]) : null))))
+                        : emptyState('Nothing yet', 'Visits, confirmed lab reports, signed notes and referrals will appear here.')),
+                part('visits', 'Visits',
+                    rowList(encounters.map((row) => listRow({
+                        leadIcon: row.status === 'in_progress' ? 'clock' : 'check',
+                        tone: row.status === 'in_progress' ? 'accent' : '',
+                        title: row.reason || 'Visit',
+                        meta: `${when(row.started_at)} · ${row.type}`,
+                        tags: [badge(row.status === 'in_progress' ? 'In progress' : row.status, row.status === 'in_progress' ? '' : 'good'), provenance('doctor_recorded')],
+                    })), emptyState('No visits recorded', isClinician ? 'Start one below.' : '')),
+                    folded('Start a visit', visitForm)),
+                showInterviews ? part('interviews', 'Pre-visit interviews',
+                    h('p', { class: 'muted' }, 'Answers are what the patient said. Past records in a report are marked From ABHA (simulated), and nothing is confirmed until a doctor marks the report as reviewed.'),
+                    rowList(interviews.map((item) => listRow({
+                        lead: item.urgent.length ? undefined : initials(item.patient_name),
+                        leadIcon: item.urgent.length ? 'alert' : undefined,
+                        tone: item.urgent.length ? 'urgent' : '',
+                        title: item.urgent.length ? `Urgent: ${item.urgent.join(', ')}` : 'DiagnoFast interview',
+                        meta: when(item.created_at),
+                        tags: [provenance('patient'), item.reviewed ? badge('Reviewed', 'good') : ['done', 'report_failed'].includes(item.status) ? badge('To review', 'warn') : null],
+                        href: `#/diagnofast/${item.id}`,
+                    })), emptyState('No interviews yet', h('a', { href: '#/diagnofast' }, 'Send a DiagnoFast link')))) : null,
+                part('documents', 'Documents',
+                    rowList(documents.map((row) => listRow({
+                        leadIcon: 'file',
+                        title: row.filename,
+                        meta: `${row.document_type.replaceAll('_', ' ')} · added ${when(row.created_at)}`,
+                        tags: [h('a', { class: 'button quiet', href: `/api/documents/${row.id}/file` }, 'Open')],
+                    })), emptyState('No documents yet', 'Upload a report, scan or prescription so it stays with the record.')),
+                    patient.relationship !== 'caregiver' ? folded('Upload a document', upload) : null)),
+            h('div', { class: 'record-side' },
+                part('allergies', 'Allergies',
+                    allergies.length
+                        ? h('ul', { class: 'allergy-list' }, allergies.map((item) => h('li', { class: item.status === 'active' ? 'active' : '' },
+                            h('div', {}, h('strong', {}, item.substance), [item.reaction, item.severity && item.severity !== 'unknown' ? item.severity : ''].filter(Boolean).length
+                                ? h('span', { class: 'muted' }, ` · ${[item.reaction, item.severity !== 'unknown' ? item.severity : ''].filter(Boolean).join(', ')}`) : null),
+                            h('div', { class: 'row' }, provenance(item.source_type === 'clinician_entered' ? 'doctor' : 'patient'),
+                                item.status !== 'active' ? badge(item.status) : null))))
+                        : emptyState('No allergies recorded', "That doesn't mean there are none. Ask, and record what the patient says."),
+                    folded('Add an allergy', allergyForm)),
+                patient.relationship !== 'caregiver' ? part('pack', 'Patient pack', await packPanel(patient.id, context)) : null,
+                part('access', 'Who can see this record', await careTeamPanel(context)))),
     );
     return undefined;
 }

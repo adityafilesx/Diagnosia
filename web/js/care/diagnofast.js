@@ -128,11 +128,11 @@ export function reportView(detail, context) {
     const history = [];
     if (report) {
         history.push(['Past history', report.past_history || 'Not stated', 'Interview / see provenance']);
-        (report.current_medicines || []).forEach((item) => history.push(['Current medicine', item, 'Patient reported']));
-        (report.allergies || []).forEach((item) => history.push(['Allergy', item, 'Patient reported · verify']));
+        (report.current_medicines || []).forEach((item) => history.push(['Current medicine', item, 'Patient said']));
+        (report.allergies || []).forEach((item) => history.push(['Allergy', item, 'Patient said · verify']));
     }
     if (records) {
-        const source = 'ABHA record';
+        const source = 'From ABHA (simulated)';
         (records.conditions || []).forEach((item) => history.push(['Condition', item, source]));
         (records.prescriptions || []).forEach((item) => history.push(['Prescription record', item, source]));
         (records.lab_reports || []).forEach((item) => history.push(['Past result', item, source]));
