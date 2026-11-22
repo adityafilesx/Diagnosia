@@ -379,7 +379,7 @@ export async function renderReferrals(container, context) {
     const lists = h('div', { class: 'referral-lists' }, loadingRows('Loading referrals…'));
     const networkBox = h('div', {});
     // The open view survives a reload of the lists, so acting on a referral doesn't jump tabs.
-    let current = null;
+    let current = ['sent', 'received', 'overdue', 'outcomes'].includes(context.route) ? context.route : null;
     const loadLists = async () => {
         const [rows, sent, inbox, exceptions] = await Promise.all([
             patient ? api(`${BASE}/patients/${patient.id}`) : [],

@@ -329,6 +329,15 @@ export function queueRow(intake) {
             stateTag));
 }
 
+// The queue's filters, by route name: a label and the test. Home's counts use the same tests.
+export const QUEUE_FILTERS = {
+    waiting: ['Waiting or answering', (item) => ['waiting', 'in_progress'].includes(item.status)],
+    urgent: ['Urgent', (item) => item.urgent.length > 0],
+    urgent_open: ['Urgent, not reviewed', (item) => item.urgent.length > 0 && !item.reviewed],
+    review: ['To review', (item) => ['done', 'report_failed'].includes(item.status) && !item.reviewed],
+    reviewed: ['Reviewed', (item) => item.reviewed],
+};
+
 export async function renderDiagnoFast(container, context) {
     clearInterval(poll);
     const { patient, route } = context;
@@ -340,7 +349,9 @@ export async function renderDiagnoFast(container, context) {
         await renderBookings(container, context);
         return;
     }
-    if (route) {
+    // A filtered queue is a route of its own, so Home can link straight to it.
+    const preset = QUEUE_FILTERS[route] !== undefined ? route : '';
+    if (route && !preset) {
         await renderReport(container, route, context);
         return;
     }
@@ -352,13 +363,10 @@ export async function renderDiagnoFast(container, context) {
     const search = h('input', { type: 'search', placeholder: 'Search patient name', 'aria-label': 'Search queue', oninput: () => drawQueue() });
     const filter = h('select', { 'aria-label': 'Filter queue', onchange: () => drawQueue() },
         h('option', { value: '' }, 'All interviews'),
-        h('option', { value: 'urgent' }, 'Urgent'),
-        h('option', { value: 'review' }, 'To review'),
-        h('option', { value: 'reviewed' }, 'Reviewed'));
+        Object.entries(QUEUE_FILTERS).map(([value, [label]]) => h('option', { value, selected: value === preset }, label)));
     const drawQueue = () => {
         const found = intakes.filter((item) => item.patient_name.toLowerCase().includes(search.value.trim().toLowerCase()))
-            .filter((item) => !filter.value || (filter.value === 'urgent' ? item.urgent.length > 0
-                : filter.value === 'reviewed' ? item.reviewed : ['done', 'report_failed'].includes(item.status) && !item.reviewed));
+            .filter((item) => !filter.value || QUEUE_FILTERS[filter.value][1](item));
         count.textContent = `${found.length} of ${intakes.length} interviews · ${intakes.filter((item) => item.urgent.length).length} urgent`;
         show(queue, found.length
             ? h('div', { class: 'queue-list' }, found.map(queueRow))
@@ -367,7 +375,8 @@ export async function renderDiagnoFast(container, context) {
     };
 
     const loadQueue = async () => {
-        const url = patient ? `/api/diagnofast/intakes?patient_id=${patient.id}` : '/api/diagnofast/intakes';
+        // A filtered route (from Home's counts) shows the whole queue, which is what Home counted.
+        const url = patient && !preset ? `/api/diagnofast/intakes?patient_id=${patient.id}` : '/api/diagnofast/intakes';
         intakes = await api(url);
         drawQueue();
     };
@@ -401,7 +410,7 @@ export async function renderDiagnoFast(container, context) {
         h('h1', {}, 'DiagnoFast'),
         h('p', { class: 'lede' }, 'The patient answers by voice while they wait. You get a one-page report, and urgent symptoms come to the top.'),
         h('div', { class: 'queue-layout' },
-            h('section', { class: 'sheet' }, h('h2', {}, patient ? `${patient.first_name}'s interviews` : 'Patient queue'),
+            h('section', { class: 'sheet' }, h('h2', {}, patient && !preset ? `${patient.first_name}'s interviews` : 'Patient queue'),
                 h('div', { class: 'queue-toolbar' }, search, filter), count, queue),
             h('section', { class: 'sheet' }, h('h2', {}, patient ? `New link for ${patient.first_name}` : 'New patient link'),
                 h('p', { class: 'muted' }, 'Start a voice interview. The patient can open the link without an account.'), sendLink, created)),
