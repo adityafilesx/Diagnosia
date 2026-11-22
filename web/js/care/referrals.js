@@ -1,5 +1,6 @@
 // ReferralLoop: send a referral and follow it until the outcome is reviewed.
-import { act, api, ask, badge, form, h, section, table, toast, when, show } from './ui.js';
+import { act, api, ask, badge, emptyState, form, h, listRow, loadingRows, plural, rowList, table, tabs, toast, when, show } from './ui.js';
+import { icon, initials } from './icons.js';
 import { packPanel } from './pack.js';
 import { networkPanel } from './referral_network.js';
 
@@ -110,12 +111,13 @@ function referralDetail(area, referral, context, reload) {
     const showsPack = referral.side === 'receiver' && referral.pack_shared && PACK_STATUSES.includes(referral.status);
 
     show(area,
-        h('div', { class: 'sheet' },
-            h('div', { class: 'row' },
-                h('h2', { style: 'margin:0' }, `${referral.specialty} for ${referral.patient.first_name} ${referral.patient.last_name}`),
-                referral.priority === 'urgent' ? badge('urgent', 'bad') : badge('routine'),
-                badge(referral.status)),
-            (referral.exceptions || []).map((item) => h('div', { class: 'banner danger' }, item)),
+        h('section', { class: 'sheet referral-detail', 'aria-label': 'Referral' },
+            h('div', { class: 'section-head' },
+                h('h2', {}, `${referral.specialty} for ${referral.patient.first_name} ${referral.patient.last_name}`),
+                h('div', { class: 'row' },
+                    referral.priority === 'urgent' ? badge('Urgent', 'bad') : badge('Routine'),
+                    badge(STATUS_WORDS[referral.status] || referral.status, statusKind(referral)))),
+            (referral.exceptions || []).map((item) => h('div', { class: 'banner danger with-icon' }, icon('alert', 'button-icon'), h('span', {}, item))),
             referral.replaced_by ? h('p', {}, `Replaced by a referral to ${destinationName(referral.replaced_by)} (${referral.replaced_by.status.replaceAll('_', ' ')}). `,
                 h('button', { type: 'button', class: 'link-button', onclick: () => reload(referral.replaced_by.id) }, 'Open the new referral')) : null,
             referral.replaces ? h('p', {}, `Follows an earlier referral to ${destinationName(referral.replaces)}. `,
@@ -124,7 +126,7 @@ function referralDetail(area, referral, context, reload) {
             referral.clinical_question ? h('p', {}, h('strong', {}, 'Question: '), referral.clinical_question) : null,
             h('p', { class: 'muted' }, `From ${referral.referring_clinician}. Reply needed by ${when(referral.respond_by)}.${referral.manual_destination ? ` Sent to: ${referral.manual_destination}.` : ''}`),
             referral.documents?.length ? h('ul', {}, referral.documents.map((item) => h('li', {}, h('a', { href: `/api/documents/${item.id}/file` }, item.filename)))) : null,
-            showsPack ? h('div', { style: 'margin:8px 0' },
+            showsPack ? h('div', { class: 'detail-block' },
                 h('button', { type: 'button', class: 'quiet', onclick: async () => show(pack, await packPanel(referral.patient_id, context)) }, "Open the patient's pack"),
                 pack) : null,
             referral.appointments.length ? table(
@@ -135,28 +137,33 @@ function referralDetail(area, referral, context, reload) {
                 ],
                 referral.appointments,
             ) : null,
-            referral.outcome?.summary ? h('div', {}, h('h3', {}, 'Outcome'), h('p', {}, referral.outcome.summary), h('p', {}, referral.outcome.recommendations)) : null,
-            actions.length ? h('div', { class: 'row', style: 'margin-top:8px' }, actions.map(([status, label]) => h('button', { type: 'button', class: 'quiet', onclick: move(status) }, label))) : null,
+            referral.outcome?.summary ? h('div', { class: 'outcome-block' }, h('h3', {}, 'Outcome'), h('p', {}, referral.outcome.summary), h('p', {}, referral.outcome.recommendations)) : null,
+            actions.length ? h('div', { class: 'action-bar' },
+                h('p', { class: 'action-note' }, 'Next step for this referral'),
+                actions.map(([status, label], index) => h('button', { type: 'button', class: index === 0 ? 'primary-lg' : 'quiet', onclick: move(status) }, label))) : null,
             booking, outcome,
+            referral.side === 'referrer' && ['redirected', 'declined'].includes(referral.status) ? replacement(referral, context, reload) : null,
+            h('div', { class: 'detail-primary' },
+                referral.side === 'referrer' && referral.status === 'needs_information' ? h('button', { type: 'button', class: 'primary-lg', onclick: move('sent') }, 'Send again with the information') : null,
+                referral.side === 'referrer' && referral.status === 'outcome_returned' ? h('button', {
+                type: 'button',
+                class: 'primary-lg',
+                onclick: async () => {
+                    await act(() => api(`${BASE}/${referral.id}/review`, { method: 'POST', body: {} }), context, 'Referral closed');
+                    reload(referral.id);
+                },
+            }, 'I have reviewed this: close the referral') : null,
+            ),
+            h('div', { class: 'row detail-secondary' },
             canAct && open ? h('button', {
                 type: 'button',
-                class: 'link-button',
-                style: 'margin-top:8px',
+                class: 'link-button detail-link',
                 onclick: async () => {
                     const note = await ask('What happened on this contact attempt?') ?? '';
                     await act(() => api(`${BASE}/${referral.id}/contact-attempts`, { method: 'POST', body: { note } }), context, 'Attempt recorded');
                     reload(referral.id);
                 },
             }, `Record a contact attempt (${referral.contact_attempts} so far)`) : null,
-            referral.side === 'referrer' && ['redirected', 'declined'].includes(referral.status) ? replacement(referral, context, reload) : null,
-            referral.side === 'referrer' && referral.status === 'needs_information' ? h('button', { type: 'button', onclick: move('sent') }, 'Send again with the information') : null,
-            referral.side === 'referrer' && referral.status === 'outcome_returned' ? h('button', {
-                type: 'button',
-                onclick: async () => {
-                    await act(() => api(`${BASE}/${referral.id}/review`, { method: 'POST', body: {} }), context, 'Referral closed');
-                    reload(referral.id);
-                },
-            }, 'I have reviewed this: close the referral') : null,
             referral.side !== 'patient' && open ? h('details', { class: 'inline-details' },
                 h('summary', {}, 'Change priority'),
                 form(
@@ -174,8 +181,7 @@ function referralDetail(area, referral, context, reload) {
             // A returned outcome is closed by reviewing it, never by cancelling: the server refuses that too.
             referral.side === 'referrer' && open && referral.status !== 'outcome_returned' ? h('button', {
                 type: 'button',
-                class: 'link-button',
-                style: 'margin-left:12px',
+                class: 'link-button detail-link',
                 onclick: async () => {
                     const reason = await ask('Why is this referral closing without an outcome?');
                     if (!reason) return;
@@ -183,7 +189,8 @@ function referralDetail(area, referral, context, reload) {
                     reload(referral.id);
                 },
             }, 'Close without an outcome') : null,
-            h('details', { style: 'margin-top:12px' }, h('summary', {}, 'History'),
+            ),
+            h('details', { class: 'quiet-details' }, h('summary', {}, 'History'),
                 table(
                     [
                         { label: 'When', cell: (row) => when(row.created_at) },
@@ -195,19 +202,43 @@ function referralDetail(area, referral, context, reload) {
                 ))));
 }
 
-function list(rows, open) {
-    return table(
-        [
-            { label: 'Patient', cell: (row) => `${row.patient.first_name} ${row.patient.last_name}` },
-            { label: 'Specialty', cell: (row) => row.specialty },
-            { label: 'Priority', cell: (row) => (row.priority === 'urgent' ? badge('urgent', 'bad') : 'routine') },
-            { label: 'Status', cell: (row) => badge(row.status) },
-            { label: 'Reply by', cell: (row) => when(row.respond_by) },
-            { label: '', cell: (row) => h('button', { type: 'button', class: 'quiet', onclick: () => open(row.id) }, 'Open') },
+// Status words a person says, and how each one looks. Never colour alone: every tag is a word.
+const STATUS_WORDS = {
+    draft: 'Draft', sent: 'Sent', acknowledged: 'Acknowledged', accepted: 'Accepted', needs_information: 'Needs information',
+    declined: 'Declined', redirected: 'Redirected', appointment_offered: 'Appointment offered', booked: 'Booked',
+    rescheduled: 'Rescheduled', no_show: 'Did not attend', attended: 'Attended', outcome_returned: 'Outcome back',
+    closed: 'Closed', cancelled: 'Cancelled',
+};
+function statusKind(referral) {
+    if (['declined', 'redirected', 'no_show', 'needs_information'].includes(referral.status)) return 'warn';
+    if (['closed', 'attended', 'outcome_returned'].includes(referral.status)) return 'good';
+    return '';
+}
+const today = () => new Date().toISOString().slice(0, 10);
+const isOverdue = (row) => !['closed', 'cancelled'].includes(row.status) && Boolean(row.exceptions?.length) && row.respond_by < today();
+
+function referralRow(row, open) {
+    const overdue = isOverdue(row);
+    const chasing = !overdue && row.exceptions?.length;
+    const where = row.side === 'receiver' ? `From ${row.referring_clinician}` : `To ${destinationName(row)}`;
+    return listRow({
+        lead: overdue ? undefined : initials(`${row.patient.first_name} ${row.patient.last_name}`),
+        leadIcon: overdue ? 'clock' : undefined,
+        tone: overdue ? 'urgent' : chasing ? 'warn' : '',
+        title: `${row.patient.first_name} ${row.patient.last_name} · ${row.specialty}`,
+        meta: [where, `Reply by ${when(row.respond_by)}`, row.exceptions?.[0]].filter(Boolean).join(' · '),
+        tags: [
+            overdue ? h('span', { class: 'status bad' }, 'Overdue') : chasing ? h('span', { class: 'status warn' }, 'Needs chasing') : null,
+            row.priority === 'urgent' ? badge('Urgent', 'bad') : null,
+            badge(STATUS_WORDS[row.status] || row.status, statusKind(row)),
         ],
-        rows,
-        'None.',
-    );
+        onclick: () => open(row.id),
+        attrs: { 'aria-label': `Open the ${row.specialty} referral for ${row.patient.first_name} ${row.patient.last_name}${overdue ? ', overdue' : ''}` },
+    });
+}
+
+function list(rows, open, empty) {
+    return rowList(rows.map((row) => referralRow(row, open)), empty);
 }
 
 // One field with its label and a place for its own error, wired up for screen readers.
@@ -344,20 +375,36 @@ function newReferral(context, organizations, documents) {
 
 export async function renderReferrals(container, context) {
     const { patient, isClinician, isStaff } = context;
-    const area = h('div', {});
-    const lists = h('div', {});
+    const area = h('div', { class: 'stage-area' });
+    const lists = h('div', { class: 'referral-lists' }, loadingRows('Loading referrals…'));
     const networkBox = h('div', {});
+    // The open view survives a reload of the lists, so acting on a referral doesn't jump tabs.
+    let current = null;
     const loadLists = async () => {
-        const [rows, inbox, exceptions] = await Promise.all([
+        const [rows, sent, inbox, exceptions] = await Promise.all([
             patient ? api(`${BASE}/patients/${patient.id}`) : [],
+            api(`${BASE}/sent`),
             api(`${BASE}/inbox`),
             api(`${BASE}/exceptions`),
         ]);
+        const views = [
+            ...(patient ? [{ key: 'patient', label: `For ${patient.first_name}`, rows, empty: emptyState('No referrals for this patient', 'A referral you send for them appears here.') }] : []),
+            { key: 'sent', label: 'Sent', rows: sent, empty: emptyState('Nothing sent yet', 'Referrals you send appear here until they are closed.') },
+            { key: 'received', label: 'Received', rows: inbox, empty: emptyState('Nothing received', 'Referrals sent to you or your service appear here.') },
+            { key: 'overdue', label: 'Overdue', rows: exceptions, alert: exceptions.some(isOverdue), empty: emptyState('Nothing to chase', 'Every open referral is on track.') },
+            { key: 'outcomes', label: 'Outcome review', rows: sent.filter((row) => row.status === 'outcome_returned'), empty: emptyState('No outcomes to review', 'When a specialist returns an outcome, you review it here and close the loop.') },
+        ];
+        current = current || (patient ? 'patient' : exceptions.length ? 'overdue' : 'received');
+        const view = views.find((item) => item.key === current) || views[0];
         show(
             lists,
-            section('Needs chasing', list(exceptions, open)),
-            section('Received', list(inbox, open)),
-            patient ? section(`Referrals for ${patient.first_name}`, list(rows, open)) : null,
+            tabs(views.map((item) => ({ key: item.key, label: item.label, count: item.rows.length, alert: item.alert })), view.key, (key) => {
+                current = key;
+                loadLists().then(() => lists.querySelector(`[data-tab="${key}"]`)?.focus());
+            }, 'Referral lists'),
+            h('div', { class: 'tab-panel', role: 'tabpanel', 'aria-label': view.label },
+                view.key === 'overdue' && view.rows.length ? h('p', { class: 'muted' }, 'Open referrals past their reply-by date, or waiting on someone. Each row says why.') : null,
+                list(view.rows, open, view.empty)),
         );
     };
     const open = async (id) => {
@@ -376,15 +423,15 @@ export async function renderReferrals(container, context) {
             container,
             h('h1', {}, 'ReferralLoop'),
             h('p', { class: 'lede' }, 'Where your specialist referrals have got to.'),
-            patient ? table(
-                [
-                    { label: 'Specialty', cell: (row) => row.specialty },
-                    { label: 'Status', cell: (row) => badge(row.status) },
-                    { label: 'Appointment', cell: (row) => (row.appointments.at(-1) ? `${when(row.appointments.at(-1).scheduled_at)} ${row.appointments.at(-1).location}` : '') },
-                ],
-                patientRows,
-                'No referrals.',
-            ) : h('p', { class: 'empty' }, 'Open your record first.'),
+            patient ? rowList(patientRows.map((row) => {
+                const next = row.appointments.at(-1);
+                return listRow({
+                    leadIcon: 'referrals',
+                    title: row.specialty,
+                    meta: next ? `Appointment ${when(next.scheduled_at)}${next.location ? `, ${next.location}` : ''}` : 'No appointment yet',
+                    tags: [badge(STATUS_WORDS[row.status] || row.status, statusKind(row))],
+                });
+            }), emptyState('No referrals', 'When your doctor refers you to a specialist, it shows here.')) : emptyState('Open your record first', ''),
         );
         return undefined;
     }
@@ -394,12 +441,12 @@ export async function renderReferrals(container, context) {
         h('p', { class: 'lede' }, 'Follows a referral until the outcome is back and reviewed. Priority and timing stay your decision.'),
         // Sending a referral is why most people open this, so it comes first.
         writing
-            ? h('details', { class: 'sheet', id: 'new-referral', open: true }, h('summary', {}, h('h2', { style: 'display:inline' }, `New referral for ${patient.first_name}`)), newReferral(context, organizations, documents))
-            : h('p', { class: 'empty', id: 'new-referral-guard' }, patient ? 'Only a clinician on this patient\'s care team can send a referral.' : 'Open a patient to send a new referral. Referrals sent to you are listed below.'),
+            ? h('details', { class: 'sheet new-referral', id: 'new-referral', open: true }, h('summary', {}, h('h2', {}, `New referral for ${patient.first_name}`)), newReferral(context, organizations, documents))
+            : h('div', { class: 'empty', id: 'new-referral-guard' }, patient ? 'Only a clinician on this patient\'s care team can send a referral.' : 'Open a patient to send a new referral. Referrals sent to you are listed below.'),
         area,
         lists,
         context.config?.addons?.['referrals.network_view'] && h('details', { class: 'sheet referral-network' },
-            h('summary', {}, h('h2', { style: 'display:inline' }, 'Referral network (staff only)')), networkBox),
+            h('summary', {}, h('h2', {}, 'Referral network'), h('span', { class: 'status' }, 'Staff only')), networkBox),
     );
     await loadLists();
     if (context.config?.addons?.['referrals.network_view']) {

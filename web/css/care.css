@@ -638,6 +638,29 @@ button.quiet.chosen { background: var(--accent-soft); border-color: var(--accent
 .confirm-fields .action-note { margin: 0; }
 .confirm-fields label.inline-label input { width: auto; }
 
+/* ReferralLoop */
+details.sheet > summary h2 { display: inline; margin: 0; font-size: var(--text-lg); color: var(--text); }
+details.sheet > summary { gap: 10px; }
+details.sheet > summary .status { margin-left: auto; }
+.new-referral form.stack { margin-top: var(--space-4); }
+.referral-detail .action-bar, .stage-panel .action-bar.inline-bar { margin: var(--space-4) 0; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); box-shadow: none; padding: var(--space-3) var(--space-4); }
+.referral-detail .section-head { margin-top: 0; }
+.referral-detail .detail-link { margin: var(--space-2) var(--space-4) 0 0; }
+.referral-detail .detail-block, .referral-detail .outcome-block { margin: var(--space-3) 0; }
+.referral-detail .outcome-block { padding: var(--space-4); border-radius: var(--radius-md); background: var(--success-soft); color: var(--success-ink); }
+.referral-detail .outcome-block h3 { margin-top: 0; color: inherit; }
+.referral-detail .outcome-block p { color: var(--text); }
+.detail-primary { margin: var(--space-4) 0 var(--space-2); }
+.detail-primary:empty { display: none; }
+.detail-secondary { align-items: center; gap: 4px var(--space-5); margin: var(--space-3) 0; }
+.detail-secondary .detail-link { margin: 0; }
+.detail-secondary details.inline-details { margin: 0; }
+.detail-secondary details[open] { flex-basis: 100%; }
+.banner.with-icon { display: flex; align-items: flex-start; gap: 10px; }
+.banner.with-icon .button-icon { margin-top: 1px; }
+.referral-lists { margin-top: var(--space-6); }
+.referral-network { margin-top: var(--space-6); }
+
 /* DischargeCare */
 .who-to-call h2 { margin: 0 0 4px; }
 .who-to-call .call-line { font-size: var(--text-xl); font-weight: 700; margin: 4px 0; overflow-wrap: anywhere; }
@@ -781,6 +804,8 @@ button.big-done { min-height: 56px; min-width: 140px; font-size: var(--text-lg);
   .result-row { grid-template-columns: minmax(0, 1fr) auto; }
   .result-value { grid-column: 1 / -1; grid-row: 2; }
   .result-actions button { flex: 1 1 0; min-height: 44px; }
+  .tabs { flex-wrap: wrap; width: 100%; }
+  .tabs .tab { flex: 1 1 auto; justify-content: space-between; }
 }
 
 /* Touch: every target at least 44px (WCAG 2.5.8 asks 24; phones need more). Phone widths count as touch,
@@ -796,6 +821,7 @@ button.big-done { min-height: 56px; min-width: 140px; font-size: var(--text-lg);
   details > summary { min-height: 44px; }
   td button, .staff-alert button.quiet { min-height: 44px; }
   .tabs .tab { min-height: 44px; }
+  label.tick, fieldset.choice label.tick { min-height: 44px; }
   .link-button { display: inline-flex; align-items: center; min-height: 44px; }
 }
 
