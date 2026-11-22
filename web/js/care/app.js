@@ -220,9 +220,9 @@ async function refreshAlerts() {
         const node = h('div', { class: `staff-alert ${help ? 'help' : 'urgent'}` },
             icon(help ? 'help' : 'alert', 'alert-icon'),
             h('span', {}, item.body ? `${item.title}: ${item.body}` : item.title),
-            h('span', { class: 'spacer' }),
-            h('a', { href: `#/diagnofast/${item.intake_id}` }, 'Open'),
-            seen);
+            h('span', { class: 'alert-actions' },
+                h('a', { href: `#/diagnofast/${item.intake_id}` }, 'Open'),
+                seen));
         seen.addEventListener('click', async () => {
             await api(`/api/notifications/${item.id}/read`, { method: 'POST' }).catch(() => {});
             refreshAlerts();

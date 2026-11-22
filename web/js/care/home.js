@@ -2,6 +2,7 @@
 import { api, h, plural, show, when } from './ui.js';
 import { STAGES, canUse } from './catalogue.js';
 import { icon } from './icons.js';
+import { queueRow } from './diagnofast.js';
 
 export function toolList(context) {
     return h('div', { class: 'stages' }, STAGES.map((stage) => {
@@ -57,10 +58,8 @@ async function waitingRoom(context) {
     return h('div', { class: 'sheet' },
         h('h2', {}, 'Waiting room'),
         waiting.length
-            ? h('ul', { class: 'patient-list' }, waiting.map((intake) => h('li', {}, h('a', { class: 'patient-row', href: `#/diagnofast/${intake.id}` },
-                h('strong', {}, `${intake.urgent.length ? 'Urgent: ' : ''}${intake.patient_name}`),
-                h('span', { class: 'muted' }, when(intake.created_at))))))
-            : h('p', { class: 'muted' }, 'Nobody is waiting. Send a patient a DiagnoFast link to start their interview.'),
+            ? h('div', { class: 'queue-list' }, waiting.map(queueRow))
+            : h('div', { class: 'empty' }, h('strong', {}, 'Nobody is waiting'), 'Send a patient a DiagnoFast link to start their interview.'),
         h('p', {}, h('a', { href: '#/diagnofast' }, intakes.length > 5 ? `See all ${plural(intakes.length, 'patient')}` : 'Open DiagnoFast')));
 }
 
@@ -87,5 +86,7 @@ export function renderAccount(container, context) {
             h('dl', { class: 'facts-list' },
                 h('dt', {}, 'Name'), h('dd', {}, `${me.first_name} ${me.last_name}`),
                 h('dt', {}, 'Email'), h('dd', {}, me.email),
-                h('dt', {}, 'Account type'), h('dd', {}, me.role === 'doctor' ? 'Clinic staff' : 'Patient'))));
+                h('dt', {}, 'Account type'), h('dd', {}, me.role === 'doctor' ? 'Clinic staff' : 'Patient')),
+            // On a phone the header has no room for "Sign out", so it lives here too.
+            h('p', {}, h('button', { type: 'button', class: 'quiet', onclick: () => document.getElementById('sign-out').click() }, 'Sign out'))));
 }

@@ -312,7 +312,7 @@ function ageFrom(birthDate) {
 }
 
 // One queue row: who, when, and where the interview stands, in words as well as colour.
-function queueRow(intake) {
+export function queueRow(intake) {
     const urgent = intake.urgent.length > 0;
     const review = ['done', 'report_failed'].includes(intake.status) && !intake.reviewed;
     const stateTag = intake.reviewed ? h('span', { class: 'status good' }, 'Reviewed')

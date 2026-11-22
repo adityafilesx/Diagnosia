@@ -108,6 +108,7 @@ small { font-size: var(--text-sm); }
   font-size: var(--text-sm); font-weight: 560;
 }
 .account:hover { background: var(--surface-2); color: var(--text); }
+.account .account-name { white-space: nowrap; }
 .account .initials, .wristband .initials {
   display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
   background: var(--accent-soft); color: var(--accent-soft-ink); font-size: var(--text-xs); font-weight: 700;
@@ -130,9 +131,9 @@ small { font-size: var(--text-sm); }
 .wristband .facts { color: var(--text-muted); font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wristband .stack-lines { display: grid; min-width: 0; line-height: 1.3; }
 .wristband .no-patient { color: var(--text-muted); font-size: var(--text-sm); }
-.wristband select { width: auto; min-width: 200px; max-width: 280px; min-height: 36px; font-size: var(--text-sm); }
+.wristband select { width: auto; min-width: 170px; max-width: 260px; min-height: 36px; font-size: var(--text-sm); flex: 0 1 auto; }
 .allergy-band, .allergy-none {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-pill);
+  flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-pill);
   font-size: var(--text-xs); font-weight: 600; white-space: nowrap; max-width: 40ch; overflow: hidden; text-overflow: ellipsis;
 }
 .allergy-band { background: var(--danger-soft); color: var(--danger-ink); border: 1px solid var(--danger-border); }
@@ -142,17 +143,18 @@ small { font-size: var(--text-sm); }
 .staff-alerts { display: grid; gap: 1px; background: var(--danger-border); }
 .staff-alerts:empty { display: none; }
 .staff-alert {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--space-3);
-  padding: 9px clamp(16px, 2.6vw, 36px);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px var(--space-3);
+  padding: 8px clamp(16px, 2.6vw, 36px);
   background: var(--danger-soft); color: var(--danger-ink); font-size: var(--text-sm); font-weight: 560;
 }
 .staff-alert.help { background: var(--warning-soft); color: var(--warning-ink); }
 .staff-alert .alert-icon { width: 18px; height: 18px; flex: none; }
-.staff-alert .alert-kind { font-weight: 700; }
-.staff-alert .spacer { flex: 1; }
+.staff-alert .alert-actions { display: flex; align-items: center; gap: var(--space-3); }
 .staff-alert a { color: inherit; font-weight: 650; }
-.staff-alert button.quiet { min-height: 32px; padding: 4px 12px; color: inherit; border-color: currentColor; background: transparent; font-size: var(--text-sm); }
+.staff-alert button.quiet { min-height: 32px; padding: 4px 12px; color: inherit; border-color: currentColor; background: transparent; box-shadow: none; font-size: var(--text-sm); }
+.staff-alert button.quiet:hover:not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); color: inherit; }
 
+.chart > label:has(input[type="date"]) { max-width: 240px; margin-bottom: var(--space-5); }
 .chart { width: 100%; max-width: 1320px; padding: var(--space-8) clamp(16px, 3vw, 44px) 96px; outline: none; }
 .chart > h1 { margin-bottom: var(--space-2); }
 .chart > h1 + .lede, .lede { color: var(--text-muted); font-size: var(--text-md); max-width: 68ch; margin-bottom: var(--space-6); }
@@ -565,8 +567,12 @@ button.big-done { min-height: 56px; min-width: 140px; font-size: var(--text-lg);
 
 /* ---------- Responsive --------------------------------------------------------------------- */
 
+@media (max-width: 1360px) {
+  body:has(.wristband .who-block) .account .account-name, body:has(.wristband .who-block) .topbar-link.hide-small { display: none; }
+}
 @media (max-width: 1100px) {
   .app { grid-template-columns: 224px minmax(0, 1fr); }
+  .wristband .facts { display: none; }
   .queue-layout { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -583,7 +589,11 @@ button.big-done { min-height: 56px; min-width: 140px; font-size: var(--text-lg);
   .topbar-brand { display: inline-flex; }
   .topbar .wristband { order: 3; flex-basis: 100%; }
   .wristband select { min-width: 0; max-width: none; flex: 1; }
-  .topbar-actions .topbar-link.hide-small, .account .account-name { display: none; }
+  .topbar-actions .topbar-link.hide-small, .account .account-name, #sign-out { display: none; }
+  .wristband { flex-wrap: wrap; row-gap: 8px; }
+  .wristband select { flex: 1 1 150px; min-width: 150px; }
+  .staff-alert { grid-template-columns: auto minmax(0, 1fr); }
+  .staff-alert .alert-actions { grid-column: 2; }
   .chart { padding: var(--space-6) 16px 72px; }
   .split { grid-template-columns: minmax(0, 1fr); }
   .original { height: 440px; }
