@@ -317,7 +317,7 @@ def _ics(slots: List[dict]) -> str:
     now_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     events_str = []
     for item in slots:
-        uid = f"{uuid.uuid4().hex}@curai"
+        uid = f"{uuid.uuid4().hex}@diagnosia"
         clean_desc = (
             item["description"]
             .replace("\\", "\\\\")
@@ -349,7 +349,7 @@ def _ics(slots: List[dict]) -> str:
     return (
         "BEGIN:VCALENDAR\r\n"
         "VERSION:2.0\r\n"
-        "PRODID:-//Curai//Prescription Reminders//EN\r\n"
+        "PRODID:-//Diagnosia//Prescription Reminders//EN\r\n"
         "CALSCALE:GREGORIAN\r\n"
         "METHOD:PUBLISH\r\n"
         f"{events_block}\r\n"
@@ -540,7 +540,7 @@ def build_schedule(
             first_date = start + timedelta(days=first_day - 1)
             start_dt = datetime(first_date.year, first_date.month, first_date.day, hour, minute)
             dtstart_str = start_dt.strftime("%Y%m%dT%H%M%S")
-            title = f"{titles[slot]} - Curai"
+            title = f"{titles[slot]} - Diagnosia"
             if len(meds) and len({m["duration_days"] for m in meds}) > 1:
                 if last_day is None:
                     title += f" (from day {first_day})" if language != "hi-IN" else f" (दिन {first_day} से)"
@@ -566,7 +566,7 @@ def build_schedule(
             events.append(segment)
         slot_results[slot] = {
             "slot": slot,
-            "title": segments[0]["title"] if len(segments) == 1 else f"{titles[slot]} - Curai",
+            "title": segments[0]["title"] if len(segments) == 1 else f"{titles[slot]} - Diagnosia",
             "time": times[slot],
             "duration_days": segments[-1]["last_day"],
             "medicines": meds,

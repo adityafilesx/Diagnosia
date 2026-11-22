@@ -27,7 +27,7 @@ from backend import settings_store
 from backend.config import settings
 from backend.integrations import execution
 
-logger = logging.getLogger("curai")
+logger = logging.getLogger("diagnosia")
 # The provider and model that answered the last call in this request, for records that must name it.
 _answered_by: contextvars.ContextVar = contextvars.ContextVar("answered_by", default="")
 
@@ -243,7 +243,7 @@ def _ask_model(
 
 
 def cost(model: str, prompt_tokens: int, completion_tokens: int) -> Optional[float]:
-    """US dollars, from the operator's price table (CURAI_AI_PRICES). None when the model has no price."""
+    """US dollars, from the operator's price table (DIAGNOSIA_AI_PRICES). None when the model has no price."""
     price = settings.ai_prices.get(model)
     if not price:
         return None

@@ -42,7 +42,7 @@ function factsBlock(facts) {
         h('h3', { style: 'margin-top:0' }, 'Allergies'),
         facts.allergies.length
             ? h('ul', {}, facts.allergies.map((item) => h('li', {}, [item.substance, item.reaction, item.severity !== 'unknown' ? item.severity : ''].filter(Boolean).join(', '))))
-            : h('p', { class: 'muted' }, "None recorded in Curai. That doesn't mean there are none."),
+            : h('p', { class: 'muted' }, "None recorded in Diagnosia. That doesn't mean there are none."),
         h('h3', {}, 'Medicines the patient saved'),
         facts.medicines.length
             ? [h('ul', {}, facts.medicines.map((item) => h('li', {}, item))),
@@ -101,7 +101,7 @@ export async function packPanel(patientId, context) {
             ? h('ul', {}, pack.items.map((item) => h('li', {}, `${item.label}, ${when(item.created_at)}: ${STATE_WORDS[item.state]}`)))
             : h('p', { class: 'muted' }, 'Nothing yet.'));
     if (!pack.stored) {
-        return h('div', {}, h('p', { class: 'muted' }, "Records are kept in Curai only. A pack needs the patient's agreement."), list);
+        return h('div', {}, h('p', { class: 'muted' }, "Records are kept in Diagnosia only. A pack needs the patient's agreement."), list);
     }
     // The AI brief is held for regulatory review unless an administrator has switched it on.
     if (!isDoctor || !context?.config?.features?.patient_pack_brief) return h('div', {}, list);

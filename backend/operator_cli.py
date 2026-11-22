@@ -43,7 +43,7 @@ def generate_key(args) -> int:
         print("Choose a location outside the repository and away from stored documents.", file=sys.stderr)
         return 1
     _write_ring(path, {"active": "k1", "keys": {"k1": vault.new_key()}})
-    print(f"Created {path}. Set CURAI_DOCUMENT_KEY_FILE={path}")
+    print(f"Created {path}. Set DIAGNOSIA_DOCUMENT_KEY_FILE={path}")
     print("Back this file up separately from your data. Losing it makes stored documents unreadable.")
     return 0
 
@@ -362,7 +362,7 @@ def setup_local(args) -> int:
             _write_ring(key_path, {"active": "k1", "keys": {"k1": vault.new_key()}})
         settings.document_key_file = str(key_path)
         if args.env_file:
-            _env_line(Path(args.env_file), "CURAI_DOCUMENT_KEY_FILE", str(key_path))
+            _env_line(Path(args.env_file), "DIAGNOSIA_DOCUMENT_KEY_FILE", str(key_path))
     if args.env_file:
         _env_line(Path(args.env_file), "GROQ_API_KEY", "your-groq-key")
 
@@ -476,7 +476,7 @@ def integrations_validate(_args) -> int:
             print(f"Not tested live: {item.name} is {item.state}")
     if not live:
         return code
-    env = {**os.environ, "CURAI_LIVE_INTEGRATIONS": "1"}
+    env = {**os.environ, "DIAGNOSIA_LIVE_INTEGRATIONS": "1"}
     command_line = [sys.executable, "-m", "pytest", "-m", "live", "backend/tests/live/test_live_integrations.py", "-q", "-k", " or ".join(live)]
     return subprocess.run(command_line, env=env).returncode or code
 
@@ -590,7 +590,7 @@ def readiness(_args) -> int:
 
 
 def ai_usage(args) -> int:
-    """Tokens and, where CURAI_AI_PRICES has a price, approximate cost per tool over the last few days."""
+    """Tokens and, where DIAGNOSIA_AI_PRICES has a price, approximate cost per tool over the last few days."""
     from datetime import datetime, timedelta, timezone
 
     from backend import llm
@@ -674,7 +674,7 @@ def parser() -> argparse.ArgumentParser:
     command(
         "setup-local",
         setup_local,
-        (("--home",), {"default": "~/.curai"}),
+        (("--home",), {"default": "~/.diagnosia"}),
         (("--env-file",), {"default": ".env"}),
     )
     return root

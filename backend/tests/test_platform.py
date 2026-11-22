@@ -268,7 +268,7 @@ def test_setup_local_writes_env_lines_without_changing_others(client, tmp_path_f
     assert operator(["setup-local", "--home", str(home), "--env-file", str(env)]) == 0
     lines = env.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "KEEP_ME=1"
-    assert any(line.startswith("CURAI_DOCUMENT_KEY_FILE=") for line in lines)
+    assert any(line.startswith("DIAGNOSIA_DOCUMENT_KEY_FILE=") for line in lines)
     assert "GROQ_API_KEY=your-groq-key" in lines
 
 

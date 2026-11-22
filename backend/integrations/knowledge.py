@@ -1,4 +1,4 @@
-"""Puts Curai's shared knowledge into Meko, through its documented upload tool.
+"""Puts Diagnosia's shared knowledge into Meko, through its documented upload tool.
 
 The flow is the documented one: `knowledgebase_upload_document` gives a presigned URL, the file is
 posted to it, and `knowledgebase_document_status` is polled until indexing finishes. Files live in

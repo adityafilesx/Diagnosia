@@ -33,7 +33,7 @@ for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
 export async function api(path, options = {}) {
     const request = { method: options.method || 'GET', headers: {} };
     if (options.active || Date.now() - lastInput <= QUIET_AFTER_MS) lastCounted = Date.now();
-    else request.headers['X-Curai-Background'] = '1';
+    else request.headers['X-Diagnosia-Background'] = '1';
     if (options.form) {
         request.body = options.form;
     } else if (options.body !== undefined) {

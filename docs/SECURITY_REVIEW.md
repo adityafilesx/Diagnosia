@@ -17,9 +17,9 @@ automatically.
 | Referral scope | A receiver sees the referral and chosen files, not the record | Referral tests |
 | Cross-organization | Roles and staff decisions stop at the organization | Staff tests |
 | Consent revocation | Takes effect on the next request, for referral, document, inbox and new sends | `test_the_consent_revocation_reach` |
-| Sessions | Hashed tokens, server-side logout, expiry, suspended accounts lose sessions, 12-hour staff sessions, signed out after 30 idle minutes (`CURAI_SESSION_IDLE_MINUTES`; a page's own timed refreshes don't count as use) | Auth, security tests, `test_security_headers.py` |
-| Headers | A content-security-policy on every answer: strict on the workspace and the interview, inline scripts on the public pages allowed only by hash, nothing loadable from an API answer. HSTS when `CURAI_HTTPS=1` | `test_security_headers.py`; pages checked in Chromium at 390, 820 and 1280 px |
-| Cookies | HttpOnly, SameSite=Lax, Secure with `CURAI_HTTPS=1` | Security tests |
+| Sessions | Hashed tokens, server-side logout, expiry, suspended accounts lose sessions, 12-hour staff sessions, signed out after 30 idle minutes (`DIAGNOSIA_SESSION_IDLE_MINUTES`; a page's own timed refreshes don't count as use) | Auth, security tests, `test_security_headers.py` |
+| Headers | A content-security-policy on every answer: strict on the workspace and the interview, inline scripts on the public pages allowed only by hash, nothing loadable from an API answer. HSTS when `DIAGNOSIA_HTTPS=1` | `test_security_headers.py`; pages checked in Chromium at 390, 820 and 1280 px |
+| Cookies | HttpOnly, SameSite=Lax, Secure with `DIAGNOSIA_HTTPS=1` | Security tests |
 | CSRF | Origin and Sec-Fetch-Site checked on writes, plus SameSite | Security tests |
 | CareFlow access | Each read is limited to workflows the person can open in SQLite, so a store can't widen access. Revocation applies at once | CareFlow tests |
 | Sign-in redirect | Only paths inside the workspace are accepted, so a crafted link can't send someone elsewhere | Site test |
@@ -61,7 +61,7 @@ automatically.
 | Audit triggers stop the application, not someone with file access. Logs need shipping off the host | S1 | Infrastructure |
 | A suspended account is suspended everywhere, by any organization it belongs to | S2 | Product decision |
 | Throttling is per email, not per address | S2 | Technical work |
-| The idle timeout also signs out an unattended staff screen, which then stops showing urgent-interview alerts and shows the sign-in page instead | S2 | Raise `CURAI_SESSION_IDLE_MINUTES` on a reception or desk screen kept open for alerts, or decide on a reception role |
+| The idle timeout also signs out an unattended staff screen, which then stops showing urgent-interview alerts and shows the sign-in page instead | S2 | Raise `DIAGNOSIA_SESSION_IDLE_MINUTES` on a reception or desk screen kept open for alerts, or decide on a reception role |
 | An open CareFlow stream keeps its workflow list until it reconnects. It only ever says that something changed, and the reload rechecks access | S3 | Accepted |
 | CareFlow's references are pseudonymous, but event timing could still identify someone to a person who knows the visit | S2 | Keep to synthetic data, and review before any real use |
 | DiagnoFast links are bearer tokens in a URL, so they appear in server access logs until used | S2 | Set log retention. A link serves one interview and expires after 24 hours unopened, or 2 hours once started |

@@ -10,7 +10,7 @@ clinical_content: none
 
 # Handoffs between tools
 
-No tool produces a handoff in Curai today. The handoff support stays in place for a future tool, so an agent must not assume any handoff exists.
+No tool produces a handoff in Diagnosia today. The handoff support stays in place for a future tool, so an agent must not assume any handoff exists.
 
 ## Rules for the receiving tool
 

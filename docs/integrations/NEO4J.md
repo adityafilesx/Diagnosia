@@ -100,7 +100,7 @@ Settings: `NEO4J_URI` (for example `neo4j://127.0.0.1:7687`; empty means Neo4j i
 
 ## Live check (22 November 2026)
 
-`CURAI_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_neo4j.py -s`, against
+`DIAGNOSIA_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_neo4j.py -s`, against
 `neo4j:5.26-community` in Docker on this machine, with made-up data only: 12 of 12 passed.
 
 - Loading the question graph twice leaves the node and relationship counts unchanged.
@@ -124,4 +124,4 @@ evidence 47 ms and department votes 35 ms.
 Tests never need a Neo4j server. `backend/integrations/graph.py` talks to Neo4j through a small client
 with a few named methods (`merge_rows`, `next_questions`, `history`, `evidence`). The tests swap in an
 in-memory fake client, the same way `llm.ask` and `speech` are faked. One optional live test runs only
-with `CURAI_LIVE_TESTS=1` and a local server.
+with `DIAGNOSIA_LIVE_TESTS=1` and a local server.

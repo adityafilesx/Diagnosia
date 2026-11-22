@@ -1,8 +1,8 @@
-# Curai
+# Diagnosia
 
 > **An AI-powered healthcare platform that brings patient records, medical history and clinical tools together in one place.**
 
-Curai helps doctors make better-informed decisions and manage their
+Diagnosia helps doctors make better-informed decisions and manage their
 workflows more efficiently. The goal is to make healthcare more connected,
 organised and intelligent.
 
@@ -140,7 +140,7 @@ deleted on signing unless the patient agreed to keep it.
 ### LabLens: lab reports become results a person confirms
 
 A patient or clinician uploads a lab report as a PDF or photo. LabLens reads
-text PDFs on Curai's own server and uses an AI vision model only for scans,
+text PDFs on Diagnosia's own server and uses an AI vision model only for scans,
 with consent. Each value is checked for an unclear unit, a missing range or a
 flag that disagrees with the range. A person compares every result with the
 original before it reaches the record. Confirmed results build trends over
@@ -190,14 +190,14 @@ calls for staff.
 - **Security.** Passwords use Argon2, sessions are stored hashed, documents and
   recordings are encrypted, and every SQL query is parameterised. Public routes
   are rate-limited.
-- **Not approved for real patient data.** Curai is a pilot and uses made-up
+- **Not approved for real patient data.** Diagnosia is a pilot and uses made-up
   patients only. The AI vendors (Groq in the United States, Google Gemini) have
-  no signed data agreement with Curai yet, and privacy, security and
+  no signed data agreement with Diagnosia yet, and privacy, security and
   regulatory reviews are still to come.
 
 ---
 
-## 7. Who Curai is for
+## 7. Who Diagnosia is for
 
 | Customer | What they get |
 |---|---|
@@ -209,7 +209,7 @@ calls for staff.
 
 ## 8. Current status
 
-Curai began as a school project in 2023 and is being rebuilt as a startup.
+Diagnosia began as a school project in 2023 and is being rebuilt as a startup.
 
 | Tool | Status |
 |---|---|
@@ -240,6 +240,6 @@ Curai began as a school project in 2023 and is being rebuilt as a startup.
 
 <div align="center">
 
-**Curai: connected, organised and intelligent care.**
+**Diagnosia: connected, organised and intelligent care.**
 
 </div>

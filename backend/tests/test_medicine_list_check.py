@@ -110,5 +110,5 @@ def test_the_config_and_readyz_are_quiet_when_the_list_is_there(client, details,
 def test_the_list_can_live_somewhere_else(monkeypatch):
     from backend.config import Settings
 
-    monkeypatch.setenv("CURAI_MEDICINE_LIST", str(FIXTURE))
+    monkeypatch.setenv("DIAGNOSIA_MEDICINE_LIST", str(FIXTURE))
     assert Settings().medicine_list == FIXTURE

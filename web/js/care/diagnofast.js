@@ -138,7 +138,7 @@ export function reportView(detail, context) {
     }
     return h('article', { class: 'sheet requisition' },
         h('header', { class: 'requisition-header' },
-            h('div', {}, h('p', { class: 'requisition-brand' }, 'CURAI / DIAGNOFAST'),
+            h('div', {}, h('p', { class: 'requisition-brand' }, 'DIAGNOSIA / DIAGNOFAST'),
                 h('h2', {}, 'Clinical intake requisition'),
                 h('p', { class: 'muted' }, 'Pre-consultation history · For physician review')),
             barcode(detail.id)),
@@ -235,7 +235,7 @@ export function preparePrintReport(container, detail) {
     };
     const section = (title) => entries.push(h('h3', {}, title));
     entries.push(h('div', { class: 'intake-print-header' },
-        h('div', {}, h('strong', {}, 'CURAI / DIAGNOFAST'), h('h2', {}, 'Clinical intake summary'),
+        h('div', {}, h('strong', {}, 'DIAGNOSIA / DIAGNOFAST'), h('h2', {}, 'Clinical intake summary'),
             h('span', {}, 'AI-generated intake summary · clinician review required')), barcode(detail.id)));
     add('Patient', patient.name);
     add('Age / sex', `${patient.age ?? 'Not stated'} / ${patient.sex || 'Not stated'}`);

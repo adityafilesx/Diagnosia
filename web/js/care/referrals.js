@@ -250,7 +250,7 @@ function newReferral(context, organizations, documents) {
     const choice = (value, label) => h('label', { class: 'tick' }, h('input', { type: 'radio', name: 'destination', value, required: true }), label);
     const destination = h('fieldset', { class: 'choice', 'aria-describedby': 'referral-destination-error' },
         h('legend', {}, 'Send to'),
-        choice('service', 'A service on Curai'),
+        choice('service', 'A service on Diagnosia'),
         choice('manual', 'By phone, fax or paper'),
         destinationError);
     service.element.hidden = true;

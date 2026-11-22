@@ -93,7 +93,7 @@ Don't switch this on for real patients until all of these are done:
 `backend/tests/test_patient_pack.py` needs no keys. `FakeMcp` uses Meko's real tool schemas, saved in `backend/tests/meko_tools.json`.
 
 ```bash
-CURAI_LIVE_INTEGRATIONS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_patient_pack.py
+DIAGNOSIA_LIVE_INTEGRATIONS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_patient_pack.py
 ```
 
 The live test checks those saved schemas against the server, then runs one made-up patient from a signed note to erasure on real Meko and real AI. It uses up one datapack slot each run.

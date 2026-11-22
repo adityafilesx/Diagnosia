@@ -126,7 +126,7 @@ function saveButton(readingId, confirmed) {
 function downloadIcs(icsText) {
     const blob = new Blob([icsText], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const link = h('a', { href: url, download: 'curai-schedule.ics' });
+    const link = h('a', { href: url, download: 'diagnosia-schedule.ics' });
     document.body.append(link);
     link.click();
     link.remove();
@@ -229,7 +229,7 @@ function resultsView(data, language, reading, confirmed) {
 
 // The same words and version as backend/records/consent.py (a test checks they match).
 const CONSENT_VERSION = '2026-11-21';
-const CONSENT_TEXT = "I agree to my photo being sent to outside AI services to read it. Curai doesn't keep the photo.";
+const CONSENT_TEXT = "I agree to my photo being sent to outside AI services to read it. Diagnosia doesn't keep the photo.";
 
 const NO_LIST = "Medicine names can't be checked against a list on this server right now, so a misread name won't be flagged. Compare every name with your prescription, and ask your pharmacist if any looks wrong.";
 

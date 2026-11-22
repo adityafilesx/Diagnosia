@@ -113,7 +113,7 @@ class CareEvent(BaseModel):
     event_type: str
     module: str
     workflow_stage: str
-    source_system: Literal["curai"] = "curai"
+    source_system: Literal["diagnosia"] = "diagnosia"
     source_operation: str
     source_ref: Optional[str] = None
     workflow_ref: str
@@ -188,7 +188,7 @@ def upgrade(event: dict) -> dict:
         **event,
         "schema_version": SCHEMA_VERSION,
         "workflow_stage": WORKFLOW_STAGES.get(event["module"], "programme"),
-        "source_system": "curai",
+        "source_system": "diagnosia",
         "source_operation": event["event_type"],
         "source_ref": None,
     }

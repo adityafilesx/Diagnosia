@@ -22,7 +22,7 @@ from backend.prescription.analyzer import prepare_photo
 from backend.records import care, documents
 from backend.records.store import dumps, insert, one, update
 
-logger = logging.getLogger("curai")
+logger = logging.getLogger("diagnosia")
 MODULE = "LabLens"
 
 MAX_PAGES = 30

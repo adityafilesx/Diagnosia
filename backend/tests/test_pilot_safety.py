@@ -112,17 +112,17 @@ def test_a_public_demo_must_say_so_explicitly(db, monkeypatch):
     ("production", "1", True), ("development", "0", False),
 ])
 def test_demo_mode_is_only_on_by_default_in_development(monkeypatch, environment, setting, expected):
-    monkeypatch.setenv("CURAI_ENV", environment)
+    monkeypatch.setenv("DIAGNOSIA_ENV", environment)
     if setting is None:
-        monkeypatch.delenv("CURAI_DEMO_MODE", raising=False)
+        monkeypatch.delenv("DIAGNOSIA_DEMO_MODE", raising=False)
     else:
-        monkeypatch.setenv("CURAI_DEMO_MODE", setting)
+        monkeypatch.setenv("DIAGNOSIA_DEMO_MODE", setting)
     assert Settings().demo_mode is expected
 
 
 def test_demo_settings_are_announced_at_startup(db, monkeypatch, caplog):
     monkeypatch.setattr(settings, "demo_mode", True)
-    with caplog.at_level("WARNING", logger="curai.safety"):
+    with caplog.at_level("WARNING", logger="diagnosia.safety"):
         safety.assert_safe_to_start(db)
     assert "DEMO SETTINGS ON" in caplog.text
 

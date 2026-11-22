@@ -146,7 +146,7 @@ async function render() {
     const routeChanged = window.location.hash !== lastRoute;
     lastRoute = window.location.hash;
     const label = TOOLS[name]?.label ?? LABELS[name];
-    document.title = name === 'home' ? 'Curai' : `${label}: Curai`;
+    document.title = name === 'home' ? 'Diagnosia' : `${label}: Diagnosia`;
     loading(main);
     if (SWITCHED_TOOLS.includes(name) && !state.config.tools.includes(name)) {
         show(main, h('h1', {}, label), h('p', { class: 'empty' }, 'This tool is switched off. An administrator can turn it on in Settings.'));

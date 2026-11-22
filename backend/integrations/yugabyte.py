@@ -1,6 +1,6 @@
 """Technical execution metadata in a separately provisioned YugabyteDB, through YSQL.
 
-This is Curai's own database, and has nothing to do with the YugabyteDB inside Meko, which is
+This is Diagnosia's own database, and has nothing to do with the YugabyteDB inside Meko, which is
 never connected to. It sits outside every request path: only the delivery worker writes to it, so
 an outage can't touch a clinical workflow.
 

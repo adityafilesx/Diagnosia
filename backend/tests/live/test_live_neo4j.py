@@ -1,6 +1,6 @@
 """Real Neo4j, with made-up data only. Off unless asked for.
 
-    CURAI_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_neo4j.py -s
+    DIAGNOSIA_LIVE_TESTS=1 .venv/bin/python -m pytest -m live backend/tests/live/test_live_neo4j.py -s
 
 Needs the local server from docker-compose.integrations.yml and NEO4J_URI, NEO4J_USER and NEO4J_PASSWORD in
 .env. It loads the question graph, compares the real next-question order with the in-memory fake the
@@ -18,14 +18,14 @@ from backend.integrations import graph
 from backend.tests.fake_graph import FakeGraph
 
 pytestmark = pytest.mark.live
-ENABLED = os.environ.get("CURAI_LIVE_TESTS") == "1"
+ENABLED = os.environ.get("DIAGNOSIA_LIVE_TESTS") == "1"
 TIMINGS = {}
 
 
 @pytest.fixture(scope="module")
 def real():
     if not ENABLED:
-        pytest.skip("Set CURAI_LIVE_TESTS=1")
+        pytest.skip("Set DIAGNOSIA_LIVE_TESTS=1")
     if not (settings.neo4j_uri and settings.neo4j_api_key):
         pytest.fail("BLOCKED_MISSING_CREDENTIALS: NEO4J_URI and NEO4J_PASSWORD")
     from neo4j import GraphDatabase

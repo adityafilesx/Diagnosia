@@ -4,7 +4,7 @@ A local MongoDB isn't Atlas, and PostgreSQL isn't YugabyteDB. They check that ou
 validators and Change Stream code work against a real server, before any cloud service is involved.
 
     LOCAL_MONGODB_URI='mongodb://127.0.0.1:37017/?directConnection=true' \\
-    LOCAL_POSTGRES_DSN='postgresql://postgres:synthetic_only@127.0.0.1:55433/curai_exec' \\
+    LOCAL_POSTGRES_DSN='postgresql://postgres:synthetic_only@127.0.0.1:55433/diagnosia_exec' \\
         .venv/bin/python -m pytest -m local_stack backend/tests/local_stack
 """
 import os
@@ -29,7 +29,7 @@ def local_mongo():
     from pymongo import MongoClient
 
     client = MongoClient(uri, serverSelectionTimeoutMS=5000, tz_aware=True)
-    name = f"curai_local_{uuid.uuid4().hex[:8]}"
+    name = f"diagnosia_local_{uuid.uuid4().hex[:8]}"
     store = stores.MongoEventStore(client[name], stores.deployment_name([host for host, _port in (client.admin.command("ping"), client.nodes)[1]]))
     store.bootstrap()
     yield store

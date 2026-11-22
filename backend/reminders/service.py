@@ -13,7 +13,7 @@ from backend.records import audit, care
 from backend.records.store import insert, now_iso, one, rows, update
 from backend.reminders import adapters
 
-logger = logging.getLogger("curai")
+logger = logging.getLogger("diagnosia")
 
 EXTERNAL_CHANNELS = ("sms", "voice")
 

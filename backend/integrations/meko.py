@@ -27,8 +27,8 @@ logger = logging.getLogger("curai.integrations")
 PROTOCOL_VERSION = "2025-06-18"
 TIMEOUT_SECONDS = 15
 MAX_ATTEMPTS = 2
-AGENT_ID = "curai-careflow"
-USER_AGENT = "curai-careflow/1.0"
+AGENT_ID = "diagnosia-careflow"
+USER_AGENT = "diagnosia-careflow/1.0"
 JSON_TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list, "object": dict}
 CONTEXT_REF = re.compile(r"^[A-Za-z0-9_:.-]{1,120}$")
 ACCESS_ERRORS = {"datapack_access_denied", "FORBIDDEN", "UNAUTHORIZED"}
@@ -114,7 +114,7 @@ class MekoClient:
     def _connect(self) -> None:
         if self._tools is not None:
             return
-        started = self._rpc("initialize", {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "curai", "version": "1.0"}})
+        started = self._rpc("initialize", {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "diagnosia", "version": "1.0"}})
         self._protocol = started.get("protocolVersion", PROTOCOL_VERSION)
         try:
             self._post(self.url, headers=self._headers(), json={"jsonrpc": "2.0", "method": "notifications/initialized"}, timeout=TIMEOUT_SECONDS)
@@ -166,7 +166,7 @@ class MekoClient:
         """Meko needs one on nearly every call, for tracing. One per process works across datapacks and
         spares the monthly conversation limit. Nothing is ever written into it."""
         if self._conversation is None:
-            created = self.call("conversation_create", title="Curai service", agent_id=AGENT_ID)
+            created = self.call("conversation_create", title="Diagnosia service", agent_id=AGENT_ID)
             identifier = created.get("id") if isinstance(created, dict) else None
             if not identifier:
                 raise MekoUnavailable("no conversation id")
@@ -206,7 +206,7 @@ class MekoClient:
         )
         saved = self.remember(
             text,
-            {"schema_version": handoff["schema_version"], "kind": "handoff", "provenance": "curai-careflow", "knowledge_found": knowledge_found},
+            {"schema_version": handoff["schema_version"], "kind": "handoff", "provenance": "diagnosia-careflow", "knowledge_found": knowledge_found},
             handoff["correlation_id"],
         )
         return _reference_from(saved, handoff["handoff_id"])
